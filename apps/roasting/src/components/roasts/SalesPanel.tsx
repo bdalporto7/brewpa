@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { Coffee } from "lucide-react";
-import { recordSale, deleteSale } from "@/lib/actions";
+import { recordSale, deleteSale, adjustRoastedStock, setRoastedStock } from "@/lib/actions";
 import ActionForm from "@/components/ActionForm";
 import DeleteButton from "@/components/DeleteButton";
+import StockAdjuster from "@/components/StockAdjuster";
 import Button from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import type { Friend, Sale } from "@prisma/client";
@@ -26,7 +27,13 @@ export default function SalesPanel({
           <Coffee className="h-3.5 w-3.5" />
           Drops
         </span>
-        <span className="font-mono text-xs text-muted">{roastedRemainingGrams}g left</span>
+        <StockAdjuster
+          currentGrams={roastedRemainingGrams}
+          unitLabel="left"
+          onAdd={adjustRoastedStock.bind(null, roastSessionId, "add")}
+          onRemove={adjustRoastedStock.bind(null, roastSessionId, "remove")}
+          onSet={setRoastedStock.bind(null, roastSessionId)}
+        />
       </div>
 
       {roastedRemainingGrams > 0 ? (

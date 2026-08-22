@@ -55,6 +55,7 @@ export async function createBean(formData: FormData) {
       producer: str(formData, "producer"),
       variety: str(formData, "variety"),
       supplier: str(formData, "supplier"),
+      supplierUrl: str(formData, "supplierUrl"),
       purchasePrice: num(formData, "purchasePrice"),
       notes: str(formData, "notes"),
     },
@@ -82,9 +83,52 @@ export async function updateBean(id: string, formData: FormData) {
       producer: str(formData, "producer"),
       variety: str(formData, "variety"),
       supplier: str(formData, "supplier"),
+      supplierUrl: str(formData, "supplierUrl"),
       purchasePrice: num(formData, "purchasePrice"),
       notes: str(formData, "notes"),
     },
+  });
+
+  revalidatePath("/beans");
+  revalidatePath("/");
+}
+
+export async function adjustBeanStock(beanId: string, direction: "add" | "remove", amount: number) {
+  if (amount <= 0) throw new Error("Amount must be positive.");
+
+  // Add/remove shifts the total right along with the remaining amount — this
+  // represents coffee genuinely entering or leaving your possession (another
+  // bag arrived, some spoiled/got lost), so the gap between total and
+  // remaining — how much has gone through a roast — stays put. That gap only
+  // ever moves via roast actions (startRoast/deleteRoastSession), never here.
+  // "Set exact" (setBeanStock) is the other kind of correction — a recount
+  // that only touches remainingGrams, deliberately not total.
+  await prisma.$transaction(async (tx) => {
+    const bean = await tx.bean.findUniqueOrThrow({ where: { id: beanId } });
+    const delta = direction === "add" ? amount : -amount;
+    const nextRemaining = bean.remainingGrams + delta;
+    if (nextRemaining < 0) {
+      throw new Error(`Only ${bean.remainingGrams}g left — can't remove ${amount}g.`);
+    }
+    await tx.bean.update({
+      where: { id: beanId },
+      data: {
+        remainingGrams: Math.round(nextRemaining * 10) / 10,
+        weightGrams: Math.round((bean.weightGrams + delta) * 10) / 10,
+      },
+    });
+  });
+
+  revalidatePath("/beans");
+  revalidatePath("/");
+}
+
+export async function setBeanStock(beanId: string, amount: number) {
+  if (amount < 0) throw new Error("Remaining stock can't be negative.");
+
+  await prisma.bean.update({
+    where: { id: beanId },
+    data: { remainingGrams: Math.round(amount * 10) / 10 },
   });
 
   revalidatePath("/beans");
@@ -277,6 +321,54 @@ export async function endRoast(roastSessionId: string, formData: FormData) {
 
   revalidatePath(`/roasts/${roastSessionId}`);
   revalidatePath("/roasts");
+  revalidatePath("/");
+}
+
+export async function adjustRoastedStock(
+  roastSessionId: string,
+  direction: "add" | "remove",
+  amount: number
+) {
+  if (amount <= 0) throw new Error("Amount must be positive.");
+
+  // Same model as adjustBeanStock: add/remove shifts the total (roastedWeightGrams)
+  // right along with the remaining amount, keeping "how much has been dropped"
+  // unchanged. Set exact (setRoastedStock) only touches remaining.
+  await prisma.$transaction(async (tx) => {
+    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const currentRemaining = session.roastedRemainingGrams ?? 0;
+    const currentTotal = session.roastedWeightGrams ?? 0;
+    const delta = direction === "add" ? amount : -amount;
+    const nextRemaining = currentRemaining + delta;
+    if (nextRemaining < 0) {
+      throw new Error(`Only ${currentRemaining}g left — can't remove ${amount}g.`);
+    }
+    await tx.roastSession.update({
+      where: { id: roastSessionId },
+      data: {
+        roastedRemainingGrams: Math.round(nextRemaining * 10) / 10,
+        roastedWeightGrams: Math.round((currentTotal + delta) * 10) / 10,
+      },
+    });
+  });
+
+  revalidatePath(`/roasts/${roastSessionId}`);
+  revalidatePath("/roasts");
+  revalidatePath("/beans");
+  revalidatePath("/");
+}
+
+export async function setRoastedStock(roastSessionId: string, amount: number) {
+  if (amount < 0) throw new Error("Remaining stock can't be negative.");
+
+  await prisma.roastSession.update({
+    where: { id: roastSessionId },
+    data: { roastedRemainingGrams: Math.round(amount * 10) / 10 },
+  });
+
+  revalidatePath(`/roasts/${roastSessionId}`);
+  revalidatePath("/roasts");
+  revalidatePath("/beans");
   revalidatePath("/");
 }
 

@@ -47,7 +47,10 @@ dial, no digital output of its own. Scope, current priority order:
 
 1. **Bean & inventory tracking** — green bean stock, sourcing/lot info, and
    how much of a batch got used per roast, so inventory drops when a roast
-   starts. Built (`/beans`, full add/edit/delete).
+   starts. Built (`/beans` list — 4 sections, In/Out of Stock × Green/Roasted,
+   one card per *bean* in every section including Roasted, which aggregates
+   across that bean's roast sessions rather than listing each one; `/beans/[id]`
+   for full detail — green stock, aggregate roasted stock, every past roast).
 2. **Live roast sessions** — the core of the app. Starting a roast starts an
    on-screen timer; while it runs, the roaster (the person) logs events in
    real time as they happen: fan level changes, heat level changes,
@@ -101,27 +104,51 @@ should assume it.
 **Stack:** Next.js 15 (App Router) + TypeScript + Tailwind CSS v4 + Prisma 6 +
 SQLite, using Server Actions for mutations (no separate REST API layer — see
 `src/lib/actions.ts`). Matches what `archive/coffee-journal` already proved
-out in this repo. Prisma models: `Bean` (green bean inventory, with
-`remainingGrams` tracked separately from `weightGrams`; editable via
-`updateBean` — name/origin/process/etc. only, deliberately not `weightGrams`/
-`remainingGrams`, which only move through roast actions so the math can't
-drift), `RoastSession` (one roast against a `Bean` — `startedAt`/`endedAt`,
-green weight, final roasted weight, roast level, and rating; green stock is
-decremented when a session starts and restored if it's deleted or abandoned),
-and `RoastEvent` (a timestamped log entry within a session — `atSeconds`
-elapsed, a `type` — including `DRY_END`, the drying/Maillard boundary, see
-"Roast phases & tips" below — and whichever of `fanLevel` / `heatLevel` /
-`tempFahrenheit` / `note` applies to that type).
+out in this repo. Prisma models: `Bean` (green bean inventory —
+`remainingGrams` tracked separately from `weightGrams`; `updateBean` edits
+the descriptive fields — name/origin/process/`supplierUrl`/etc. — but not
+either weight; `weightGrams` (total purchased) still only moves via
+`createBean`, while `remainingGrams` moves via roast actions *or* the manual
+`StockAdjuster` below, deliberately kept as two different mechanisms so
+automatic roast-driven bookkeeping and manual human correction don't fight
+each other silently), `RoastSession` (one roast against a `Bean` —
+`startedAt`/`endedAt`, green weight, final roasted weight, roast level, and
+rating; green stock is decremented when a session starts and restored if
+it's deleted or abandoned), and `RoastEvent` (a timestamped log entry within
+a session — `atSeconds` elapsed, a `type` — including `DRY_END`, the
+drying/Maillard boundary, see "Roast phases & tips" below — and whichever of
+`fanLevel` / `heatLevel` / `tempFahrenheit` / `note` applies to that type).
+
+**Manual stock correction (`StockAdjuster.tsx`):** both `Bean.remainingGrams`
+and `RoastSession.roastedRemainingGrams` can be corrected by hand — on
+`BeanCard`/the bean detail page for green, in `SalesPanel` for roasted.
+Add/remove (a delta) is the primary interaction, since that's how a roaster
+actually thinks about it ("used 12g", "another bag came in") — "set exact
+amount" is a secondary fallback for full recounts. The two modes are
+deliberately **not** the same operation with different framing:
+- **Add/remove** (`adjustBeanStock`/`adjustRoastedStock`) moves the total
+  (`weightGrams`/`roastedWeightGrams`) by the same delta as remaining, so the
+  gap between them — how much has actually gone through a roast, or been
+  dropped — stays fixed. This is coffee genuinely entering or leaving your
+  possession: another bag arrived, some spoiled, you brewed 12g at home. It
+  is *not* what a roast starting/ending does — that's a different code path
+  (`startRoast`/`endRoast`) that only ever touches remaining, since roasting
+  doesn't remove coffee from existence, it converts it.
+- **Set exact** (`setBeanStock`/`setRoastedStock`) only touches remaining —
+  a recount says "I currently have exactly X," which says nothing about how
+  big the original purchase/roast was.
+
+Both paths reject a negative result with a clear error rather than clamping
+silently. This is also how the "used 20g for a brew, no money changed hands"
+gap (noted below under Sales) gets covered in practice — just remove that
+amount directly rather than logging a `Sale` with no buyer.
 
 **Roasted-coffee stock:** ending a roast (`endRoast`) sets
 `RoastSession.roastedRemainingGrams` to the entered `roastedWeightGrams` —
 green weight moves out of `Bean.remainingGrams` at roast *start*, roasted
 weight moves into `RoastSession.roastedRemainingGrams` at roast *end*. Each
 roast session is its own roasted-stock ledger entry (no separate model) since
-roasted coffee is roast-specific, not blended across sessions. The
-consumption/drawdown side of this is `Sale` (below) — the "used 20g for a
-brew, no money changed hands" case still isn't covered; extend `Sale` or add
-a similar action if that need comes up.
+roasted coffee is roast-specific, not blended across sessions.
 
 **Sales ("drops"):** a `Sale` is roasted coffee given/sold to a `Friend` from
 one `RoastSession` — `weightGrams`, optional `friendId`/`price`/`notes`,

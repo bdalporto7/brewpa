@@ -1,23 +1,33 @@
 import { prisma } from "@/lib/prisma";
 import BeanForm from "@/components/BeanForm";
 import BeanCard from "@/components/BeanCard";
-import RoastSessionCard from "@/components/roasts/RoastSessionCard";
+import BeanRoastedSummaryCard from "@/components/BeanRoastedSummaryCard";
 import Section from "@/components/Section";
 
 export default async function BeansPage() {
-  const [beans, roastedSessions] = await Promise.all([
-    prisma.bean.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.roastSession.findMany({
-      where: { endedAt: { not: null }, roastedWeightGrams: { not: null } },
-      include: { bean: true },
-      orderBy: { startedAt: "desc" },
-    }),
-  ]);
+  const beans = await prisma.bean.findMany({
+    include: {
+      roastSessions: {
+        where: { endedAt: { not: null }, roastedWeightGrams: { not: null } },
+        select: { roastedWeightGrams: true, roastedRemainingGrams: true },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
 
   const inStockGreen = beans.filter((b) => b.remainingGrams > 0);
   const outOfStockGreen = beans.filter((b) => b.remainingGrams <= 0);
-  const inStockRoasted = roastedSessions.filter((s) => (s.roastedRemainingGrams ?? 0) > 0);
-  const outOfStockRoasted = roastedSessions.filter((s) => (s.roastedRemainingGrams ?? 0) <= 0);
+
+  const roasted = beans
+    .filter((b) => b.roastSessions.length > 0)
+    .map((b) => ({
+      bean: b,
+      roastCount: b.roastSessions.length,
+      totalGrams: b.roastSessions.reduce((sum, s) => sum + (s.roastedWeightGrams ?? 0), 0),
+      remainingGrams: b.roastSessions.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0),
+    }));
+  const inStockRoasted = roasted.filter((r) => r.remainingGrams > 0);
+  const outOfStockRoasted = roasted.filter((r) => r.remainingGrams <= 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -45,8 +55,14 @@ export default async function BeansPage() {
         isEmpty={inStockRoasted.length === 0}
         emptyText="No roasted coffee on hand right now."
       >
-        {inStockRoasted.map((session) => (
-          <RoastSessionCard key={session.id} session={session} />
+        {inStockRoasted.map((r) => (
+          <BeanRoastedSummaryCard
+            key={r.bean.id}
+            bean={r.bean}
+            remainingGrams={Math.round(r.remainingGrams * 10) / 10}
+            totalGrams={Math.round(r.totalGrams * 10) / 10}
+            roastCount={r.roastCount}
+          />
         ))}
       </Section>
 
@@ -65,8 +81,14 @@ export default async function BeansPage() {
         isEmpty={outOfStockRoasted.length === 0}
         emptyText="Nothing used up yet."
       >
-        {outOfStockRoasted.map((session) => (
-          <RoastSessionCard key={session.id} session={session} />
+        {outOfStockRoasted.map((r) => (
+          <BeanRoastedSummaryCard
+            key={r.bean.id}
+            bean={r.bean}
+            remainingGrams={Math.round(r.remainingGrams * 10) / 10}
+            totalGrams={Math.round(r.totalGrams * 10) / 10}
+            roastCount={r.roastCount}
+          />
         ))}
       </Section>
     </div>

@@ -24,6 +24,7 @@ export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () 
       <TextField label="Variety" name="variety" defaultValue={bean.variety ?? ""} />
       <TextField label="Producer" name="producer" defaultValue={bean.producer ?? ""} />
       <TextField label="Supplier" name="supplier" defaultValue={bean.supplier ?? ""} />
+      <TextField label="Seller link" name="supplierUrl" type="url" defaultValue={bean.supplierUrl ?? ""} />
       <TextField
         label="Price ($)"
         name="purchasePrice"

@@ -21,6 +21,7 @@ model Bean {
   process        String
   variety        String?
   supplier       String?
+  supplierUrl    String?
   purchaseDate   DateTime @default(now())
   purchasePrice  Float?
   weightGrams    Float

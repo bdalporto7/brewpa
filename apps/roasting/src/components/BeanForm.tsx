@@ -27,6 +27,7 @@ export default function BeanForm() {
         <TextField label="Variety" name="variety" placeholder="Heirloom" />
         <TextField label="Producer" name="producer" placeholder="Optional" />
         <TextField label="Supplier" name="supplier" placeholder="Where you bought it" />
+        <TextField label="Seller link" name="supplierUrl" type="url" placeholder="https://…" />
         <TextField
           label="Weight (g)"
           name="weightGrams"

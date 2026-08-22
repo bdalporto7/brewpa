@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     roastsThisMonth,
     recentSessions,
     greenBeans,
-    roastedSessions,
+    beansWithRoasts,
   ] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),
     prisma.bean.count(),
@@ -30,10 +30,13 @@ export default async function DashboardPage() {
       take: 5,
     }),
     prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { remainingGrams: "desc" } }),
-    prisma.roastSession.findMany({
-      where: { endedAt: { not: null }, roastedRemainingGrams: { gt: 0 } },
-      include: { bean: true },
-      orderBy: { roastedRemainingGrams: "desc" },
+    prisma.bean.findMany({
+      include: {
+        roastSessions: {
+          where: { endedAt: { not: null }, roastedWeightGrams: { not: null } },
+          select: { roastedRemainingGrams: true },
+        },
+      },
     }),
   ]);
 
@@ -50,9 +53,15 @@ export default async function DashboardPage() {
 
   const round1 = (n: number) => Math.round(n * 10) / 10;
   const greenTotal = round1(greenBeans.reduce((sum, b) => sum + b.remainingGrams, 0));
-  const roastedTotal = round1(
-    roastedSessions.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0)
-  );
+
+  const roastedByBean = beansWithRoasts
+    .map((b) => ({
+      bean: b,
+      remainingGrams: round1(b.roastSessions.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0)),
+    }))
+    .filter((r) => r.remainingGrams > 0)
+    .sort((a, b) => b.remainingGrams - a.remainingGrams);
+  const roastedTotal = round1(roastedByBean.reduce((sum, r) => sum + r.remainingGrams, 0));
 
   const stats = [
     { label: "Beans in inventory", value: String(beanCount) },
@@ -104,7 +113,7 @@ export default async function DashboardPage() {
               key: b.id,
               label: b.name,
               grams: b.remainingGrams,
-              href: "/beans",
+              href: `/beans/${b.id}`,
             }))}
             emptyText="No green stock on hand."
           />
@@ -112,11 +121,11 @@ export default async function DashboardPage() {
             icon={<Coffee className="h-3.5 w-3.5" />}
             label="Roasted coffee"
             totalGrams={roastedTotal}
-            items={roastedSessions.map((s) => ({
-              key: s.id,
-              label: `${s.bean.name} — ${format(s.startedAt, "MMM d")}`,
-              grams: s.roastedRemainingGrams ?? 0,
-              href: `/roasts/${s.id}`,
+            items={roastedByBean.map((r) => ({
+              key: r.bean.id,
+              label: r.bean.name,
+              grams: r.remainingGrams,
+              href: `/beans/${r.bean.id}`,
             }))}
             emptyText="No roasted stock on hand."
           />

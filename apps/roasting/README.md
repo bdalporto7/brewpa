@@ -9,8 +9,14 @@ context, design standards, and build-order rationale.
 
 ## Features
 
-- **Green bean inventory** (`/beans`) — add, edit, and delete beans; stock
-  (`remainingGrams`) decrements automatically when a roast starts.
+- **Green bean inventory** (`/beans`, `/beans/[id]`) — add, edit, and delete
+  beans (with an optional seller link); stock decrements automatically when
+  a roast starts, and can also be corrected by hand (add/remove/set exact —
+  add/remove shift the total right along with it, set exact is a pure
+  recount) for coffee used outside the app. The list groups by bean
+  everywhere, including roasted stock (one card aggregating all of a bean's
+  roasts, not one per roast); click through to `/beans/[id]` for the full
+  picture — green stock, aggregate roasted stock, every past roast.
 - **Live roast sessions** (`/roasts`, `/roasts/[id]`) — start a roast against
   a bean and get a live on-screen timer. While it runs, log fan level, heat
   level, temperature readings, and first/second crack markers in real time —
@@ -82,17 +88,19 @@ section for the full rationale.
 
 ## Data model
 
-- **Bean** — a green bean purchase: origin, process, variety, total
-  `weightGrams`, and `remainingGrams` that decrements as roasts start.
-  Editable (name/origin/process/etc.) from its card on `/beans`; weight
-  fields aren't editable there since they only move through roast actions.
+- **Bean** — a green bean purchase: origin, process, variety, an optional
+  seller link, total `weightGrams`, and `remainingGrams` that decrements as
+  roasts start. Descriptive fields are editable from its card on `/beans`;
+  `remainingGrams` has its own dedicated add/remove/set-exact control there
+  instead (`StockAdjuster.tsx`) rather than living in that same edit form.
 - **RoastSession** — one roast against a `Bean`: `startedAt`/`endedAt`,
   green weight, final roasted weight, roast level and rating. Green stock is
   decremented when a session starts and restored if it's deleted (whether
   abandoned live or removed after the fact). Ending a roast also sets
   `roastedRemainingGrams` to the roasted weight — each session is its own
-  roasted-coffee stock entry, shown on its card and on `/roasts/[id]`. Only
-  one session can be active at a time.
+  roasted-coffee stock entry, shown on its card and on `/roasts/[id]`, with
+  the same add/remove/set-exact control as green stock. Only one session can
+  be active at a time.
 - **RoastEvent** — a timestamped entry within a session (`atSeconds` elapsed
   from `startedAt`): a fan or heat level change, a temperature reading, a
   crack marker, a free note, or the drop event auto-logged when a roast ends.
@@ -170,8 +178,6 @@ and neither is automatable from in here:
 
 ## Not built yet
 
-- No way to record roasted coffee being used up *without* a drop (e.g.
-  brewed for yourself). Only the sold/gifted-to-a-friend case is built.
 - No merge action for near-duplicate friends (e.g. "Jake" vs. "Jake S.").
 - Nothing here needs serial/USB/Bluetooth hardware access — see AGENTS.md
   for why that's a deliberate choice, not a gap.
