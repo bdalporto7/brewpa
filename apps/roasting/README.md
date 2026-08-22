@@ -33,6 +33,9 @@ context, design standards, and build-order rationale.
 
 ## Setup
 
+From the repo root, `./start.sh` handles install + DB setup + dev server in
+one command (safe to re-run). Or, manually from here:
+
 ```bash
 npm install
 npx prisma migrate dev   # creates dev.db and applies migrations

@@ -22,6 +22,8 @@ brewpa/
 ├── docs/                 # GENERATED — static pages for published roasts, served by GitHub
 │                         # Pages once enabled (Settings → Pages → main /docs). Written by
 │                         # apps/roasting's publishRoast action; don't hand-edit.
+├── start.sh              # `./start.sh` — installs deps, sets up the DB on first run, then
+│                         # runs apps/roasting's dev server. Safe to re-run.
 └── AGENTS.md             # this file
 ```
 
@@ -228,7 +230,9 @@ a wrapper around the data model. Concretely:
 
 ## Commands
 
-All run from `apps/roasting/`:
+`./start.sh` from the repo root is the one-command way to get the dev server
+running (install + migrate + dev, each step skipped if already done). The
+rest below assume you're running them yourself from `apps/roasting/`:
 
 ```bash
 npm run dev          # dev server at localhost:3000

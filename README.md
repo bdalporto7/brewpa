@@ -19,10 +19,9 @@ design standards this project holds itself to.
 ## Quick start
 
 ```bash
-cd apps/roasting
-npm install
-npx prisma migrate dev
-npm run dev
+./start.sh
 ```
 
-Then open http://localhost:3000.
+Installs dependencies and sets up the local database on first run (safe to
+re-run — it skips both once they're done), then starts the dev server. Open
+http://localhost:3000.
