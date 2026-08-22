@@ -1,0 +1,105 @@
+// Prisma schema for the roasting app (built for a Fresh Roast SR800).
+// Bean = green bean inventory. RoastSession = one live/completed roast.
+// RoastEvent = a timestamped entry logged during a session (fan/heat change,
+// temp reading, crack marker, note, or drop).
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Bean {
+  id             String   @id @default(cuid())
+  name           String
+  origin         String
+  producer       String?
+  process        String
+  variety        String?
+  supplier       String?
+  purchaseDate   DateTime @default(now())
+  purchasePrice  Float?
+  weightGrams    Float
+  remainingGrams Float
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  roastSessions RoastSession[]
+
+  @@index([origin])
+  @@index([createdAt])
+}
+
+model RoastSession {
+  id                    String    @id @default(cuid())
+  beanId                String
+  bean                  Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
+  startedAt             DateTime  @default(now())
+  endedAt               DateTime?
+  greenWeightGrams      Float
+  roastedWeightGrams    Float?
+  roastedRemainingGrams Float?
+  roastLevel            String?
+  rating                Int?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  events RoastEvent[]
+  sales  Sale[]
+
+  @@index([beanId])
+  @@index([startedAt])
+}
+
+model RoastEvent {
+  id             String       @id @default(cuid())
+  roastSessionId String
+  roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
+  atSeconds      Int
+  type           String
+  fanLevel       Int?
+  heatLevel      Int?
+  tempFahrenheit Float?
+  note           String?
+  createdAt      DateTime     @default(now())
+
+  @@index([roastSessionId, atSeconds])
+}
+
+// A "drop" — roasted coffee sold/given to a Friend, drawn from one
+// RoastSession's roastedRemainingGrams.
+model Sale {
+  id             String       @id @default(cuid())
+  roastSessionId String
+  roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
+  friendId       String?
+  friend         Friend?      @relation(fields: [friendId], references: [id], onDelete: SetNull)
+  weightGrams    Float
+  price          Float?
+  soldAt         DateTime     @default(now())
+  notes          String?
+  createdAt      DateTime     @default(now())
+
+  @@index([roastSessionId])
+  @@index([friendId])
+}
+
+// A person drops go to — lets you see everything one friend has ever
+// received, across every roast, not just a free-text name per sale.
+model Friend {
+  id        String   @id @default(cuid())
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales Sale[]
+
+  @@index([name])
+}

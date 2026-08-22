@@ -1,0 +1,115 @@
+# Roasting
+
+A local coffee roasting app built for a **Fresh Roast SR800**: track green
+bean inventory, run a live timer during a roast while logging fan/heat
+changes, temperature readings, and crack markers in real time, review the
+resulting roasting curve, then track roasted coffee as you drop it to
+friends. See the repo-level [AGENTS.md](../../AGENTS.md) for full project
+context, design standards, and build-order rationale.
+
+## Features
+
+- **Green bean inventory** (`/beans`) — add, edit, and delete beans; stock
+  (`remainingGrams`) decrements automatically when a roast starts.
+- **Live roast sessions** (`/roasts`, `/roasts/[id]`) — start a roast against
+  a bean and get a live on-screen timer. While it runs, log fan level, heat
+  level, temperature readings, and first/second crack markers in real time —
+  all manual entry, tapped in as you watch the physical roaster. Only one
+  roast can be active at a time.
+- **Roasting curve** — once a roast ends, its temperature readings render as
+  a hand-built SVG curve with crack markers and a fan/heat step overlay.
+- **Drops** — log roasted coffee given or sold to a friend, drawn from that
+  roast's roasted-coffee stock. Over-drawing is rejected with a clear error;
+  any drop can be undone.
+- **Friends** (`/friends`, `/friends/[id]`) — every person a drop has gone
+  to, with their full history across every roast and running totals (grams
+  received, amount paid). Editable and deletable.
+- **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
+  if a roast is currently running.
+
+## Setup
+
+```bash
+npm install
+npx prisma migrate dev   # creates dev.db and applies migrations
+npm run dev              # http://localhost:3000
+```
+
+## Commands
+
+```bash
+npm run dev          # dev server
+npm run build         # production build
+npm run lint          # eslint
+npx tsc --noEmit      # typecheck
+npx prisma studio     # browse the SQLite DB directly
+npx prisma migrate dev --name <name>   # after editing prisma/schema.prisma
+```
+
+**After any schema change, restart the dev server** — the regenerated
+Prisma Client on disk isn't picked up by an already-running process.
+
+## Stack
+
+Next.js 15 (App Router) + TypeScript + Tailwind CSS v4 + Prisma 6 + SQLite.
+Mutations go through Server Actions in
+[`src/lib/actions.ts`](src/lib/actions.ts) — no separate REST API. Shared UI
+primitives live in [`src/components/ui/`](src/components/ui); the app's
+palette and design tokens are defined in
+[`src/app/globals.css`](src/app/globals.css) — a warm, roast-inspired
+palette (not Tailwind defaults), `lucide-react` icons (never emoji), and a
+monospace face for live-updating numbers. See AGENTS.md's "Design standards"
+section for the full rationale.
+
+## Data model
+
+- **Bean** — a green bean purchase: origin, process, variety, total
+  `weightGrams`, and `remainingGrams` that decrements as roasts start.
+  Editable (name/origin/process/etc.) from its card on `/beans`; weight
+  fields aren't editable there since they only move through roast actions.
+- **RoastSession** — one roast against a `Bean`: `startedAt`/`endedAt`,
+  green weight, final roasted weight, roast level and rating. Green stock is
+  decremented when a session starts and restored if it's deleted (whether
+  abandoned live or removed after the fact). Ending a roast also sets
+  `roastedRemainingGrams` to the roasted weight — each session is its own
+  roasted-coffee stock entry, shown on its card and on `/roasts/[id]`. Only
+  one session can be active at a time.
+- **RoastEvent** — a timestamped entry within a session (`atSeconds` elapsed
+  from `startedAt`): a fan or heat level change, a temperature reading, a
+  crack marker, a free note, or the drop event auto-logged when a roast ends.
+- **Sale** — roasted coffee given/sold to a `Friend` from one `RoastSession`
+  (called a "drop" in the UI, unrelated to the `DROP` event above — see
+  AGENTS.md if that's confusing). Decrements that session's
+  `roastedRemainingGrams`; deleting a sale ("Undo") restores it.
+- **Friend** — a person drops go to. Created automatically (case-insensitive
+  find-or-create) the first time you type their name into a drop's "Friend"
+  field; `/friends` and `/friends/[id]` show their drop history across every
+  roast. Editable (name/notes) and deletable from `/friends/[id]` — deleting
+  doesn't touch their past drops, it just un-links them (they show as
+  anonymous on the roast they came from). No merge action for near-duplicate
+  friends yet — see AGENTS.md.
+
+## How a roast works
+
+1. On [`/roasts`](src/app/roasts/page.tsx), start a roast against a bean —
+   this creates a `RoastSession` and redirects to its live page.
+2. The live page ([`src/app/roasts/[id]/page.tsx`](<src/app/roasts/[id]/page.tsx>))
+   shows a running timer ([`Timer.tsx`](src/components/roasts/Timer.tsx))
+   and [`EventLogPanel.tsx`](src/components/roasts/EventLogPanel.tsx) for
+   logging fan/heat/temp/crack/note events against the elapsed time — all
+   manual entry, since the SR800 has no data output of its own.
+3. Ending the roast (roasted weight, roast level, rating) sets `endedAt` and
+   logs a `DROP` event.
+4. The completed session renders
+   [`RoastCurveChart.tsx`](src/components/roasts/RoastCurveChart.tsx) — a
+   hand-built SVG temperature curve with crack markers and a fan/heat step
+   overlay, plus a [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx)
+   for logging drops to friends, then the full event timeline.
+
+## Not built yet
+
+- No way to record roasted coffee being used up *without* a drop (e.g.
+  brewed for yourself). Only the sold/gifted-to-a-friend case is built.
+- No merge action for near-duplicate friends (e.g. "Jake" vs. "Jake S.").
+- Nothing here needs serial/USB/Bluetooth hardware access — see AGENTS.md
+  for why that's a deliberate choice, not a gap.

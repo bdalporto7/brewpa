@@ -69,3 +69,6 @@ Thumbs.db
 # Prisma
 .env
 prisma/migrations/
+
+# Claude Code — personal/local overrides, not shared
+.claude/settings.local.json

@@ -1,0 +1,71 @@
+import Link from "next/link";
+import { format } from "date-fns";
+import { formatMMSS } from "@/lib/format";
+import Card from "@/components/ui/Card";
+import type { Bean, RoastSession } from "@prisma/client";
+
+export default function RoastSessionCard({
+  session,
+}: {
+  session: RoastSession & { bean: Bean };
+}) {
+  const durationSeconds =
+    session.endedAt != null
+      ? (session.endedAt.getTime() - session.startedAt.getTime()) / 1000
+      : null;
+  const weightLoss =
+    session.roastedWeightGrams != null
+      ? (1 - session.roastedWeightGrams / session.greenWeightGrams) * 100
+      : null;
+  const roastedPercentLeft =
+    session.roastedWeightGrams != null && session.roastedWeightGrams > 0
+      ? ((session.roastedRemainingGrams ?? 0) / session.roastedWeightGrams) * 100
+      : null;
+
+  return (
+    <Link href={`/roasts/${session.id}`}>
+      <Card className="p-4 transition hover:border-accent">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-medium">
+              {session.bean.name}
+              {session.roastLevel && (
+                <span className="font-normal text-muted"> — {session.roastLevel}</span>
+              )}
+            </h3>
+            <p className="text-sm text-muted">
+              {format(session.startedAt, "MMM d, yyyy")} · {session.greenWeightGrams}g green
+              {session.roastedWeightGrams != null && ` → ${session.roastedWeightGrams}g roasted`}
+              {weightLoss != null && ` (${weightLoss.toFixed(1)}% loss)`}
+            </p>
+          </div>
+          {session.rating != null && (
+            <span className="shrink-0 font-mono text-sm text-accent">
+              {"★".repeat(session.rating)}
+              {"☆".repeat(5 - session.rating)}
+            </span>
+          )}
+        </div>
+
+        {roastedPercentLeft != null && (
+          <div className="mt-3">
+            <div className="flex justify-between font-mono text-xs text-muted">
+              <span>{session.roastedRemainingGrams}g roasted coffee on hand</span>
+              <span>{Math.round(roastedPercentLeft)}%</span>
+            </div>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
+              <div
+                className="h-full rounded-full bg-accent"
+                style={{ width: `${Math.max(0, Math.min(100, roastedPercentLeft))}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {durationSeconds != null && (
+          <p className="mt-2 font-mono text-xs text-muted">{formatMMSS(durationSeconds)} total</p>
+        )}
+      </Card>
+    </Link>
+  );
+}
