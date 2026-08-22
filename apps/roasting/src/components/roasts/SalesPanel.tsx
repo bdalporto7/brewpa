@@ -35,7 +35,7 @@ export default function SalesPanel({
           action={recordSale.bind(null, roastSessionId)}
           className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         >
-          <TextField label="Weight (g)" name="weightGrams" type="number" step="1" min="1" required placeholder="30" mono />
+          <TextField label="Weight (g)" name="weightGrams" type="number" step="0.1" min="0.1" required placeholder="30" mono />
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted" htmlFor="friendName">
               Friend

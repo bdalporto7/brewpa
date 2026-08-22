@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { format, startOfMonth } from "date-fns";
-import { Flame } from "lucide-react";
+import { Flame, Sprout, Coffee } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import Timer from "@/components/roasts/Timer";
 import Button from "@/components/ui/Button";
+import InventoryCard from "@/components/InventoryCard";
 
 export default async function DashboardPage() {
-  const [activeSession, beanCount, endedSessions, roastsThisMonth, recentSessions] = await Promise.all([
+  const [
+    activeSession,
+    beanCount,
+    endedSessions,
+    roastsThisMonth,
+    recentSessions,
+    greenBeans,
+    roastedSessions,
+  ] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),
     prisma.bean.count(),
     prisma.roastSession.findMany({
@@ -19,6 +28,12 @@ export default async function DashboardPage() {
       include: { bean: true },
       orderBy: { startedAt: "desc" },
       take: 5,
+    }),
+    prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { remainingGrams: "desc" } }),
+    prisma.roastSession.findMany({
+      where: { endedAt: { not: null }, roastedRemainingGrams: { gt: 0 } },
+      include: { bean: true },
+      orderBy: { roastedRemainingGrams: "desc" },
     }),
   ]);
 
@@ -33,8 +48,11 @@ export default async function DashboardPage() {
   }
   const favoriteLevel = [...levelCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-  const roastedOnHand =
-    Math.round(endedSessions.reduce((sum, r) => sum + (r.roastedRemainingGrams ?? 0), 0) * 10) / 10;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const greenTotal = round1(greenBeans.reduce((sum, b) => sum + b.remainingGrams, 0));
+  const roastedTotal = round1(
+    roastedSessions.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0)
+  );
 
   const stats = [
     { label: "Beans in inventory", value: String(beanCount) },
@@ -42,7 +60,6 @@ export default async function DashboardPage() {
     { label: "Roasts this month", value: String(roastsThisMonth) },
     { label: "Avg. rating", value: avgRating != null ? avgRating.toFixed(1) : "—" },
     { label: "Most-used level", value: favoriteLevel },
-    { label: "Roasted coffee on hand", value: `${roastedOnHand}g` },
   ];
 
   if (activeSession) {
@@ -74,6 +91,36 @@ export default async function DashboardPage() {
             <p className="text-xs text-muted">{stat.label}</p>
           </div>
         ))}
+      </div>
+
+      <div>
+        <h2 className="mb-3 font-medium">On hand</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <InventoryCard
+            icon={<Sprout className="h-3.5 w-3.5" />}
+            label="Green coffee"
+            totalGrams={greenTotal}
+            items={greenBeans.map((b) => ({
+              key: b.id,
+              label: b.name,
+              grams: b.remainingGrams,
+              href: "/beans",
+            }))}
+            emptyText="No green stock on hand."
+          />
+          <InventoryCard
+            icon={<Coffee className="h-3.5 w-3.5" />}
+            label="Roasted coffee"
+            totalGrams={roastedTotal}
+            items={roastedSessions.map((s) => ({
+              key: s.id,
+              label: `${s.bean.name} — ${format(s.startedAt, "MMM d")}`,
+              grams: s.roastedRemainingGrams ?? 0,
+              href: `/roasts/${s.id}`,
+            }))}
+            emptyText="No roasted stock on hand."
+          />
+        </div>
       </div>
 
       <div>
