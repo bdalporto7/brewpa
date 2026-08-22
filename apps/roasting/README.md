@@ -16,7 +16,8 @@ context, design standards, and build-order rationale.
   recount) for coffee used outside the app. The list groups by bean
   everywhere, including roasted stock (one card aggregating all of a bean's
   roasts, not one per roast); click through to `/beans/[id]` for the full
-  picture — green stock, aggregate roasted stock, every past roast.
+  picture — green stock, aggregate roasted stock, every past roast. A
+  bookmarkable origin filter (`?origin=`) narrows all four sections at once.
 - **Live roast sessions** (`/roasts`, `/roasts/[id]`) — start a roast against
   a bean and get a live on-screen timer. While it runs, log fan level, heat
   level, temperature readings, and first/second crack markers in real time —
