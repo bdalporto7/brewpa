@@ -106,12 +106,19 @@ SQLite, using Server Actions for mutations (no separate REST API layer — see
 `src/lib/actions.ts`). Matches what `archive/coffee-journal` already proved
 out in this repo. Prisma models: `Bean` (green bean inventory —
 `remainingGrams` tracked separately from `weightGrams`; `updateBean` edits
-the descriptive fields — name/origin/process/`supplierUrl`/etc. — but not
-either weight; `weightGrams` (total purchased) still only moves via
-`createBean`, while `remainingGrams` moves via roast actions *or* the manual
-`StockAdjuster` below, deliberately kept as two different mechanisms so
-automatic roast-driven bookkeeping and manual human correction don't fight
-each other silently), `RoastSession` (one roast against a `Bean` —
+the descriptive fields plus `weightGrams` itself — a correction to "how big
+was the purchase," validated to never drop below current `remainingGrams`.
+This matters in practice: the bulk historical import approximated
+`weightGrams` as the sum of that bean's roast doses, which is frequently
+wrong once the real bag size is known — e.g. a 2lb/907g bag where only
+`remainingGrams` had been corrected via `StockAdjuster`'s "set exact,"
+leaving `weightGrams` stuck at whatever the import guessed, showing a
+nonsensical "454g left of 454g." Fixing that needs both numbers touched
+independently — `remainingGrams` via `StockAdjuster`, `weightGrams` via the
+"Total purchased" field in the full edit form — which is exactly why they're
+separate mechanisms rather than one combined control. `remainingGrams`
+itself moves via roast actions *or* `StockAdjuster` below), `RoastSession`
+(one roast against a `Bean` —
 `startedAt`/`endedAt`, green weight, final roasted weight, roast level, and
 rating; green stock is decremented when a session starts and restored if
 it's deleted or abandoned), and `RoastEvent` (a timestamped log entry within

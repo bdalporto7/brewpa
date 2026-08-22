@@ -69,9 +69,20 @@ export async function updateBean(id: string, formData: FormData) {
   const name = str(formData, "name");
   const origin = str(formData, "origin");
   const process = str(formData, "process");
+  const weightGrams = num(formData, "weightGrams");
 
   if (!name || !origin || !process) {
     throw new Error("Name, origin, and process are required.");
+  }
+  if (weightGrams === null || weightGrams < 0) {
+    throw new Error("Total purchased can't be negative.");
+  }
+
+  const bean = await prisma.bean.findUniqueOrThrow({ where: { id } });
+  if (weightGrams < bean.remainingGrams) {
+    throw new Error(
+      `Total purchased can't be less than the ${bean.remainingGrams}g currently remaining.`
+    );
   }
 
   await prisma.bean.update({
@@ -80,6 +91,7 @@ export async function updateBean(id: string, formData: FormData) {
       name,
       origin,
       process,
+      weightGrams,
       producer: str(formData, "producer"),
       variety: str(formData, "variety"),
       supplier: str(formData, "supplier"),

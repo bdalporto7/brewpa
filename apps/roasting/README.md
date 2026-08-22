@@ -90,9 +90,11 @@ section for the full rationale.
 
 - **Bean** — a green bean purchase: origin, process, variety, an optional
   seller link, total `weightGrams`, and `remainingGrams` that decrements as
-  roasts start. Descriptive fields are editable from its card on `/beans`;
-  `remainingGrams` has its own dedicated add/remove/set-exact control there
-  instead (`StockAdjuster.tsx`) rather than living in that same edit form.
+  roasts start. Both are editable, but through different controls: the full
+  edit form on `/beans` (or the detail page) has a "Total purchased (g)"
+  field for correcting `weightGrams` (can't go below current remaining);
+  `remainingGrams` has its own dedicated add/remove/set-exact control
+  (`StockAdjuster.tsx`) instead of living in that same form.
 - **RoastSession** — one roast against a `Bean`: `startedAt`/`endedAt`,
   green weight, final roasted weight, roast level and rating. Green stock is
   decremented when a session starts and restored if it's deleted (whether

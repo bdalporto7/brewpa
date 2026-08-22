@@ -34,6 +34,16 @@ export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () 
         defaultValue={bean.purchasePrice ?? ""}
         mono
       />
+      <TextField
+        label={`Total purchased (g) — min ${bean.remainingGrams}g (currently remaining)`}
+        name="weightGrams"
+        type="number"
+        step="0.1"
+        min={bean.remainingGrams}
+        required
+        defaultValue={bean.weightGrams}
+        mono
+      />
       <div className="sm:col-span-2">
         <TextareaField label="Notes" name="notes" rows={2} defaultValue={bean.notes ?? ""} />
       </div>
