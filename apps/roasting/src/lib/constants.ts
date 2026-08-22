@@ -56,3 +56,26 @@ export const CRACK_EVENT_TYPES: EventType[] = [
   "SECOND_CRACK_START",
   "SECOND_CRACK_END",
 ];
+
+/** Shared by the live event timeline and the static published page. */
+export function describeEvent(event: {
+  type: string;
+  fanLevel: number | null;
+  heatLevel: number | null;
+  tempFahrenheit: number | null;
+  note: string | null;
+}): string {
+  const type = event.type as EventType;
+  switch (type) {
+    case "FAN":
+      return `Fan → ${event.fanLevel}`;
+    case "HEAT":
+      return `Heat → ${event.heatLevel}`;
+    case "TEMP":
+      return `${event.tempFahrenheit}°F`;
+    case "NOTE":
+      return event.note ?? "";
+    default:
+      return EVENT_LABELS[type];
+  }
+}

@@ -68,3 +68,19 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Used by the hand-built roasting-curve SVG (src/lib/curve.ts) — shared
+   between the live chart and the static published page, so both keep these
+   class names and styles in sync (see docs/roasts template in publish.ts). */
+.roast-curve-svg {
+  width: 100%;
+  min-width: 560px;
+}
+.mono-10 {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.marker-label {
+  font-size: 9px;
+  font-weight: 500;
+}

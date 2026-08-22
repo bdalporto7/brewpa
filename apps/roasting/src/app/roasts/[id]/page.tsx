@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
+import { Download, Globe } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { deleteRoastSession } from "@/lib/actions";
+import { deleteRoastSession, publishRoast, unpublishRoast } from "@/lib/actions";
+import { roastPageUrl } from "@/lib/publish";
 import { formatMMSS } from "@/lib/format";
 import type { EventType } from "@/lib/constants";
 import { CRACK_EVENT_TYPES } from "@/lib/constants";
@@ -63,15 +65,56 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
             {format(session.startedAt, "MMM d, yyyy 'at' h:mm a")} · {session.greenWeightGrams}g green
           </p>
         </div>
-        <DeleteButton
-          action={deleteRoastSession.bind(null, session.id)}
-          confirmText={
-            isLive
-              ? "Abandon this roast? Green weight will be returned to bean inventory."
-              : "Delete this roast? Green weight will be returned to bean inventory."
-          }
-          label={isLive ? "Abandon" : "Delete"}
-        />
+        <div className="flex items-center gap-4">
+          {!isLive && (
+            <>
+              <a
+                href={`/roasts/${session.id}/export`}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted transition hover:text-foreground"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
+              </a>
+              {session.publishedAt ? (
+                <div className="flex items-center gap-2 text-xs">
+                  <a
+                    href={roastPageUrl(session.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 font-medium text-accent hover:opacity-80"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    Published
+                  </a>
+                  <form action={unpublishRoast.bind(null, session.id)}>
+                    <button type="submit" className="text-muted transition hover:text-foreground">
+                      Unpublish
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <form action={publishRoast.bind(null, session.id)}>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 text-xs font-medium text-muted transition hover:text-foreground"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    Publish
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+          <DeleteButton
+            action={deleteRoastSession.bind(null, session.id)}
+            confirmText={
+              isLive
+                ? "Abandon this roast? Green weight will be returned to bean inventory."
+                : "Delete this roast? Green weight will be returned to bean inventory."
+            }
+            label={isLive ? "Abandon" : "Delete"}
+          />
+        </div>
       </div>
 
       {isLive ? (

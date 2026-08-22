@@ -1,7 +1,7 @@
 import { Fan, Flame, Thermometer, Coffee, StickyNote, Square } from "lucide-react";
 import { deleteEvent } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
-import { EVENT_LABELS, type EventType } from "@/lib/constants";
+import { describeEvent, type EventType } from "@/lib/constants";
 import DeleteButton from "@/components/DeleteButton";
 import type { RoastEvent } from "@prisma/client";
 
@@ -16,22 +16,6 @@ const ICONS: Record<EventType, React.ReactNode> = {
   NOTE: <StickyNote className="h-3.5 w-3.5" />,
   DROP: <Square className="h-3.5 w-3.5" />,
 };
-
-function describe(event: RoastEvent): string {
-  const type = event.type as EventType;
-  switch (type) {
-    case "FAN":
-      return `Fan → ${event.fanLevel}`;
-    case "HEAT":
-      return `Heat → ${event.heatLevel}`;
-    case "TEMP":
-      return `${event.tempFahrenheit}°F`;
-    case "NOTE":
-      return event.note ?? "";
-    default:
-      return EVENT_LABELS[type];
-  }
-}
 
 export default function EventTimeline({
   events,
@@ -55,7 +39,7 @@ export default function EventTimeline({
               {formatMMSS(event.atSeconds)}
             </span>
             <span className="text-muted">{ICONS[event.type as EventType]}</span>
-            <span>{describe(event)}</span>
+            <span>{describeEvent(event)}</span>
           </div>
           {editable && (
             <DeleteButton

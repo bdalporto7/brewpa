@@ -24,6 +24,10 @@ context, design standards, and build-order rationale.
 - **Friends** (`/friends`, `/friends/[id]`) — every person a drop has gone
   to, with their full history across every roast and running totals (grams
   received, amount paid). Editable and deletable.
+- **Export & publish** — download a completed roast as CSV, or publish it as
+  a static page to this repo's GitHub Pages site (curve, stats, event log).
+  See "Export & publish" below — there's a one-time repo setting and a
+  manual `git push` involved, not just an in-app button.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
 
@@ -105,6 +109,30 @@ section for the full rationale.
    hand-built SVG temperature curve with crack markers and a fan/heat step
    overlay, plus a [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx)
    for logging drops to friends, then the full event timeline.
+
+## Export & publish
+
+- **CSV** — the "Export CSV" link on a completed roast hits
+  `/roasts/[id]/export` ([`route.ts`](<src/app/roasts/[id]/export/route.ts>)),
+  which streams a CSV built by [`src/lib/csv.ts`](src/lib/csv.ts): a
+  metadata block (bean, weights, level, rating, duration) then the full
+  event table.
+- **Publish to GitHub Pages** — "Publish" on a completed roast renders a
+  static, self-contained HTML page (no build step, no JS) to
+  `docs/roasts/<id>.html`, via [`src/lib/publish.ts`](src/lib/publish.ts),
+  and regenerates `docs/index.html` from every published roast. "Unpublish"
+  removes it and regenerates the index. The curve on that page comes from
+  the exact same function as the live chart
+  ([`buildRoastCurveSvg`](src/lib/curve.ts)) — they can't visually drift
+  apart. All user text (bean name, notes, friend names) is HTML-escaped,
+  since this page is genuinely public.
+
+Publishing only writes files locally — two things still need doing by hand,
+and neither is automatable from in here:
+1. **One-time repo setup**: GitHub → repo Settings → Pages → Deploy from a
+   branch → `main`, folder `/docs`.
+2. **Every publish**: `git add docs/ && git commit && git push` (or fold it
+   into whatever commit you're already making) to actually put it live.
 
 ## Not built yet
 

@@ -41,6 +41,7 @@ model RoastSession {
   bean                  Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
   startedAt             DateTime  @default(now())
   endedAt               DateTime?
+  publishedAt           DateTime?
   greenWeightGrams      Float
   roastedWeightGrams    Float?
   roastedRemainingGrams Float?

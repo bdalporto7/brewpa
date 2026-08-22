@@ -4,6 +4,21 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { EventType } from "@/lib/constants";
+import { writeRoastPage, removeRoastPage, writeIndexPage, type PublishableSession } from "@/lib/publish";
+
+const PUBLISHABLE_SESSION_INCLUDE = {
+  bean: true,
+  events: { orderBy: { atSeconds: "asc" as const } },
+  sales: { include: { friend: true } },
+};
+
+async function regeneratePublishedIndex() {
+  const published = (await prisma.roastSession.findMany({
+    where: { publishedAt: { not: null } },
+    include: PUBLISHABLE_SESSION_INCLUDE,
+  })) as PublishableSession[];
+  await writeIndexPage(published);
+}
 
 function num(formData: FormData, key: string): number | null {
   const raw = formData.get(key);
@@ -251,15 +266,45 @@ export async function deleteSale(roastSessionId: string, saleId: string) {
   revalidatePath("/");
 }
 
+export async function publishRoast(id: string) {
+  const session = await prisma.roastSession.findUniqueOrThrow({
+    where: { id },
+    include: PUBLISHABLE_SESSION_INCLUDE,
+  });
+  if (!session.endedAt) {
+    throw new Error("Only a completed roast can be published.");
+  }
+
+  await prisma.roastSession.update({ where: { id }, data: { publishedAt: new Date() } });
+  await writeRoastPage(session as PublishableSession);
+  await regeneratePublishedIndex();
+
+  revalidatePath(`/roasts/${id}`);
+}
+
+export async function unpublishRoast(id: string) {
+  await prisma.roastSession.update({ where: { id }, data: { publishedAt: null } });
+  await removeRoastPage(id);
+  await regeneratePublishedIndex();
+
+  revalidatePath(`/roasts/${id}`);
+}
+
 export async function deleteRoastSession(id: string) {
-  await prisma.$transaction(async (tx) => {
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id } });
+  const session = await prisma.$transaction(async (tx) => {
+    const existing = await tx.roastSession.findUniqueOrThrow({ where: { id } });
     await tx.bean.update({
-      where: { id: session.beanId },
-      data: { remainingGrams: { increment: session.greenWeightGrams } },
+      where: { id: existing.beanId },
+      data: { remainingGrams: { increment: existing.greenWeightGrams } },
     });
     await tx.roastSession.delete({ where: { id } });
+    return existing;
   });
+
+  if (session.publishedAt) {
+    await removeRoastPage(id);
+    await regeneratePublishedIndex();
+  }
 
   revalidatePath("/roasts");
   revalidatePath("/");
