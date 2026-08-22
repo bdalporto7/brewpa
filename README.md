@@ -1,7 +1,28 @@
 # brewpa
 
+A monorepo for coffee-related applications.
 
-Getting the docker image running:
-- docker-compose up -d
+## What's here
 
-  I want to get started on a basic e-commerce like web application, I want it written in typescript and to follow all the most updated standards and practices. This app will revolve around all things coffee, and will have different features based on the type of user. For a basic set up, I just want this app to allow users to input some details about a coffee they just made, can you write this as a basic, easy to understand web app, with clean and documented code.
+```
+apps/
+└── roasting/        Active — a local roasting app built for a Fresh Roast SR800.
+archive/
+└── coffee-journal/  Archived — a brew-logging app, frozen, kept for reference.
+```
+
+Start with [`apps/roasting`](apps/roasting/README.md) — that's where active
+development is happening. See [AGENTS.md](AGENTS.md) for full project
+context: repo layout rationale, the roasting app's data model, and the
+design standards this project holds itself to.
+
+## Quick start
+
+```bash
+cd apps/roasting
+npm install
+npx prisma migrate dev
+npm run dev
+```
+
+Then open http://localhost:3000.

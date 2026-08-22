@@ -1,0 +1,72 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { format } from "date-fns";
+import { prisma } from "@/lib/prisma";
+import Card from "@/components/ui/Card";
+import FriendHeader from "@/components/friends/FriendHeader";
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface p-3">
+      <p className="font-mono text-lg font-semibold">{value}</p>
+      <p className="text-xs text-muted">{label}</p>
+    </div>
+  );
+}
+
+export default async function FriendPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const friend = await prisma.friend.findUnique({
+    where: { id },
+    include: {
+      sales: {
+        orderBy: { soldAt: "desc" },
+        include: { roastSession: { include: { bean: true } } },
+      },
+    },
+  });
+
+  if (!friend) notFound();
+
+  const totalGrams = friend.sales.reduce((sum, s) => sum + s.weightGrams, 0);
+  const totalSpent = friend.sales.reduce((sum, s) => sum + (s.price ?? 0), 0);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <FriendHeader friend={friend} />
+
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Drops" value={String(friend.sales.length)} />
+        <Stat label="Total received" value={`${totalGrams}g`} />
+        <Stat label="Total paid" value={totalSpent > 0 ? `$${totalSpent.toFixed(2)}` : "—"} />
+      </div>
+
+      {friend.sales.length === 0 ? (
+        <p className="text-sm text-muted">No drops logged for {friend.name} yet.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {friend.sales.map((sale) => (
+            <Link key={sale.id} href={`/roasts/${sale.roastSessionId}`}>
+              <Card className="p-4 transition hover:border-accent">
+                <div className="flex items-center justify-between gap-4">
+                  <h3 className="font-medium">
+                    {sale.roastSession.bean.name}
+                    {sale.roastSession.roastLevel && (
+                      <span className="font-normal text-muted"> — {sale.roastSession.roastLevel}</span>
+                    )}
+                  </h3>
+                  <span className="font-mono text-sm">{sale.weightGrams}g</span>
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  {format(sale.soldAt, "MMM d, yyyy")}
+                  {sale.price != null && ` · $${sale.price.toFixed(2)}`}
+                </p>
+                {sale.notes && <p className="mt-2 text-sm text-foreground/80">{sale.notes}</p>}
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

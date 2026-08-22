@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+:root {
+  /* Warm, roast-inspired palette — not Tailwind defaults. */
+  --background: #faf6f0;
+  --surface: #ffffff;
+  --foreground: #2b1d14;
+  --muted: #7a6a5c;
+  --border: #e5dcd0;
+
+  --accent: #b5502c;
+  --accent-foreground: #fdf6f0;
+  --accent-soft: #f3e0d3;
+
+  --success: #4b7a51;
+  --warning: #c17d1f;
+  --danger: #b8402f;
+
+  /* Roasting-curve marker colors */
+  --mark-first-crack: #c17d1f;
+  --mark-second-crack: #8a3a24;
+  --mark-drop: #2b1d14;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a140f;
+    --surface: #241c15;
+    --foreground: #f3eadd;
+    --muted: #a89684;
+    --border: #3a2e24;
+
+    --accent: #d97a4f;
+    --accent-foreground: #1a140f;
+    --accent-soft: #3a2418;
+
+    --success: #6fa876;
+    --warning: #d99a3f;
+    --danger: #e0685a;
+
+    --mark-first-crack: #d99a3f;
+    --mark-second-crack: #d97a4f;
+    --mark-drop: #f3eadd;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Used by the hand-built roasting-curve SVG (src/lib/curve.ts) — shared
+   between the live chart and the static published page, so both keep these
+   class names and styles in sync (see docs/roasts template in publish.ts). */
+.roast-curve-svg {
+  width: 100%;
+  min-width: 560px;
+}
+.mono-10 {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.marker-label {
+  font-size: 9px;
+  font-weight: 500;
+}
