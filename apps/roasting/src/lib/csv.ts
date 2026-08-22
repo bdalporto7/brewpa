@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { formatMMSS } from "@/lib/format";
+import { computeRoastPhases } from "@/lib/phases";
 import { EVENT_LABELS, type EventType } from "@/lib/constants";
 import type { Bean, RoastEvent, RoastSession } from "@prisma/client";
 
@@ -19,6 +20,10 @@ export function buildRoastCsv(
     session.roastedWeightGrams != null
       ? (1 - session.roastedWeightGrams / session.greenWeightGrams) * 100
       : null;
+  const durationSeconds = session.endedAt
+    ? (session.endedAt.getTime() - session.startedAt.getTime()) / 1000
+    : 0;
+  const phases = computeRoastPhases(session.events, durationSeconds);
 
   let csv = "";
   csv += row(["Bean", session.bean.name]);
@@ -30,10 +35,23 @@ export function buildRoastCsv(
   csv += row(["Weight loss (%)", weightLoss != null ? weightLoss.toFixed(1) : ""]);
   csv += row(["Roast level", session.roastLevel]);
   csv += row(["Rating (of 5)", session.rating]);
+  csv += row(["Duration", session.endedAt ? formatMMSS(durationSeconds) : ""]);
   csv += row([
-    "Duration",
-    session.endedAt
-      ? formatMMSS((session.endedAt.getTime() - session.startedAt.getTime()) / 1000)
+    "Drying phase",
+    phases.dryingSeconds != null
+      ? `${formatMMSS(phases.dryingSeconds)} (${phases.dryingPercent!.toFixed(0)}%)`
+      : "",
+  ]);
+  csv += row([
+    "Maillard phase",
+    phases.maillardSeconds != null
+      ? `${formatMMSS(phases.maillardSeconds)} (${phases.maillardPercent!.toFixed(0)}%)`
+      : "",
+  ]);
+  csv += row([
+    "Development phase",
+    phases.developmentSeconds != null
+      ? `${formatMMSS(phases.developmentSeconds)} (${phases.developmentPercent!.toFixed(0)}%)`
       : "",
   ]);
   csv += row(["Notes", session.notes]);

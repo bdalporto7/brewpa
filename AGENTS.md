@@ -72,6 +72,20 @@ dial, no digital output of its own. Scope, current priority order:
 5. **Export & publish** — a completed roast can be downloaded as CSV
    (`/roasts/[id]/export`) or published as a static page to this repo's
    GitHub Pages site. Built — see "Export & publish" below.
+6. **Backfilling roasts** — two ways to get a roast into the app that wasn't
+   (fully) logged live: `LogPastRoastForm` on `/roasts` creates a session
+   already completed (bean, weights, a past start time + duration, level,
+   rating) in one form; `AddEventForm` on any completed roast's page lets
+   you add individual events afterward with a manually-typed elapsed time
+   instead of a live timer. A one-time bulk import of 34 real historical
+   SR800 roasts (from a personal spreadsheet) used this same data model but
+   was done with a throwaway script, not through these forms — see "Bulk
+   historical import" below for what that revealed.
+7. **Roast phases & live tips** — Scott Rao's three-phase roast breakdown
+   (drying / Maillard-browning / development) computed from existing
+   milestone events, shown on every completed roast and live during one; a
+   small rule-based tips panel surfaces during a live roast. Built — see
+   "Roast phases & tips" below.
 
 **Why this isn't a hardware-integration problem:** the SR800 has no data
 output — everything logged comes from the person watching the roaster and
@@ -95,7 +109,8 @@ drift), `RoastSession` (one roast against a `Bean` — `startedAt`/`endedAt`,
 green weight, final roasted weight, roast level, and rating; green stock is
 decremented when a session starts and restored if it's deleted or abandoned),
 and `RoastEvent` (a timestamped log entry within a session — `atSeconds`
-elapsed, a `type`, and whichever of `fanLevel` / `heatLevel` /
+elapsed, a `type` — including `DRY_END`, the drying/Maillard boundary, see
+"Roast phases & tips" below — and whichever of `fanLevel` / `heatLevel` /
 `tempFahrenheit` / `note` applies to that type).
 
 **Roasted-coffee stock:** ending a roast (`endRoast`) sets
@@ -174,6 +189,52 @@ GitHub credentials in this environment so far — publishing writes local
 files only; committing/pushing them live is still a manual step). If a
 future agent finds working `git push` access, that's still worth confirming
 with the user before automating rather than silently wiring it up.
+
+**Bulk historical import:** 34 real roasts came from the user's own
+spreadsheet (the "mikelipino Fluid Bed Roast Log" template, a known public
+SR800 template — one sheet per roast, ~5s-interval log table). That was a
+one-time migration, done with a throwaway Python-extraction +
+Node/Prisma-write script, not a reusable in-app feature — the scripts aren't
+in this repo. Worth knowing if more of the user's historical data shows up
+later: the source data was genuinely messy in ways worth re-checking for —
+Excel stored roast-milestone times inconsistently (sometimes a `timedelta`,
+sometimes a misparsed `time` object where "5:23" meant 5 minutes 23 seconds
+rather than 5:23:00, sometimes a bare number that was ambiguously either raw
+seconds or whole minutes depending on magnitude), and there was at least one
+plain data-entry error in the source (a temperature value typed into the
+wrong column, which read as an impossible heat-dial setting of 447 — dropped
+rather than guessed). Bean identity also isn't reliable from free text alone:
+the same coffee got called "Washed Halo Beriti", "Halo Beriti Washed", and
+"Ethiopia Halo Beriti" across different sheets, which needed explicit
+normalization before the "merge same-named beans" behavior did anything
+useful — exact-string matching alone would have fragmented it into three
+near-duplicate `Bean` rows.
+
+**Roast phases & tips:** `computeRoastPhases` (`src/lib/phases.ts`) is a pure
+function deriving Scott Rao's three-phase breakdown — drying (charge → `DRY_END`),
+Maillard/browning (`DRY_END` → `FIRST_CRACK_START`), development
+(`FIRST_CRACK_START` → drop) — from whatever milestone events exist; any
+phase whose boundary events aren't logged comes back `null` rather than
+guessed. `PhaseBar.tsx` renders it (used on completed roasts, on a live
+roast via `LiveTipsPanel`, in the CSV, and as one more stat on the published
+static page). `generateLiveTips` (`src/lib/tips.ts`) is a small, deliberately
+rule-based set of live prompts during a roast — no LLM call, by design (this
+was a real decision point, confirmed with the user: reliability, no external
+dependency, and no risk of confidently-wrong advice on something that can
+ruin a batch, mattered more than open-ended flexibility here). Two kinds of
+rules: generic ones with hedged, general-heuristic numbers ("development
+time commonly cited around 15–25%" — phrased as common guidance, not
+asserted fact, since this isn't a claim to overstate confidence in), and
+personalized ones grounded in the roaster's own history
+(`computeHistoricalBaseline` averages dry-end/first-crack/duration from past
+completed roasts of the *same bean*, falling back to all beans if that bean
+has no history yet) — e.g. "your average for this bean is 6:15" is a real,
+checkable fact about this roaster's own data, not a generic claim, and is
+the more defensible half of what the tips panel says. If this list of rules
+grows, keep that split intentional — the personalized/grounded-in-real-data
+tips are safe to expand freely; a new generic numeric heuristic should only
+go in if it's genuinely well-established, hedged the same way, and not
+something represented as more precise than it is.
 
 **Gotcha:** after `prisma migrate dev` (or any schema change), restart the
 Next dev server. The regenerated Prisma Client on disk doesn't get picked up

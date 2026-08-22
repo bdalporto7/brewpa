@@ -33,7 +33,8 @@ export default async function DashboardPage() {
   }
   const favoriteLevel = [...levelCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-  const roastedOnHand = endedSessions.reduce((sum, r) => sum + (r.roastedRemainingGrams ?? 0), 0);
+  const roastedOnHand =
+    Math.round(endedSessions.reduce((sum, r) => sum + (r.roastedRemainingGrams ?? 0), 0) * 10) / 10;
 
   const stats = [
     { label: "Beans in inventory", value: String(beanCount) },
@@ -103,7 +104,8 @@ export default async function DashboardPage() {
                 className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-2 text-sm transition hover:border-accent"
               >
                 <span>
-                  {session.bean.name} — {session.roastLevel}
+                  {session.bean.name}
+                  {session.roastLevel && ` — ${session.roastLevel}`}
                 </span>
                 <span className="text-muted">{format(session.startedAt, "MMM d, yyyy")}</span>
               </Link>

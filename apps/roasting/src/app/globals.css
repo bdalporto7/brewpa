@@ -17,6 +17,7 @@
   --danger: #b8402f;
 
   /* Roasting-curve marker colors */
+  --mark-dry-end: #8a7a63;
   --mark-first-crack: #c17d1f;
   --mark-second-crack: #8a3a24;
   --mark-drop: #2b1d14;
@@ -57,6 +58,7 @@
     --warning: #d99a3f;
     --danger: #e0685a;
 
+    --mark-dry-end: #b8a68e;
     --mark-first-crack: #d99a3f;
     --mark-second-crack: #d97a4f;
     --mark-drop: #f3eadd;

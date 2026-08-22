@@ -11,7 +11,8 @@ const AXIS_HEIGHT = 24;
 const STRIP_HEIGHT = 48;
 const STRIP_GAP = 16;
 
-const CRACK_MARKERS: { type: EventType; label: string; color: string }[] = [
+const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
+  { type: "DRY_END", label: "DE", color: "var(--mark-dry-end)" },
   { type: "FIRST_CRACK_START", label: "1C", color: "var(--mark-first-crack)" },
   { type: "FIRST_CRACK_END", label: "1C end", color: "var(--mark-first-crack)" },
   { type: "SECOND_CRACK_START", label: "2C", color: "var(--mark-second-crack)" },
@@ -85,7 +86,7 @@ export function buildRoastCurveSvg(events: RoastEvent[], totalSeconds: number): 
     .map((e) => ({ atSeconds: e.atSeconds, level: e.heatLevel as number }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
 
-  const markers = CRACK_MARKERS.map((m) => ({
+  const markers = MILESTONE_MARKERS.map((m) => ({
     ...m,
     event: events.find((e) => e.type === m.type),
   })).filter((m) => m.event);

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { EventType } from "@/lib/constants";
 import { writeRoastPage, removeRoastPage, writeIndexPage, type PublishableSession } from "@/lib/publish";
+import { parseMMSS } from "@/lib/format";
 
 const PUBLISHABLE_SESSION_INCLUDE = {
   bean: true,
@@ -130,6 +131,75 @@ export async function startRoast(formData: FormData) {
     });
 
     return tx.roastSession.create({ data: { beanId, greenWeightGrams } });
+  });
+
+  revalidatePath("/roasts");
+  revalidatePath("/");
+  redirect(`/roasts/${session.id}`);
+}
+
+export async function startPastRoast(formData: FormData) {
+  const beanId = str(formData, "beanId");
+  const greenWeightGrams = num(formData, "greenWeightGrams");
+  const startedAtRaw = str(formData, "startedAt");
+  const durationRaw = str(formData, "duration");
+  const roastedWeightGrams = num(formData, "roastedWeightGrams");
+  const roastLevel = str(formData, "roastLevel");
+  const rating = num(formData, "rating");
+  const notes = str(formData, "notes");
+
+  if (!beanId || greenWeightGrams === null || greenWeightGrams <= 0) {
+    throw new Error("Bean and a positive green weight are required.");
+  }
+  if (!startedAtRaw) {
+    throw new Error("Start date/time is required.");
+  }
+  const startedAt = new Date(startedAtRaw);
+  if (Number.isNaN(startedAt.getTime())) {
+    throw new Error("Start date/time is invalid.");
+  }
+  const durationSeconds = durationRaw ? parseMMSS(durationRaw) : null;
+  if (!durationRaw || durationSeconds === null || durationSeconds <= 0) {
+    throw new Error("Duration is required, as m:ss (e.g. 6:30).");
+  }
+  if (!roastLevel) {
+    throw new Error("Roast level is required.");
+  }
+
+  const endedAt = new Date(startedAt.getTime() + durationSeconds * 1000);
+
+  const session = await prisma.$transaction(async (tx) => {
+    const bean = await tx.bean.findUniqueOrThrow({ where: { id: beanId } });
+    if (bean.remainingGrams < greenWeightGrams) {
+      throw new Error(
+        `Only ${bean.remainingGrams}g of ${bean.name} left in stock — can't log a ${greenWeightGrams}g roast.`
+      );
+    }
+
+    await tx.bean.update({
+      where: { id: beanId },
+      data: { remainingGrams: bean.remainingGrams - greenWeightGrams },
+    });
+
+    const created = await tx.roastSession.create({
+      data: {
+        beanId,
+        greenWeightGrams,
+        startedAt,
+        endedAt,
+        roastedWeightGrams,
+        roastedRemainingGrams: roastedWeightGrams,
+        roastLevel,
+        rating,
+        notes,
+      },
+    });
+
+    await tx.roastEvent.create({
+      data: { roastSessionId: created.id, type: "DROP", atSeconds: durationSeconds },
+    });
+
+    return created;
   });
 
   revalidatePath("/roasts");

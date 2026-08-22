@@ -3,6 +3,7 @@ import path from "node:path";
 import { format } from "date-fns";
 import { buildRoastCurveSvg } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
+import { computeRoastPhases } from "@/lib/phases";
 import { describeEvent } from "@/lib/constants";
 import type { Bean, Friend, RoastEvent, RoastSession, Sale } from "@prisma/client";
 
@@ -42,7 +43,7 @@ const PAGE_STYLE = `
   --background: #faf6f0; --surface: #ffffff; --foreground: #2b1d14;
   --muted: #7a6a5c; --border: #e5dcd0; --accent: #b5502c;
   --accent-foreground: #fdf6f0; --accent-soft: #f3e0d3;
-  --mark-first-crack: #c17d1f; --mark-second-crack: #8a3a24; --mark-drop: #2b1d14;
+  --mark-dry-end: #8a7a63; --mark-first-crack: #c17d1f; --mark-second-crack: #8a3a24; --mark-drop: #2b1d14;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -50,7 +51,7 @@ const PAGE_STYLE = `
     --background: #1a140f; --surface: #241c15; --foreground: #f3eadd;
     --muted: #a89684; --border: #3a2e24; --accent: #d97a4f;
     --accent-foreground: #1a140f; --accent-soft: #3a2418;
-    --mark-first-crack: #d99a3f; --mark-second-crack: #d97a4f; --mark-drop: #f3eadd;
+    --mark-dry-end: #b8a68e; --mark-first-crack: #d99a3f; --mark-second-crack: #d97a4f; --mark-drop: #f3eadd;
   }
 }
 * { box-sizing: border-box; }
@@ -94,6 +95,7 @@ export function buildRoastPageHtml(session: PublishableSession): string {
       : null;
   const svg = buildRoastCurveSvg(session.events, durationSeconds);
   const sortedEvents = [...session.events].sort((a, b) => b.atSeconds - a.atSeconds);
+  const phases = computeRoastPhases(session.events, durationSeconds);
 
   const stats = [
     ["Duration", formatMMSS(durationSeconds)],
@@ -101,6 +103,7 @@ export function buildRoastPageHtml(session: PublishableSession): string {
     ["Weight loss", weightLoss != null ? `${weightLoss.toFixed(1)}%` : "—"],
     ["Rating", session.rating != null ? "★".repeat(session.rating) : "—"],
     ["Green → roasted", `${session.greenWeightGrams}g → ${session.roastedWeightGrams ?? "—"}g`],
+    ["Development", phases.developmentPercent != null ? `${phases.developmentPercent.toFixed(0)}%` : "—"],
   ];
 
   return `<!doctype html>

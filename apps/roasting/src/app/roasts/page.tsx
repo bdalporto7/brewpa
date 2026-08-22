@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import StartRoastForm from "@/components/roasts/StartRoastForm";
+import LogPastRoastForm from "@/components/roasts/LogPastRoastForm";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 
 export default async function RoastsPage() {
@@ -36,6 +37,8 @@ export default async function RoastsPage() {
       ) : (
         <StartRoastForm beans={beans} />
       )}
+
+      <LogPastRoastForm beans={beans} />
 
       {pastSessions.length === 0 ? (
         <p className="text-sm text-muted">No completed roasts yet.</p>

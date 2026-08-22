@@ -28,6 +28,18 @@ context, design standards, and build-order rationale.
   a static page to this repo's GitHub Pages site (curve, stats, event log).
   See "Export & publish" below — there's a one-time repo setting and a
   manual `git push` involved, not just an in-app button.
+- **Backfilling** — "Log a past roast" on `/roasts` records one already
+  completed (bean, weights, a past date/duration, level, rating) without a
+  live timer; "Add event" on any completed roast lets you add individual
+  fan/heat/temp/crack events afterward, each with a manually-typed elapsed
+  time.
+- **Roast phases** — Scott Rao's three-phase breakdown (drying / Maillard /
+  development), computed from milestone events and shown on every completed
+  roast, live during one, in the CSV, and on published pages.
+- **Live tips** — a small rule-based panel during a live roast: reminders
+  grounded in general roasting heuristics, and comparisons to your own past
+  roasts of that bean (e.g. "your average for this bean is 6:15"). No LLM
+  call — deliberately deterministic, see AGENTS.md for why.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
 
@@ -136,6 +148,25 @@ and neither is automatable from in here:
    branch → `main`, folder `/docs`.
 2. **Every publish**: `git add docs/ && git commit && git push` (or fold it
    into whatever commit you're already making) to actually put it live.
+
+## Roast phases & live tips
+
+- **Phases** — `computeRoastPhases` ([`src/lib/phases.ts`](src/lib/phases.ts))
+  derives drying (charge → dry end), Maillard/browning (dry end → first
+  crack), and development (first crack → drop) purely from whatever
+  milestone events exist; a phase whose boundaries aren't logged comes back
+  blank rather than guessed. [`PhaseBar.tsx`](src/components/roasts/PhaseBar.tsx)
+  renders it everywhere: completed roasts, live (via `LiveTipsPanel`), the
+  CSV export, and the published static page.
+- **Tips** — [`generateLiveTips`](src/lib/tips.ts) is a small, deliberately
+  rule-based set of prompts shown during a live roast
+  ([`LiveTipsPanel.tsx`](src/components/roasts/LiveTipsPanel.tsx)) — no LLM
+  call. Two kinds: generic ones citing widely-known, hedged heuristics
+  ("development time commonly cited around 15–25%"), and personalized ones
+  comparing this roast to the roaster's own history for that bean
+  (`computeHistoricalBaseline`, falling back to all beans if this one has no
+  history yet). The personalized half is the more defensible part — it's a
+  checkable fact about real data, not a general claim.
 
 ## Not built yet
 

@@ -4,3 +4,14 @@ export function formatMMSS(totalSeconds: number): string {
   const s = clamped % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+/** Parses "m:ss" or "h:mm:ss" into elapsed seconds. Returns null if invalid. */
+export function parseMMSS(input: string): number | null {
+  const parts = input.trim().split(":");
+  if (parts.length < 2 || parts.length > 3) return null;
+  const nums = parts.map(Number);
+  if (nums.some((n) => Number.isNaN(n) || n < 0)) return null;
+
+  const [h, m, s] = parts.length === 3 ? nums : [0, nums[0], nums[1]];
+  return h * 3600 + m * 60 + s;
+}

@@ -28,6 +28,7 @@ export const EVENT_TYPES = [
   "FAN",
   "HEAT",
   "TEMP",
+  "DRY_END",
   "FIRST_CRACK_START",
   "FIRST_CRACK_END",
   "SECOND_CRACK_START",
@@ -42,6 +43,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   FAN: "Fan level",
   HEAT: "Heat level",
   TEMP: "Temp reading",
+  DRY_END: "Dry end",
   FIRST_CRACK_START: "1st crack start",
   FIRST_CRACK_END: "1st crack end",
   SECOND_CRACK_START: "2nd crack start",
@@ -50,7 +52,9 @@ export const EVENT_LABELS: Record<EventType, string> = {
   DROP: "Drop (end of roast)",
 };
 
-export const CRACK_EVENT_TYPES: EventType[] = [
+/** One-time-per-roast milestone markers — used to grey out an already-logged button. */
+export const MILESTONE_EVENT_TYPES: EventType[] = [
+  "DRY_END",
   "FIRST_CRACK_START",
   "FIRST_CRACK_END",
   "SECOND_CRACK_START",

@@ -1,4 +1,4 @@
-import { Fan, Flame, Thermometer, Coffee, StickyNote, Square } from "lucide-react";
+import { Fan, Flame, Thermometer, Wind, Coffee, StickyNote, Square } from "lucide-react";
 import { deleteEvent } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
 import { describeEvent, type EventType } from "@/lib/constants";
@@ -9,6 +9,7 @@ const ICONS: Record<EventType, React.ReactNode> = {
   FAN: <Fan className="h-3.5 w-3.5" />,
   HEAT: <Flame className="h-3.5 w-3.5" />,
   TEMP: <Thermometer className="h-3.5 w-3.5" />,
+  DRY_END: <Wind className="h-3.5 w-3.5" />,
   FIRST_CRACK_START: <Coffee className="h-3.5 w-3.5" />,
   FIRST_CRACK_END: <Coffee className="h-3.5 w-3.5" />,
   SECOND_CRACK_START: <Coffee className="h-3.5 w-3.5" />,

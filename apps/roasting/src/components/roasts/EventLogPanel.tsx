@@ -7,7 +7,8 @@ import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, EVENT_LABELS, type EventType } from "@/lib/constants";
 import Button from "@/components/ui/Button";
 
-const CRACK_BUTTONS: { type: EventType; short: string }[] = [
+const MILESTONE_BUTTONS: { type: EventType; short: string }[] = [
+  { type: "DRY_END", short: "Dry end" },
   { type: "FIRST_CRACK_START", short: "1C start" },
   { type: "FIRST_CRACK_END", short: "1C end" },
   { type: "SECOND_CRACK_START", short: "2C start" },
@@ -63,13 +64,13 @@ export default function EventLogPanel({
   startedAt,
   initialFanLevel,
   initialHeatLevel,
-  loggedCrackTypes,
+  loggedMilestoneTypes,
 }: {
   roastSessionId: string;
   startedAt: string;
   initialFanLevel: number;
   initialHeatLevel: number;
-  loggedCrackTypes: EventType[];
+  loggedMilestoneTypes: EventType[];
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const [isPending, startTransition] = useTransition();
@@ -139,11 +140,11 @@ export default function EventLogPanel({
 
       <div className="rounded-lg border border-border bg-surface p-4">
         <span className="mb-2 block text-xs font-medium tracking-wide text-muted uppercase">
-          Crack markers
+          Milestones
         </span>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {CRACK_BUTTONS.map(({ type, short }) => {
-            const logged = loggedCrackTypes.includes(type);
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {MILESTONE_BUTTONS.map(({ type, short }) => {
+            const logged = loggedMilestoneTypes.includes(type);
             return (
               <button
                 key={type}

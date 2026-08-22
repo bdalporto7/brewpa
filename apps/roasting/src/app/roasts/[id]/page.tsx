@@ -5,14 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { deleteRoastSession, publishRoast, unpublishRoast } from "@/lib/actions";
 import { roastPageUrl } from "@/lib/publish";
 import { formatMMSS } from "@/lib/format";
+import { computeRoastPhases } from "@/lib/phases";
+import { computeHistoricalBaseline } from "@/lib/tips";
 import type { EventType } from "@/lib/constants";
-import { CRACK_EVENT_TYPES } from "@/lib/constants";
+import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import Timer from "@/components/roasts/Timer";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
 import EndRoastForm from "@/components/roasts/EndRoastForm";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
+import PhaseBar from "@/components/roasts/PhaseBar";
+import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
 import SalesPanel from "@/components/roasts/SalesPanel";
+import AddEventForm from "@/components/roasts/AddEventForm";
 import DeleteButton from "@/components/DeleteButton";
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -47,14 +52,32 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
 
   const latestFan = [...session.events].reverse().find((e) => e.type === "FAN");
   const latestHeat = [...session.events].reverse().find((e) => e.type === "HEAT");
-  const loggedCrackTypes = Array.from(new Set(session.events.map((e) => e.type))).filter(
-    (t): t is EventType => (CRACK_EVENT_TYPES as string[]).includes(t)
+  const loggedMilestoneTypes = Array.from(new Set(session.events.map((e) => e.type))).filter(
+    (t): t is EventType => (MILESTONE_EVENT_TYPES as string[]).includes(t)
   );
 
   const weightLoss =
     session.roastedWeightGrams != null
       ? (1 - session.roastedWeightGrams / session.greenWeightGrams) * 100
       : null;
+
+  const phases = computeRoastPhases(session.events, durationSeconds ?? 0);
+
+  let baseline = null;
+  if (isLive) {
+    let baselineSessions = await prisma.roastSession.findMany({
+      where: { beanId: session.beanId, endedAt: { not: null }, id: { not: session.id } },
+      include: { events: true },
+    });
+    if (baselineSessions.length === 0) {
+      baselineSessions = await prisma.roastSession.findMany({
+        where: { endedAt: { not: null } },
+        include: { events: true },
+        take: 50,
+      });
+    }
+    baseline = computeHistoricalBaseline(baselineSessions);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,12 +143,19 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
       {isLive ? (
         <>
           <Timer startedAt={session.startedAt.toISOString()} />
+          {baseline && (
+            <LiveTipsPanel
+              startedAt={session.startedAt.toISOString()}
+              events={session.events}
+              baseline={baseline}
+            />
+          )}
           <EventLogPanel
             roastSessionId={session.id}
             startedAt={session.startedAt.toISOString()}
             initialFanLevel={latestFan?.fanLevel ?? 5}
             initialHeatLevel={latestHeat?.heatLevel ?? 5}
-            loggedCrackTypes={loggedCrackTypes}
+            loggedMilestoneTypes={loggedMilestoneTypes}
           />
           <EventTimeline events={session.events} editable />
           <EndRoastForm roastSessionId={session.id} />
@@ -143,6 +173,7 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
             />
           </div>
           <RoastCurveChart events={session.events} totalSeconds={durationSeconds ?? 0} />
+          <PhaseBar phases={phases} />
           {session.notes && <p className="text-sm text-foreground/80">{session.notes}</p>}
           {session.roastedWeightGrams != null && (
             <SalesPanel
@@ -152,7 +183,11 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
               friends={friends}
             />
           )}
-          <EventTimeline events={session.events} />
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Add event</p>
+            <AddEventForm roastSessionId={session.id} />
+          </div>
+          <EventTimeline events={session.events} editable />
         </>
       )}
     </div>
