@@ -228,17 +228,23 @@ from what's actually drawn. The static published page has no JS by design
 (see "Not built yet" style notes elsewhere) and deliberately doesn't get
 this — hover is a live-app-only affordance.
 
-`EventTimeline.tsx` groups events sharing an exact `atSeconds` (e.g. fan and
-heat set together at the same tap, or a temp reading logged alongside a
-milestone) into one row of small chip pills instead of one full-width line
-per event — a straight one-row-per-event log was hard to scan on a real
-roast's 20-30-event history. Each chip keeps its own delete trigger
-(`DeleteButton`'s `variant="icon"`, a compact X — same confirm/error-display
-logic as the existing text-label variant used everywhere else, just a
-different rendering, so it doesn't need its own testing story). This is
-live-app-only too — `publish.ts` builds its own one-row-per-event `<ol>` for
-the static page directly (not via this component), left ungrouped since
-that page is a simpler, skimmable summary rather than a working log; revisit
+`EventTimeline.tsx` renders as a real `<table>` — columns Time / Temp / Fan /
+Heat / Event, chronological (oldest first, unlike the old newest-first
+list) — not a chip-pill list, which was tried first and rejected: most of a
+real roast's events are solo temp readings with nothing else at that
+`atSeconds`, so grouping alone barely helped — every reading was still its
+own full-width pill. A fixed-column table compresses each row to one line
+and lets a column (temp climbing, in particular) be scanned top-to-bottom,
+which pill rows couldn't do regardless of grouping. Events sharing an exact
+`atSeconds` (fan+heat set together at the same tap is the common case) still
+land on one row — now via matching column, not a wrapped pill. Each
+populated cell keeps its own delete trigger (`DeleteButton`'s
+`variant="icon"`, a compact X — same confirm/error-display logic as the
+existing text-label variant used everywhere else, just a different
+rendering). This is live-app-only — `publish.ts` builds its own
+one-row-per-event `<ol>` for the static page directly (not via this
+component), left as-is since that page is a simpler, skimmable summary
+rather than a working log; revisit
 if that page's timeline ever needs the same treatment. All
 user-entered text (bean name, notes, friend names) is HTML-escaped when
 building the static page — it's going to a **public** page, so that's a real

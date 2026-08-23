@@ -147,9 +147,11 @@ section for the full rationale.
    overlay, and a hover tooltip — plus a
    [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx) for logging
    drops to friends, then the full event timeline
-   ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)), which
-   groups events sharing the same elapsed-time stamp (e.g. fan and heat set
-   together) into one row of small chips instead of a separate line each.
+   ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)) as a
+   table — Time / Temp / Fan / Heat / Event columns, chronological — so
+   temp readings (most of a real roast's events) compress to one line each
+   and events sharing a timestamp (fan+heat set together) land on the same
+   row across matching columns instead of stacking as separate lines.
 
 ## Export & publish
 
