@@ -5,16 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { deleteRoastSession } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
-import { computeHistoricalBaseline } from "@/lib/tips";
+import { computeHistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
+import { getCurveReadings } from "@/lib/curve";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
-import Timer from "@/components/roasts/Timer";
+import LiveTimerBar from "@/components/roasts/LiveTimerBar";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
+import RoastPlanCard from "@/components/roasts/RoastPlanCard";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
 import DropRoastButton from "@/components/roasts/DropRoastButton";
 import RoastDetailsForm from "@/components/roasts/RoastDetailsForm";
 import PublishControl from "@/components/roasts/PublishControl";
+import GoldenRoastToggle from "@/components/roasts/GoldenRoastToggle";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
@@ -69,11 +72,13 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
   const phases = computeRoastPhases(session.events, durationSeconds ?? 0);
 
   let baseline = null;
+  let referenceRoast: ReferenceRoast | null = null;
   if (isLive) {
-    let baselineSessions = await prisma.roastSession.findMany({
+    const sameBeanCompleted = await prisma.roastSession.findMany({
       where: { beanId: session.beanId, endedAt: { not: null }, id: { not: session.id } },
       include: { events: true },
     });
+    let baselineSessions = sameBeanCompleted;
     if (baselineSessions.length === 0) {
       baselineSessions = await prisma.roastSession.findMany({
         where: { endedAt: { not: null } },
@@ -82,6 +87,23 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
       });
     }
     baseline = computeHistoricalBaseline(baselineSessions);
+
+    // The reference roast to compare live progress against never falls back
+    // across beans (unlike the averages above) — a different bean's curve
+    // isn't a meaningful target. Prefers the bean's explicitly-marked golden
+    // roast; falls back to its own most recent completed roast.
+    let refSession = session.bean.goldenRoastId
+      ? sameBeanCompleted.find((s) => s.id === session.bean.goldenRoastId)
+      : undefined;
+    let label = "Golden roast";
+    if (!refSession) {
+      refSession = [...sameBeanCompleted].sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0];
+      label = "Last roast";
+    }
+    if (refSession) {
+      const readings = getCurveReadings(refSession.events);
+      if (readings.length > 0) referenceRoast = { label, readings };
+    }
   }
 
   return (
@@ -106,6 +128,11 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
               </a>
+              <GoldenRoastToggle
+                beanId={session.beanId}
+                roastSessionId={session.id}
+                isGolden={session.bean.goldenRoastId === session.id}
+              />
               <PublishControl roastSessionId={session.id} publishedAt={session.publishedAt} />
             </>
           )}
@@ -123,16 +150,23 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      {isPending && <RoastSetupPanel roastSessionId={session.id} />}
+      {isPending && (
+        <>
+          <RoastSetupPanel roastSessionId={session.id} />
+          <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
+        </>
+      )}
 
       {isLive && (
         <>
-          <Timer startedAt={session.startedAt!.toISOString()} />
+          <LiveTimerBar startedAt={session.startedAt!.toISOString()} beanName={session.bean.name} />
+          <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
           {baseline && (
             <LiveTipsPanel
               startedAt={session.startedAt!.toISOString()}
               events={session.events}
               baseline={baseline}
+              referenceRoast={referenceRoast}
             />
           )}
           <EventLogPanel

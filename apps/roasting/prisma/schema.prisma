@@ -32,7 +32,14 @@ model Bean {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  roastSessions RoastSession[]
+  // The one roast of this bean to target/compare future roasts against —
+  // set explicitly (not just "most recent"), null until the roaster marks
+  // one. A distinct relation from roastSessions below since a bean can
+  // reference at most one of its own sessions this way.
+  goldenRoastId String?       @unique
+  goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
+
+  roastSessions RoastSession[] @relation("BeanRoasts")
 
   @@index([origin])
   @@index([createdAt])
@@ -41,7 +48,7 @@ model Bean {
 model RoastSession {
   id                    String    @id @default(cuid())
   beanId                String
-  bean                  Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
+  bean                  Bean      @relation("BeanRoasts", fields: [beanId], references: [id], onDelete: Restrict)
   startedAt             DateTime?
   endedAt               DateTime?
   publishedAt           DateTime?
@@ -56,6 +63,8 @@ model RoastSession {
 
   events RoastEvent[]
   sales  Sale[]
+
+  goldenForBean Bean? @relation("BeanGoldenRoast")
 
   @@index([beanId])
   @@index([startedAt])

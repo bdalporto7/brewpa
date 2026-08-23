@@ -5,25 +5,13 @@ import {
   buildRoastCurveSvg,
   getCurveReadings,
   getChartLayout,
+  nearestCurveReading,
   CHART_WIDTH,
   CHART_HEIGHT,
   type CurveReading,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import type { RoastEvent } from "@prisma/client";
-
-function nearestReading(readings: CurveReading[], atSeconds: number): CurveReading {
-  let best = readings[0];
-  let bestDist = Math.abs(best.atSeconds - atSeconds);
-  for (const r of readings) {
-    const d = Math.abs(r.atSeconds - atSeconds);
-    if (d < bestDist) {
-      best = r;
-      bestDist = d;
-    }
-  }
-  return best;
-}
 
 export default function RoastCurveChart({
   events,
@@ -61,7 +49,7 @@ export default function RoastCurveChart({
     const relX = clientX - rect.left;
     const svgX = (relX / rect.width) * CHART_WIDTH;
     const seconds = ((svgX - layout.chartLeft) / (layout.chartRight - layout.chartLeft)) * layout.duration;
-    setHovered(nearestReading(readings, seconds));
+    setHovered(nearestCurveReading(readings, seconds));
   }
 
   const crosshairX = hovered ? layout.x(hovered.atSeconds) : 0;

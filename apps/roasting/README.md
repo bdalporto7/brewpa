@@ -22,14 +22,18 @@ context, design standards, and build-order rationale.
   actually in your data — narrows all four sections at once.
 - **Live roast sessions** (`/roasts`, `/roasts/[id]`) — start a roast against
   a bean and land on a setup screen (no timer running) to dial in your
-  starting fan and heat; tap "Begin Roast" when you're actually ready and
-  *that's* when the clock starts. Once live, log fan level, heat level,
-  temperature readings, and milestone markers (dry end, yellowing end,
-  first/second crack) in real time — all manual entry, tapped in as you
-  watch the physical roaster. Only one roast can be set up or running at a
-  time.
-- **Roasting curve** — once a roast ends (or live, once there are enough
-  readings), its temperature readings render as a hand-built SVG curve with
+  starting fan and heat; write a **plan** here too if you want one (target
+  temps, timing — the same notes field a completed roast's details use,
+  just editable from before the roast even starts). Tap "Begin Roast" when
+  you're actually ready and *that's* when the clock starts. Once live, log
+  fan level, heat level, temperature readings, and milestone markers (dry
+  end, yellowing end, first/second crack) in real time — all manual entry,
+  tapped in as you watch the physical roaster. The timer stays visible the
+  whole time: scroll down to log an event or check the plan and a compact
+  version pins to the top instead of scrolling away. Only one roast can be
+  set up or running at a time.
+- **Roasting curve** — once a roast ends, its temperature readings render as
+  a hand-built SVG curve with
   crack markers and a fan/heat step overlay. Hovering (or touching, on
   mobile) snaps a crosshair to the nearest logged reading and shows a
   tooltip with elapsed time, temp, and the fan/heat level active at that
@@ -57,9 +61,15 @@ context, design standards, and build-order rationale.
   development), computed from milestone events and shown on every completed
   roast, live during one, in the CSV, and on published pages.
 - **Live tips** — a small rule-based panel during a live roast: reminders
-  grounded in general roasting heuristics, and comparisons to your own past
-  roasts of that bean (e.g. "your average for this bean is 6:15"). No LLM
-  call — deliberately deterministic, see AGENTS.md for why.
+  grounded in general roasting heuristics, comparisons to your own past
+  roasts of that bean (e.g. "your average for this bean is 6:15"), and — if
+  you've marked one — a live comparison against that bean's **golden
+  roast**: "Golden roast was at 310°F around 0:41 — you're at 305°F (-5°)."
+  Mark any completed roast as the golden one for its bean with the ★ toggle
+  on that roast's page; future roasts of that bean compare against it
+  automatically (falling back to the bean's most recent roast if none is
+  set — never to a different bean's data). No LLM call — deliberately
+  deterministic, see AGENTS.md for why.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
 
@@ -108,9 +118,16 @@ section for the full rationale.
   edit form on `/beans` (or the detail page) has a "Total purchased (g)"
   field for correcting `weightGrams` (can't go below current remaining);
   `remainingGrams` has its own dedicated add/remove/set-exact control
-  (`StockAdjuster.tsx`) instead of living in that same form.
+  (`StockAdjuster.tsx`) instead of living in that same form. `goldenRoastId`
+  optionally points to one of the bean's own completed `RoastSession`s — the
+  target future roasts of this bean get compared against live; set via the
+  ★ toggle on a completed roast's page.
 - **RoastSession** — one roast against a `Bean`: `startedAt`/`endedAt`,
-  green weight, final roasted weight, roast level and rating. Green stock is
+  green weight, final roasted weight, roast level and rating. `notes` is
+  editable at any stage — a plan before/during the roast, a writeup after —
+  through separate actions (`updateRoastNotes`, no restrictions on state;
+  `updateRoastDetails`, completed roasts only, bundled with weight/level/
+  rating) that share the one field. Green stock is
   decremented when a session starts and restored if it's deleted (whether
   abandoned live or removed after the fact). Ending a roast also sets
   `roastedRemainingGrams` to the roasted weight — each session is its own

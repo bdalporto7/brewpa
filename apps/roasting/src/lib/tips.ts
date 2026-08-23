@@ -1,4 +1,5 @@
 import { formatMMSS } from "@/lib/format";
+import { nearestCurveReading, type CurveReading } from "@/lib/curve";
 import type { RoastEvent, RoastSession } from "@prisma/client";
 
 /**
@@ -38,6 +39,9 @@ export function computeHistoricalBaseline(
 
 export type Tip = { id: string; message: string };
 
+/** A specific past roast to compare live progress against — either the bean's explicitly-marked golden roast, or (falling back) its most recent completed roast. */
+export type ReferenceRoast = { label: string; readings: CurveReading[] };
+
 /**
  * A small, deliberately conservative rule set — general, widely-cited
  * roasting heuristics (never precise/authoritative claims) plus comparisons
@@ -46,11 +50,24 @@ export type Tip = { id: string; message: string };
  */
 export function generateLiveTips(input: {
   elapsedSeconds: number;
-  events: Pick<RoastEvent, "type" | "atSeconds">[];
+  events: Pick<RoastEvent, "type" | "atSeconds" | "tempFahrenheit">[];
   baseline: HistoricalBaseline;
+  referenceRoast?: ReferenceRoast | null;
 }): Tip[] {
-  const { elapsedSeconds, events, baseline } = input;
+  const { elapsedSeconds, events, baseline, referenceRoast } = input;
   const tips: Tip[] = [];
+
+  if (referenceRoast && referenceRoast.readings.length > 0) {
+    const ref = nearestCurveReading(referenceRoast.readings, elapsedSeconds);
+    const currentTemp = [...events].reverse().find((e) => e.type === "TEMP")?.tempFahrenheit;
+    const diff = currentTemp != null ? Math.round(currentTemp - ref.temp) : null;
+    const comparison =
+      diff != null ? ` — you're at ${Math.round(currentTemp!)}°F (${diff > 0 ? "+" : ""}${diff}°)` : "";
+    tips.push({
+      id: "reference-roast",
+      message: `${referenceRoast.label} was at ${Math.round(ref.temp)}°F around ${formatMMSS(ref.atSeconds)}${comparison}.`,
+    });
+  }
 
   const hasType = (t: string) => events.some((e) => e.type === t);
   const lastTemp = [...events].reverse().find((e) => e.type === "TEMP");

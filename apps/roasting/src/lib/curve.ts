@@ -82,6 +82,25 @@ export function getCurveReadings(events: RoastEvent[]): CurveReading[] {
   });
 }
 
+/**
+ * The nearest real reading to a given elapsed time — shared by the hover
+ * tooltip (RoastCurveChart.tsx) and the live golden-roast comparison
+ * (tips.ts), so both "closest logged point to right now" lookups use the
+ * same rule. Callers guarantee readings is non-empty.
+ */
+export function nearestCurveReading(readings: CurveReading[], atSeconds: number): CurveReading {
+  let best = readings[0];
+  let bestDist = Math.abs(best.atSeconds - atSeconds);
+  for (const r of readings) {
+    const d = Math.abs(r.atSeconds - atSeconds);
+    if (d < bestDist) {
+      best = r;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
 export interface ChartLayout {
   chartLeft: number;
   chartRight: number;

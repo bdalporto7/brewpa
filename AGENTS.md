@@ -458,7 +458,52 @@ the more defensible half of what the tips panel says. If this list of rules
 grows, keep that split intentional — the personalized/grounded-in-real-data
 tips are safe to expand freely; a new generic numeric heuristic should only
 go in if it's genuinely well-established, hedged the same way, and not
-something represented as more precise than it is.
+something represented as more precise than it is. As of this writing there's
+a third kind alongside generic and personalized: a live comparison against
+one specific reference roast (see "Golden roast" below) — grounded in real
+data like the personalized rules, but about a single chosen roast rather
+than an average.
+
+**Live-view ergonomics:** two small additions address "the timer/plan
+scrolls out of view while you're logging events." `LiveTimerBar.tsx` wraps
+the hero `Timer` with an `IntersectionObserver` on it; once it scrolls out
+of the viewport, a slim `position: fixed` bar takes over showing bean name +
+ticking elapsed time. Deliberately two separate elements rather than one
+that shrinks on scroll — keeps the hero timer's full size while it's in
+view (it's meant to dominate the screen, per the design-standards section
+below) without needing a scroll-linked resize animation. `RoastPlanCard.tsx`
+puts `RoastSession.notes` — the same field `RoastDetailsForm` edits after a
+roast ends — in front of the roaster *before* and *during* a roast too, via
+a new standalone action (`updateRoastNotes`, no completed-roast gate, unlike
+`updateRoastDetails`). Auto-opens for editing when there's no plan yet, and
+stays visible (not collapsed behind an "Edit" click) once one exists, since
+the whole point is having it to glance back at mid-roast.
+
+**Golden roast:** a bean can have one explicitly-marked roast
+(`Bean.goldenRoastId`, a nullable self-referencing-through-RoastSession FK,
+`onDelete: SetNull`, migration `add_golden_roast`) that future roasts of
+that bean get compared against live — set via a star toggle
+(`GoldenRoastToggle.tsx` / `setGoldenRoast` action) on any completed roast's
+page. Deliberately explicit rather than always-just-the-most-recent-roast:
+"the roast that went well" and "the roast that happened most recently"
+aren't the same roast, and conflating them would make the comparison
+actively misleading after a bad batch. `setGoldenRoast` validates the
+session belongs to the bean being updated and is completed before allowing
+it — a golden roast that's still live or belongs to a different bean isn't
+a coherent state. The live comparison itself (`ReferenceRoast` type,
+`generateLiveTips` in `tips.ts`) reuses `nearestCurveReading` — the exact
+lookup the hover tooltip uses (promoted out of `RoastCurveChart.tsx` into
+`curve.ts` for this reason) — to find the reference roast's closest logged
+point to the current elapsed time, and surfaces it as one more live tip:
+`"Golden roast was at 310°F around 0:41 — you're at 305°F (-5°)."` Falls
+back to the bean's most recent completed roast (labeled "Last roast"
+instead) when no golden roast is set — but **never** falls back across
+beans the way the averages-based `baseline` does, since a different bean's
+temp curve isn't a meaningful target regardless of how little history this
+bean has. No curve-overlay version of this exists yet (`RoastCurveChart`
+doesn't currently render during a live roast at all, only once completed) —
+the live tip line was the right-sized first cut; revisit if a visual
+overlay turns out to matter more than the text comparison.
 
 **Gotcha:** after `prisma migrate dev` (or any schema change), restart the
 Next dev server. The regenerated Prisma Client on disk doesn't get picked up

@@ -3,7 +3,7 @@
 import { Sparkles } from "lucide-react";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import { computeRoastPhases } from "@/lib/phases";
-import { generateLiveTips, type HistoricalBaseline } from "@/lib/tips";
+import { generateLiveTips, type HistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import type { RoastEvent } from "@prisma/client";
 
@@ -11,14 +11,16 @@ export default function LiveTipsPanel({
   startedAt,
   events,
   baseline,
+  referenceRoast,
 }: {
   startedAt: string;
   events: RoastEvent[];
   baseline: HistoricalBaseline;
+  referenceRoast?: ReferenceRoast | null;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const phases = computeRoastPhases(events, elapsed);
-  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline });
+  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast });
 
   return (
     <div className="flex flex-col gap-3">

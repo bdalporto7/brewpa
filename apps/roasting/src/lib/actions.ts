@@ -149,6 +149,30 @@ export async function setBeanStock(beanId: string, amount: number) {
   revalidatePath("/");
 }
 
+/**
+ * Marks (or unmarks, passing null) one of a bean's own completed roasts as
+ * the target to compare future roasts of that bean against — see
+ * `computeHistoricalBaseline`'s caller in `/roasts/[id]/page.tsx` for how
+ * that comparison surfaces live.
+ */
+export async function setGoldenRoast(beanId: string, roastSessionId: string | null) {
+  if (roastSessionId) {
+    const session = await prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    if (session.beanId !== beanId) {
+      throw new Error("That roast isn't for this bean.");
+    }
+    if (!session.endedAt) {
+      throw new Error("Only a completed roast can be set as the golden roast.");
+    }
+  }
+
+  await prisma.bean.update({ where: { id: beanId }, data: { goldenRoastId: roastSessionId } });
+
+  if (roastSessionId) revalidatePath(`/roasts/${roastSessionId}`);
+  revalidatePath(`/beans/${beanId}`);
+  revalidatePath("/roasts");
+}
+
 export async function deleteBean(id: string) {
   const sessionCount = await prisma.roastSession.count({ where: { beanId: id } });
   if (sessionCount > 0) {
@@ -222,6 +246,17 @@ export async function beginRoast(roastSessionId: string, fanLevel: number, heatL
   revalidatePath(`/roasts/${roastSessionId}`);
   revalidatePath("/roasts");
   revalidatePath("/");
+}
+
+/**
+ * The same RoastSession.notes column RoastDetailsForm edits post-roast —
+ * this just lets it be set/edited before a roast starts (a plan) or while
+ * it's live (a running note), with no completed-roast gate.
+ */
+export async function updateRoastNotes(roastSessionId: string, formData: FormData) {
+  const notes = str(formData, "notes");
+  await prisma.roastSession.update({ where: { id: roastSessionId }, data: { notes } });
+  revalidatePath(`/roasts/${roastSessionId}`);
 }
 
 export async function startPastRoast(formData: FormData) {
