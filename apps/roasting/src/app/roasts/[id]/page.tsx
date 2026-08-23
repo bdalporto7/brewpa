@@ -10,6 +10,7 @@ import { computeHistoricalBaseline } from "@/lib/tips";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import Timer from "@/components/roasts/Timer";
+import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
 import EndRoastForm from "@/components/roasts/EndRoastForm";
@@ -45,10 +46,13 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
 
   if (!session) notFound();
 
-  const isLive = session.endedAt == null;
-  const durationSeconds = isLive
-    ? null
-    : (session.endedAt!.getTime() - session.startedAt.getTime()) / 1000;
+  const isPending = session.startedAt == null && session.endedAt == null;
+  const isLive = session.startedAt != null && session.endedAt == null;
+  const isCompleted = session.endedAt != null;
+  const durationSeconds =
+    isCompleted && session.startedAt
+      ? (session.endedAt!.getTime() - session.startedAt.getTime()) / 1000
+      : null;
 
   const latestFan = [...session.events].reverse().find((e) => e.type === "FAN");
   const latestHeat = [...session.events].reverse().find((e) => e.type === "HEAT");
@@ -85,11 +89,14 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
         <div>
           <h1 className="text-xl font-semibold">{session.bean.name}</h1>
           <p className="text-sm text-muted">
-            {format(session.startedAt, "MMM d, yyyy 'at' h:mm a")} · {session.greenWeightGrams}g green
+            {session.startedAt
+              ? format(session.startedAt, "MMM d, yyyy 'at' h:mm a")
+              : "Not started yet"}{" "}
+            · {session.greenWeightGrams}g green
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {!isLive && (
+          {isCompleted && (
             <>
               <a
                 href={`/roasts/${session.id}/export`}
@@ -131,28 +138,32 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
           <DeleteButton
             action={deleteRoastSession.bind(null, session.id)}
             confirmText={
-              isLive
-                ? "Abandon this roast? Green weight will be returned to bean inventory."
-                : "Delete this roast? Green weight will be returned to bean inventory."
+              isPending
+                ? "Cancel this roast setup? Green weight will be returned to bean inventory."
+                : isLive
+                  ? "Abandon this roast? Green weight will be returned to bean inventory."
+                  : "Delete this roast? Green weight will be returned to bean inventory."
             }
-            label={isLive ? "Abandon" : "Delete"}
+            label={isCompleted ? "Delete" : isPending ? "Cancel" : "Abandon"}
           />
         </div>
       </div>
 
-      {isLive ? (
+      {isPending && <RoastSetupPanel roastSessionId={session.id} />}
+
+      {isLive && (
         <>
-          <Timer startedAt={session.startedAt.toISOString()} />
+          <Timer startedAt={session.startedAt!.toISOString()} />
           {baseline && (
             <LiveTipsPanel
-              startedAt={session.startedAt.toISOString()}
+              startedAt={session.startedAt!.toISOString()}
               events={session.events}
               baseline={baseline}
             />
           )}
           <EventLogPanel
             roastSessionId={session.id}
-            startedAt={session.startedAt.toISOString()}
+            startedAt={session.startedAt!.toISOString()}
             initialFanLevel={latestFan?.fanLevel ?? 5}
             initialHeatLevel={latestHeat?.heatLevel ?? 5}
             loggedMilestoneTypes={loggedMilestoneTypes}
@@ -160,7 +171,9 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
           <EventTimeline events={session.events} editable />
           <EndRoastForm roastSessionId={session.id} />
         </>
-      ) : (
+      )}
+
+      {isCompleted && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Stat label="Duration" value={formatMMSS(durationSeconds ?? 0)} />

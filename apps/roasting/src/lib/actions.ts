@@ -194,6 +194,34 @@ export async function startRoast(formData: FormData) {
   redirect(`/roasts/${session.id}`);
 }
 
+/**
+ * The second half of starting a roast: the session already exists (bean and
+ * green weight picked via startRoast) but the timer hasn't started — this is
+ * the moment the roaster has dialed in their starting fan/heat and is
+ * actually turning the roaster on. Sets startedAt (which is what makes the
+ * session "live") and logs the initial fan/heat as atSeconds: 0 events.
+ */
+export async function beginRoast(roastSessionId: string, fanLevel: number, heatLevel: number) {
+  await prisma.$transaction(async (tx) => {
+    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    if (session.startedAt) {
+      throw new Error("This roast has already begun.");
+    }
+
+    await tx.roastSession.update({ where: { id: roastSessionId }, data: { startedAt: new Date() } });
+    await tx.roastEvent.createMany({
+      data: [
+        { roastSessionId, type: "FAN", atSeconds: 0, fanLevel },
+        { roastSessionId, type: "HEAT", atSeconds: 0, heatLevel },
+      ],
+    });
+  });
+
+  revalidatePath(`/roasts/${roastSessionId}`);
+  revalidatePath("/roasts");
+  revalidatePath("/");
+}
+
 export async function startPastRoast(formData: FormData) {
   const beanId = str(formData, "beanId");
   const greenWeightGrams = num(formData, "greenWeightGrams");
@@ -306,6 +334,9 @@ export async function endRoast(roastSessionId: string, formData: FormData) {
     const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
     if (session.endedAt) {
       throw new Error("This roast has already ended.");
+    }
+    if (!session.startedAt) {
+      throw new Error("This roast hasn't begun yet.");
     }
 
     const endedAt = new Date();

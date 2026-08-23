@@ -51,16 +51,20 @@ dial, no digital output of its own. Scope, current priority order:
    one card per *bean* in every section including Roasted, which aggregates
    across that bean's roast sessions rather than listing each one; `/beans/[id]`
    for full detail — green stock, aggregate roasted stock, every past roast).
-2. **Live roast sessions** — the core of the app. Starting a roast starts an
-   on-screen timer; while it runs, the roaster (the person) logs events in
-   real time as they happen: fan level changes, heat level changes,
-   temperature readings (from a separate probe/thermometer — the SR800 has
-   none built in), and crack markers (first crack start/end, second crack
-   start/end), plus free notes. This is **manual data entry against a live
-   clock**, not a hardware integration — the human is relaying what they see
-   and do on the physical roaster. See the note below on why this doesn't
-   need serial/USB access. Built (`/roasts/[id]`, only one session can be
-   active at a time).
+2. **Live roast sessions** — the core of the app. Starting a roast doesn't
+   start the timer — it creates a *pending* session (bean and green weight
+   picked, stock already decremented) and opens a setup screen where the
+   roaster dials in starting fan/heat with no clock running; the timer only
+   starts once they tap "Begin Roast." While live, the roaster (the person)
+   logs events in real time as they happen: fan level changes, heat level
+   changes, temperature readings (from a separate probe/thermometer — the
+   SR800 has none built in), and milestone markers (see "Roast phases &
+   tips" below for the full Scott Rao set), plus free notes. This is
+   **manual data entry against a live clock**, not a hardware integration —
+   the human is relaying what they see and do on the physical roaster. See
+   the note below on why this doesn't need serial/USB access. Built
+   (`/roasts/[id]`, three states — pending / live / completed, see "Roast
+   lifecycle" below; only one pending-or-live session at a time).
 3. **Roasting curve** — once a session ends, its events render as a graphed
    curve: temperature over time, with fan/heat level as a step overlay and
    crack events as vertical markers. This is the payoff view — it's what
@@ -244,22 +248,69 @@ normalization before the "merge same-named beans" behavior did anything
 useful — exact-string matching alone would have fragmented it into three
 near-duplicate `Bean` rows.
 
+**Roast lifecycle:** a `RoastSession` is pending (`startedAt` null,
+`endedAt` null) → live (`startedAt` set, `endedAt` null) → completed
+(`endedAt` set), not just live/completed. `startRoast` creates the pending
+session (bean + green weight picked, stock decremented immediately — same
+as before) and redirects to `/roasts/[id]`, which renders `RoastSetupPanel`
+for that state: fan/heat steppers with plain local `useState`, no
+`RoastEvent`s written per tap (unlike the live `EventLogPanel`, which fires
+a server action on every change) — nothing is timestamped yet because
+there's no `startedAt` to measure elapsed time from. `beginRoast` is the
+transition: sets `startedAt = now()` and writes the chosen fan/heat as
+`atSeconds: 0` events in one transaction, which is what actually starts the
+clock the rest of the app measures against. This exists because the timer
+starting the instant "Start" was clicked (the original behavior) was wrong
+for how this app is actually used — you need a moment to dial in the
+roaster's dials before the roast itself begins, and that setup time isn't
+part of the roast. `startedAt` being nullable now (was `@default(now())`,
+migration `nullable_started_at`) touches everywhere a `RoastSession` is
+read: anything scoped to completed roasts (CSV, publish, `computeHistoricalBaseline`,
+the dashboard's month/recent-roasts queries) is safe with a `!` assertion
+since `endedAt` implies `startedAt`; anything that can see a pending session
+(`RoastSessionCard`, both `activeSession` banners on `/` and `/roasts`) has
+to actually branch on it being null, not just assert past it.
+
 **Roast phases & tips:** `computeRoastPhases` (`src/lib/phases.ts`) is a pure
-function deriving Scott Rao's three-phase breakdown — drying (charge → `DRY_END`),
-Maillard/browning (`DRY_END` → `FIRST_CRACK_START`), development
-(`FIRST_CRACK_START` → drop) — from whatever milestone events exist; any
-phase whose boundary events aren't logged comes back `null` rather than
-guessed. `PhaseBar.tsx` renders it (used on completed roasts, on a live
-roast via `LiveTipsPanel`, in the CSV, and as one more stat on the published
-static page). `generateLiveTips` (`src/lib/tips.ts`) is a small, deliberately
+function deriving Scott Rao's phase breakdown — drying (charge → `DRY_END`)
+→ yellowing (`DRY_END` → `YELLOWING_END`) → browning/Maillard
+(`YELLOWING_END` → `FIRST_CRACK_START`) → development (`FIRST_CRACK_START`
+→ drop) — from whatever milestone events exist; any phase whose boundary
+events aren't logged comes back `null` rather than guessed, **except**
+`browningSeconds`, which falls back to spanning the whole
+`DRY_END`→`FIRST_CRACK_START` window when `YELLOWING_END` wasn't logged —
+that milestone was added after `DRY_END`/`FIRST_CRACK_START` already
+existed, so every one of the 34 historical-import roasts only has the
+coarser two-milestone data, and would otherwise lose its whole middle phase
+from the bar. There's no separate "browning end" marker — by definition
+browning ends exactly when first crack starts, so logging `FIRST_CRACK_START`
+already marks it; adding a redundant button for the same instant would just
+invite two slightly-different timestamps for one event. `PhaseBar.tsx`
+renders it (used on completed roasts, on a live roast via `LiveTipsPanel`,
+in the CSV, and as one more stat on the published static page).
+`generateLiveTips` (`src/lib/tips.ts`) is a small, deliberately
 rule-based set of live prompts during a roast — no LLM call, by design (this
 was a real decision point, confirmed with the user: reliability, no external
 dependency, and no risk of confidently-wrong advice on something that can
 ruin a batch, mattered more than open-ended flexibility here). Two kinds of
-rules: generic ones with hedged, general-heuristic numbers ("development
-time commonly cited around 15–25%" — phrased as common guidance, not
-asserted fact, since this isn't a claim to overstate confidence in), and
-personalized ones grounded in the roaster's own history
+rules: generic ones with hedged, general-heuristic numbers, and personalized
+ones grounded in the roaster's own history. **The generic ones are held to a
+real bar**: the user explicitly asked that any claim attributed to Scott Rao
+be checked against a real source, not recalled from training data and
+asserted — this came up because the DTR figure was initially written as
+"commonly cited around 15–25%" from memory, which was close but wrong; a web
+search turned up Rao's own post confirming **20–25%** as his actual target
+(lower on high-powered roasters), at
+[scottrao.com/blog/2016/8/25/development-time-ratio](https://www.scottrao.com/blog/2016/8/25/development-time-ratio),
+and that's what's in the code now. The drying → yellowing → Maillard/browning
+phase structure itself checked out too (chlorophyll breakdown turning beans
+yellow, then Maillard reactions turning them tan → brown), and the SR800's
+1–9 fan/heat range is a real hardware spec, not an assumption — both
+confirmed via search rather than left on recall. If another generic
+(non-personalized) claim gets added to this file, verify it the same way
+first — recalled-and-hedged is not good enough once it's presented as
+someone's actual guidance. Personalized rules are grounded in the roaster's
+own history
 (`computeHistoricalBaseline` averages dry-end/first-crack/duration from past
 completed roasts of the *same bean*, falling back to all beans if that bean
 has no history yet) — e.g. "your average for this bean is 6:15" is a real,

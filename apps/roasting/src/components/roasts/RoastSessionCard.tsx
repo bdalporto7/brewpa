@@ -10,7 +10,7 @@ export default function RoastSessionCard({
   session: RoastSession & { bean: Bean };
 }) {
   const durationSeconds =
-    session.endedAt != null
+    session.endedAt != null && session.startedAt != null
       ? (session.endedAt.getTime() - session.startedAt.getTime()) / 1000
       : null;
   const weightLoss =
@@ -34,7 +34,8 @@ export default function RoastSessionCard({
               )}
             </h3>
             <p className="text-sm text-muted">
-              {format(session.startedAt, "MMM d, yyyy")} · {session.greenWeightGrams}g green
+              {session.startedAt ? format(session.startedAt, "MMM d, yyyy") : "Not started yet"} ·{" "}
+              {session.greenWeightGrams}g green
               {session.roastedWeightGrams != null && ` → ${session.roastedWeightGrams}g roasted`}
               {weightLoss != null && ` (${weightLoss.toFixed(1)}% loss)`}
             </p>

@@ -72,15 +72,16 @@ export default async function DashboardPage() {
   ];
 
   if (activeSession) {
+    const isPending = activeSession.startedAt == null;
     return (
       <div className="flex flex-col items-center gap-6 py-10 text-center">
         <span className="flex items-center gap-1.5 text-sm font-medium text-accent">
           <Flame className="h-4 w-4" />
-          {activeSession.bean.name} is roasting
+          {activeSession.bean.name} {isPending ? "is set up, ready to roast" : "is roasting"}
         </span>
-        <Timer startedAt={activeSession.startedAt.toISOString()} />
+        {!isPending && <Timer startedAt={activeSession.startedAt!.toISOString()} />}
         <Link href={`/roasts/${activeSession.id}`}>
-          <Button>Open live log</Button>
+          <Button>{isPending ? "Finish setup" : "Open live log"}</Button>
         </Link>
       </div>
     );
@@ -163,7 +164,7 @@ export default async function DashboardPage() {
                   {session.bean.name}
                   {session.roastLevel && ` — ${session.roastLevel}`}
                 </span>
-                <span className="text-muted">{format(session.startedAt, "MMM d, yyyy")}</span>
+                <span className="text-muted">{format(session.startedAt!, "MMM d, yyyy")}</span>
               </Link>
             ))}
           </div>

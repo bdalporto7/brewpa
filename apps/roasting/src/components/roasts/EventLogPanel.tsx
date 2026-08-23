@@ -1,63 +1,21 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Fan, Flame, Minus, Plus, Thermometer, Check } from "lucide-react";
+import { Fan, Flame, Thermometer, Check } from "lucide-react";
 import { logEvent } from "@/lib/actions";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
-import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, EVENT_LABELS, type EventType } from "@/lib/constants";
+import { EVENT_LABELS, type EventType } from "@/lib/constants";
 import Button from "@/components/ui/Button";
+import LevelStepper from "@/components/roasts/LevelStepper";
 
 const MILESTONE_BUTTONS: { type: EventType; short: string }[] = [
   { type: "DRY_END", short: "Dry end" },
+  { type: "YELLOWING_END", short: "Yellowing end" },
   { type: "FIRST_CRACK_START", short: "1C start" },
   { type: "FIRST_CRACK_END", short: "1C end" },
   { type: "SECOND_CRACK_START", short: "2C start" },
   { type: "SECOND_CRACK_END", short: "2C end" },
 ];
-
-function LevelStepper({
-  label,
-  icon,
-  level,
-  onChange,
-  pending,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  level: number;
-  onChange: (next: number) => void;
-  pending: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface p-4">
-      <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        {icon}
-        {label}
-      </span>
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          disabled={pending || level <= SR800_LEVEL_MIN}
-          onClick={() => onChange(level - 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition hover:border-accent hover:text-accent disabled:opacity-30"
-          aria-label={`Decrease ${label}`}
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-        <span className="w-8 text-center font-mono text-3xl font-semibold tabular-nums">{level}</span>
-        <button
-          type="button"
-          disabled={pending || level >= SR800_LEVEL_MAX}
-          onClick={() => onChange(level + 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition hover:border-accent hover:text-accent disabled:opacity-30"
-          aria-label={`Increase ${label}`}
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function EventLogPanel({
   roastSessionId,
@@ -142,7 +100,7 @@ export default function EventLogPanel({
         <span className="mb-2 block text-xs font-medium tracking-wide text-muted uppercase">
           Milestones
         </span>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {MILESTONE_BUTTONS.map(({ type, short }) => {
             const logged = loggedMilestoneTypes.includes(type);
             return (

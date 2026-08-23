@@ -3,7 +3,8 @@ import type { RoastPhases } from "@/lib/phases";
 
 const SEGMENTS: { key: keyof RoastPhases & `${string}Percent`; label: string; className: string }[] = [
   { key: "dryingPercent", label: "Drying", className: "bg-border" },
-  { key: "maillardPercent", label: "Maillard", className: "bg-accent-soft" },
+  { key: "yellowingPercent", label: "Yellowing", className: "bg-[var(--mark-dry-end)]" },
+  { key: "browningPercent", label: "Browning", className: "bg-accent-soft" },
   { key: "developmentPercent", label: "Development", className: "bg-accent" },
 ];
 
@@ -13,7 +14,8 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
 
   const seconds: Record<string, number | null> = {
     dryingPercent: phases.dryingSeconds,
-    maillardPercent: phases.maillardSeconds,
+    yellowingPercent: phases.yellowingSeconds,
+    browningPercent: phases.browningSeconds,
     developmentPercent: phases.developmentSeconds,
   };
 
@@ -30,7 +32,7 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
         )}
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         {SEGMENTS.map((s) => (
           <div key={s.key}>
             <p className="text-muted">{s.label}</p>
@@ -43,8 +45,8 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
 
       {phases.developmentPercent != null && (
         <p className="mt-3 text-xs text-muted">
-          Development time is commonly cited around 15–25% of total roast time as a general
-          starting point (Scott Rao) — not a rule, and it varies by bean and target roast level.
+          Scott Rao targets a development time ratio (DTR) of roughly 20–25% as a starting
+          point, lower on high-powered roasters — not a rule, and it varies by bean and roast level.
         </p>
       )}
     </div>

@@ -13,6 +13,7 @@ const VALUE_FIELD: Record<EventType, "fan" | "heat" | "temp" | "note" | null> = 
   HEAT: "heat",
   TEMP: "temp",
   DRY_END: null,
+  YELLOWING_END: null,
   FIRST_CRACK_START: null,
   FIRST_CRACK_END: null,
   SECOND_CRACK_START: null,

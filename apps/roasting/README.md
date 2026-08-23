@@ -21,10 +21,13 @@ context, design standards, and build-order rationale.
   free-text search plus origin/process dropdowns populated from what's
   actually in your data — narrows all four sections at once.
 - **Live roast sessions** (`/roasts`, `/roasts/[id]`) — start a roast against
-  a bean and get a live on-screen timer. While it runs, log fan level, heat
-  level, temperature readings, and first/second crack markers in real time —
-  all manual entry, tapped in as you watch the physical roaster. Only one
-  roast can be active at a time.
+  a bean and land on a setup screen (no timer running) to dial in your
+  starting fan and heat; tap "Begin Roast" when you're actually ready and
+  *that's* when the clock starts. Once live, log fan level, heat level,
+  temperature readings, and milestone markers (dry end, yellowing end,
+  first/second crack) in real time — all manual entry, tapped in as you
+  watch the physical roaster. Only one roast can be set up or running at a
+  time.
 - **Roasting curve** — once a roast ends, its temperature readings render as
   a hand-built SVG curve with crack markers and a fan/heat step overlay.
 - **Drops** — log roasted coffee given or sold to a friend, drawn from that
@@ -162,21 +165,38 @@ and neither is automatable from in here:
 2. **Every publish**: `git add docs/ && git commit && git push` (or fold it
    into whatever commit you're already making) to actually put it live.
 
+## Roast lifecycle
+
+Starting a roast doesn't start the clock. `/roasts` → "Start" creates a
+*pending* session (bean + green weight locked in, stock decremented) and
+lands on a setup screen — fan/heat steppers with no timer, no events
+written yet. Tapping "Begin Roast" is the actual transition: it sets the
+session's start time and logs the chosen fan/heat as the first events, and
+*that's* what starts the timer everywhere else in the app measures against.
+Three states in total: pending → live → completed.
+
 ## Roast phases & live tips
 
 - **Phases** — `computeRoastPhases` ([`src/lib/phases.ts`](src/lib/phases.ts))
-  derives drying (charge → dry end), Maillard/browning (dry end → first
-  crack), and development (first crack → drop) purely from whatever
-  milestone events exist; a phase whose boundaries aren't logged comes back
-  blank rather than guessed. [`PhaseBar.tsx`](src/components/roasts/PhaseBar.tsx)
-  renders it everywhere: completed roasts, live (via `LiveTipsPanel`), the
-  CSV export, and the published static page.
+  derives Scott Rao's phase breakdown — drying (charge → dry end), yellowing
+  (dry end → yellowing end), browning/Maillard (yellowing end → first
+  crack), development (first crack → drop) — purely from whatever milestone
+  events exist; a phase whose boundaries aren't logged comes back blank
+  rather than guessed, except browning, which falls back to spanning the
+  whole dry-end-to-first-crack window on older roasts logged before
+  "yellowing end" existed as a milestone.
+  [`PhaseBar.tsx`](src/components/roasts/PhaseBar.tsx) renders it everywhere:
+  completed roasts, live (via `LiveTipsPanel`), the CSV export, and the
+  published static page.
 - **Tips** — [`generateLiveTips`](src/lib/tips.ts) is a small, deliberately
   rule-based set of prompts shown during a live roast
   ([`LiveTipsPanel.tsx`](src/components/roasts/LiveTipsPanel.tsx)) — no LLM
-  call. Two kinds: generic ones citing widely-known, hedged heuristics
-  ("development time commonly cited around 15–25%"), and personalized ones
-  comparing this roast to the roaster's own history for that bean
+  call. Two kinds: generic ones citing real, verified guidance (e.g. Scott
+  Rao's actual development-time-ratio target of 20–25%, confirmed against
+  [his own post](https://www.scottrao.com/blog/2016/8/25/development-time-ratio)
+  rather than left as a recalled-from-memory approximation — see AGENTS.md
+  for why that distinction matters here), and personalized ones comparing
+  this roast to the roaster's own history for that bean
   (`computeHistoricalBaseline`, falling back to all beans if this one has no
   history yet). The personalized half is the more defensible part — it's a
   checkable fact about real data, not a general claim.

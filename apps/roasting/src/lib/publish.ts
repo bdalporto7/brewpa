@@ -43,7 +43,7 @@ const PAGE_STYLE = `
   --background: #faf6f0; --surface: #ffffff; --foreground: #2b1d14;
   --muted: #7a6a5c; --border: #e5dcd0; --accent: #b5502c;
   --accent-foreground: #fdf6f0; --accent-soft: #f3e0d3;
-  --mark-dry-end: #8a7a63; --mark-first-crack: #c17d1f; --mark-second-crack: #8a3a24; --mark-drop: #2b1d14;
+  --mark-dry-end: #8a7a63; --mark-yellowing-end: #b8973f; --mark-first-crack: #c17d1f; --mark-second-crack: #8a3a24; --mark-drop: #2b1d14;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -51,7 +51,7 @@ const PAGE_STYLE = `
     --background: #1a140f; --surface: #241c15; --foreground: #f3eadd;
     --muted: #a89684; --border: #3a2e24; --accent: #d97a4f;
     --accent-foreground: #1a140f; --accent-soft: #3a2418;
-    --mark-dry-end: #b8a68e; --mark-first-crack: #d99a3f; --mark-second-crack: #d97a4f; --mark-drop: #f3eadd;
+    --mark-dry-end: #b8a68e; --mark-yellowing-end: #d4b158; --mark-first-crack: #d99a3f; --mark-second-crack: #d97a4f; --mark-drop: #f3eadd;
   }
 }
 * { box-sizing: border-box; }
@@ -87,7 +87,7 @@ ol, ul { list-style: none; margin: 0; padding: 0; }
 
 export function buildRoastPageHtml(session: PublishableSession): string {
   const durationSeconds = session.endedAt
-    ? (session.endedAt.getTime() - session.startedAt.getTime()) / 1000
+    ? (session.endedAt.getTime() - session.startedAt!.getTime()) / 1000
     : 0;
   const weightLoss =
     session.roastedWeightGrams != null
@@ -111,14 +111,14 @@ export function buildRoastPageHtml(session: PublishableSession): string {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(session.bean.name)} — ${format(session.startedAt, "MMM d, yyyy")}</title>
+<title>${escapeHtml(session.bean.name)} — ${format(session.startedAt!, "MMM d, yyyy")}</title>
 <style>${PAGE_STYLE}</style>
 </head>
 <body>
 <div class="wrap">
   <a class="back" href="../index.html">← All roasts</a>
   <h1>${escapeHtml(session.bean.name)}</h1>
-  <p class="subtitle">${format(session.startedAt, "MMM d, yyyy 'at' h:mm a")} · ${escapeHtml(session.bean.origin)} · ${escapeHtml(session.bean.process)}</p>
+  <p class="subtitle">${format(session.startedAt!, "MMM d, yyyy 'at' h:mm a")} · ${escapeHtml(session.bean.origin)} · ${escapeHtml(session.bean.process)}</p>
 
   <div class="stats">
     ${stats
@@ -166,7 +166,7 @@ export function buildRoastPageHtml(session: PublishableSession): string {
 }
 
 export function buildIndexHtml(sessions: PublishableSession[]): string {
-  const sorted = [...sessions].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  const sorted = [...sessions].sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime());
 
   return `<!doctype html>
 <html lang="en">
@@ -187,7 +187,7 @@ export function buildIndexHtml(sessions: PublishableSession[]): string {
     ${sorted
       .map(
         (s) =>
-          `<li><a href="roasts/${s.id}.html">${escapeHtml(s.bean.name)} — ${escapeHtml(s.roastLevel ?? "")}</a><p class="meta">${format(s.startedAt, "MMM d, yyyy")}</p></li>`
+          `<li><a href="roasts/${s.id}.html">${escapeHtml(s.bean.name)} — ${escapeHtml(s.roastLevel ?? "")}</a><p class="meta">${format(s.startedAt!, "MMM d, yyyy")}</p></li>`
       )
       .join("\n    ")}
   </ul>`

@@ -1,5 +1,7 @@
 // Prisma schema for the roasting app (built for a Fresh Roast SR800).
-// Bean = green bean inventory. RoastSession = one live/completed roast.
+// Bean = green bean inventory. RoastSession = one roast: pending
+// (startedAt null — bean/weight picked, fan/heat being dialed in, timer not
+// running yet) -> live (startedAt set) -> completed (endedAt set).
 // RoastEvent = a timestamped entry logged during a session (fan/heat change,
 // temp reading, crack marker, note, or drop).
 // Learn more: https://pris.ly/d/prisma-schema
@@ -40,7 +42,7 @@ model RoastSession {
   id                    String    @id @default(cuid())
   beanId                String
   bean                  Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
-  startedAt             DateTime  @default(now())
+  startedAt             DateTime?
   endedAt               DateTime?
   publishedAt           DateTime?
   greenWeightGrams      Float

@@ -14,6 +14,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) {
     return NextResponse.json({ error: "Roast not found." }, { status: 404 });
   }
+  if (!session.startedAt || !session.endedAt) {
+    return NextResponse.json({ error: "This roast hasn't been completed yet." }, { status: 400 });
+  }
 
   const csv = buildRoastCsv(session);
   const filename = `${session.bean.name}-${format(session.startedAt, "yyyy-MM-dd")}.csv`

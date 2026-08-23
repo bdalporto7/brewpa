@@ -20,16 +20,17 @@ export function buildRoastCsv(
     session.roastedWeightGrams != null
       ? (1 - session.roastedWeightGrams / session.greenWeightGrams) * 100
       : null;
-  const durationSeconds = session.endedAt
-    ? (session.endedAt.getTime() - session.startedAt.getTime()) / 1000
-    : 0;
+  const durationSeconds =
+    session.endedAt && session.startedAt
+      ? (session.endedAt.getTime() - session.startedAt.getTime()) / 1000
+      : 0;
   const phases = computeRoastPhases(session.events, durationSeconds);
 
   let csv = "";
   csv += row(["Bean", session.bean.name]);
   csv += row(["Origin", session.bean.origin]);
   csv += row(["Process", session.bean.process]);
-  csv += row(["Roast date", format(session.startedAt, "yyyy-MM-dd HH:mm")]);
+  csv += row(["Roast date", session.startedAt ? format(session.startedAt, "yyyy-MM-dd HH:mm") : ""]);
   csv += row(["Green weight (g)", session.greenWeightGrams]);
   csv += row(["Roasted weight (g)", session.roastedWeightGrams]);
   csv += row(["Weight loss (%)", weightLoss != null ? weightLoss.toFixed(1) : ""]);
@@ -43,9 +44,15 @@ export function buildRoastCsv(
       : "",
   ]);
   csv += row([
-    "Maillard phase",
-    phases.maillardSeconds != null
-      ? `${formatMMSS(phases.maillardSeconds)} (${phases.maillardPercent!.toFixed(0)}%)`
+    "Yellowing phase",
+    phases.yellowingSeconds != null
+      ? `${formatMMSS(phases.yellowingSeconds)} (${phases.yellowingPercent!.toFixed(0)}%)`
+      : "",
+  ]);
+  csv += row([
+    "Browning phase",
+    phases.browningSeconds != null
+      ? `${formatMMSS(phases.browningSeconds)} (${phases.browningPercent!.toFixed(0)}%)`
       : "",
   ]);
   csv += row([

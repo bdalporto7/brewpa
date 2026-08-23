@@ -30,9 +30,11 @@ export default async function RoastsPage() {
         >
           <span className="flex items-center gap-2">
             <Flame className="h-4 w-4" />
-            Roast in progress — {activeSession.bean.name}
+            {activeSession.startedAt == null
+              ? `Set up, ready to roast — ${activeSession.bean.name}`
+              : `Roast in progress — ${activeSession.bean.name}`}
           </span>
-          <span>Resume →</span>
+          <span>{activeSession.startedAt == null ? "Finish setup →" : "Resume →"}</span>
         </Link>
       ) : (
         <StartRoastForm beans={beans} />

@@ -20,7 +20,7 @@ export function computeHistoricalBaseline(
 
   const durations = sessions
     .filter((s) => s.endedAt)
-    .map((s) => (s.endedAt!.getTime() - s.startedAt.getTime()) / 1000);
+    .map((s) => (s.endedAt!.getTime() - s.startedAt!.getTime()) / 1000);
   const deTimes = sessions
     .map((s) => s.events.find((e) => e.type === "DRY_END")?.atSeconds)
     .filter((v): v is number => v != null);
@@ -92,7 +92,7 @@ export function generateLiveTips(input: {
     const devPercent = elapsedSeconds > 0 ? (devSoFar / elapsedSeconds) * 100 : 0;
     tips.push({
       id: "dtr-live",
-      message: `Development time so far: ${formatMMSS(devSoFar)} (${devPercent.toFixed(0)}% of elapsed) — commonly cited target is roughly 15–25%.`,
+      message: `Development time so far: ${formatMMSS(devSoFar)} (${devPercent.toFixed(0)}% of elapsed) — Scott Rao targets roughly 20–25% (lower on high-powered roasters).`,
     });
   }
 
