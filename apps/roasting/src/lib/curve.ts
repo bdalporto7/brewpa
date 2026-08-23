@@ -5,7 +5,10 @@ import type { RoastEvent } from "@prisma/client";
 export const CHART_WIDTH = 760;
 export const CHART_HEIGHT = 380;
 export const CHART_MARGIN_LEFT = 44;
-const MARGIN_RIGHT = 16;
+// Wide enough for the rate-of-rise axis's tick labels, kept constant whether
+// or not RoR is currently toggled on so showing/hiding it never reflows the
+// chart.
+const MARGIN_RIGHT = 38;
 const MARGIN_TOP = 20;
 const AXIS_HEIGHT = 24;
 const STRIP_HEIGHT = 48;
@@ -25,6 +28,8 @@ export interface CurveReading {
   temp: number;
   fanLevel: number | null;
   heatLevel: number | null;
+  /** °F/min since the previous reading; null for the first (no prior point to measure from). */
+  rorPerMin: number | null;
 }
 
 function levelAt(points: { atSeconds: number; level: number }[], atSeconds: number): number | null {
@@ -60,12 +65,21 @@ export function getCurveReadings(events: RoastEvent[]): CurveReading[] {
     .map((e) => ({ atSeconds: e.atSeconds, level: e.heatLevel as number }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
 
-  return tempPoints.map((p) => ({
-    atSeconds: p.atSeconds,
-    temp: p.temp,
-    fanLevel: levelAt(fanPoints, p.atSeconds),
-    heatLevel: levelAt(heatPoints, p.atSeconds),
-  }));
+  return tempPoints.map((p, i) => {
+    let rorPerMin: number | null = null;
+    if (i > 0) {
+      const prev = tempPoints[i - 1];
+      const minutesElapsed = (p.atSeconds - prev.atSeconds) / 60;
+      if (minutesElapsed > 0) rorPerMin = (p.temp - prev.temp) / minutesElapsed;
+    }
+    return {
+      atSeconds: p.atSeconds,
+      temp: p.temp,
+      fanLevel: levelAt(fanPoints, p.atSeconds),
+      heatLevel: levelAt(heatPoints, p.atSeconds),
+      rorPerMin,
+    };
+  });
 }
 
 export interface ChartLayout {
@@ -77,10 +91,28 @@ export interface ChartLayout {
   stripBottom: number;
   minTemp: number;
   maxTemp: number;
+  minRor: number;
+  maxRor: number;
   duration: number;
   x: (seconds: number) => number;
   yTemp: (temp: number) => number;
   yLevel: (level: number) => number;
+  yRor: (rorPerMin: number) => number;
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 1) return sorted[0];
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function rorPercentileRange(values: number[]): [number, number] {
+  if (values.length === 0) return [0, 0];
+  const sorted = [...values].sort((a, b) => a - b);
+  return [percentile(sorted, 0.05), percentile(sorted, 0.95)];
 }
 
 /**
@@ -96,6 +128,19 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
   const minTemp = Math.floor((rawMin - 15) / 25) * 25;
   const maxTemp = Math.ceil((rawMax + 15) / 25) * 25;
 
+  // Percentile, not true min/max: two readings logged close together (most
+  // often the first couple, before intervals settle into a rhythm) can spike
+  // to a RoR far outside the rest of the roast and, using a true max, drag
+  // the whole axis out with it — one point that reads as "off the chart"
+  // would otherwise squash every other point into a sliver at the bottom.
+  // The point itself still plots (and clips at the frame if it's still off
+  // this trimmed range); it just doesn't get to set the scale everyone else
+  // has to live in.
+  const rorValues = readings.map((p) => p.rorPerMin).filter((v): v is number => v != null);
+  const [rawMinRor, rawMaxRor] = rorPercentileRange(rorValues);
+  const minRor = Math.floor((rawMinRor - 5) / 10) * 10;
+  const maxRor = Math.ceil((rawMaxRor + 5) / 10) * 10;
+
   const chartLeft = CHART_MARGIN_LEFT;
   const chartRight = CHART_WIDTH - MARGIN_RIGHT;
   const chartWidth = chartRight - chartLeft;
@@ -110,8 +155,26 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
     tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight;
   const yLevel = (level: number) =>
     stripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * STRIP_HEIGHT;
+  const yRor = (rorPerMin: number) =>
+    tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * tempChartHeight;
 
-  return { chartLeft, chartRight, tempChartTop, tempChartBottom, stripTop, stripBottom, minTemp, maxTemp, duration, x, yTemp, yLevel };
+  return {
+    chartLeft,
+    chartRight,
+    tempChartTop,
+    tempChartBottom,
+    stripTop,
+    stripBottom,
+    minTemp,
+    maxTemp,
+    minRor,
+    maxRor,
+    duration,
+    x,
+    yTemp,
+    yLevel,
+    yRor,
+  };
 }
 
 function buildStepPath(
@@ -136,12 +199,32 @@ function buildStepPath(
  * properties by name; the caller must define them (globals.css does this in
  * the app, the static page inlines its own copy).
  */
-export function buildRoastCurveSvg(events: RoastEvent[], totalSeconds: number): string | null {
+export function buildRoastCurveSvg(
+  events: RoastEvent[],
+  totalSeconds: number,
+  options: { showRor?: boolean } = {}
+): string | null {
   const readings = getCurveReadings(events);
   if (readings.length < 2) return null;
 
   const layout = getChartLayout(readings, totalSeconds);
-  const { chartLeft, chartRight, tempChartTop, tempChartBottom, stripTop, stripBottom, minTemp, maxTemp, duration, x, yTemp, yLevel } = layout;
+  const {
+    chartLeft,
+    chartRight,
+    tempChartTop,
+    tempChartBottom,
+    stripTop,
+    stripBottom,
+    minTemp,
+    maxTemp,
+    minRor,
+    maxRor,
+    duration,
+    x,
+    yTemp,
+    yLevel,
+    yRor,
+  } = layout;
 
   const tempLine = readings.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
 
@@ -202,6 +285,28 @@ export function buildRoastCurveSvg(events: RoastEvent[], totalSeconds: number): 
   );
   for (const p of readings) {
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
+  }
+
+  if (options.showRor) {
+    const rorTicks = [minRor, (minRor + maxRor) / 2, maxRor];
+    for (const t of rorTicks) {
+      parts.push(
+        `<text x="${chartRight + 8}" y="${yRor(t)}" text-anchor="start" dominant-baseline="middle" style="fill:var(--ror)" class="mono-10">${Math.round(t)}</text>`
+      );
+    }
+    parts.push(
+      `<text x="${chartRight}" y="${tempChartTop - 6}" text-anchor="end" style="fill:var(--ror)" class="marker-label">°F/min</text>`
+    );
+    if (minRor < 0 && maxRor > 0) {
+      parts.push(
+        `<line x1="${chartLeft}" x2="${chartRight}" y1="${yRor(0)}" y2="${yRor(0)}" style="stroke:var(--ror)" stroke-width="1" stroke-dasharray="2 3" opacity="0.4" />`
+      );
+    }
+    const rorPoints = readings.filter((p): p is CurveReading & { rorPerMin: number } => p.rorPerMin != null);
+    const rorLine = rorPoints.map((p) => `${x(p.atSeconds)},${yRor(p.rorPerMin)}`).join(" ");
+    parts.push(
+      `<polyline points="${rorLine}" fill="none" style="stroke:var(--ror)" stroke-width="1.75" stroke-linejoin="round" />`
+    );
   }
 
   parts.push(

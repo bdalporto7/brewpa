@@ -22,6 +22,11 @@
   --mark-first-crack: #c17d1f;
   --mark-second-crack: #8a3a24;
   --mark-drop: #2b1d14;
+
+  /* Rate-of-rise line — deliberately the one cool tone in an otherwise warm
+     palette, so it reads as a clearly distinct series from the temp curve
+     (which owns --accent) rather than a shade of the same color. */
+  --ror: #2f6b6b;
 }
 
 @theme inline {
@@ -64,6 +69,8 @@
     --mark-first-crack: #d99a3f;
     --mark-second-crack: #d97a4f;
     --mark-drop: #f3eadd;
+
+    --ror: #7fc2bd;
   }
 }
 

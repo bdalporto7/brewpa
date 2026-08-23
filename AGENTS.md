@@ -228,6 +228,34 @@ from what's actually drawn. The static published page has no JS by design
 (see "Not built yet" style notes elsewhere) and deliberately doesn't get
 this — hover is a live-app-only affordance.
 
+**Rate of rise (RoR)** is a toggleable second line on the same chart — °F of
+temp change per minute between consecutive real readings, computed in
+`getCurveReadings` (`rorPerMin` on `CurveReading`, `null` for the first
+reading since there's no prior point to measure from) and plotted on its own
+right-side axis via `getChartLayout`'s `yRor`/`minRor`/`maxRor`. It's off by
+default; `RoastCurveChart.tsx` holds the toggle as local state and passes
+`{ showRor }` straight into `buildRoastCurveSvg`, which is cheap to do since
+that function is pure and already re-runs in a `useMemo` keyed on its
+arguments — no separate SVG-generation path for the toggled state, no DOM
+class-toggling hack. `CHART_MARGIN_RIGHT` stays wide enough for the RoR
+axis's tick labels *whether or not RoR is currently shown*, specifically so
+toggling it never reflows the temp curve next to it. The axis range comes
+from the 5th/95th percentile of `rorPerMin`, not the true min/max: two
+readings logged close together (most often the first two, before intervals
+settle into a rhythm) can produce a RoR wildly outside the rest of the roast
+— real early data, e.g. 253°F to 296°F in 15 seconds is a genuine 172°F/min
+spike — and a true-max axis would stretch to fit that one point, squashing
+every other point into a sliver at the bottom. Percentile trimming lets that
+outlier still plot (it clips at the frame if it's still outside the trimmed
+range) without letting it dictate the scale everyone else has to share.
+`--ror` (`globals.css`, mirrored in `publish.ts`'s inline copy per the usual
+"static page keeps its own copy of these tokens" rule) is the one
+deliberately cool tone in an otherwise warm palette — distinct from
+`--accent` (the temp line) rather than a shade of it, since the two series
+need to read as clearly separate at a glance. The hover tooltip gets a third
+row (RoR value, `"—"` if the hovered point is the first reading) only when
+the toggle is on, so it doesn't show a stat for a line that isn't drawn.
+
 `EventTimeline.tsx` renders as a real `<table>` — columns Time / Temp (°F) /
 Fan / Heat / Event, chronological, right-aligned tabular-numeral numeric
 columns, blank (not `—`) empty cells. Went through a few readability passes

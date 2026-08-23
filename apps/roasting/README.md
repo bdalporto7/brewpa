@@ -34,7 +34,10 @@ context, design standards, and build-order rationale.
   mobile) snaps a crosshair to the nearest logged reading and shows a
   tooltip with elapsed time, temp, and the fan/heat level active at that
   moment — the same real, logged data points the curve itself draws, never
-  an interpolated value.
+  an interpolated value. A "Rate of rise" toggle overlays a second line —
+  °F/min between consecutive readings, on its own right-side axis — off by
+  default, on when you want to watch how fast the roast is climbing rather
+  than just where the temp sits.
 - **Drops** — log roasted coffee given or sold to a friend, drawn from that
   roast's roasted-coffee stock. Over-drawing is rejected with a clear error;
   any drop can be undone.
@@ -144,7 +147,7 @@ section for the full rationale.
 4. The completed session renders
    [`RoastCurveChart.tsx`](src/components/roasts/RoastCurveChart.tsx) — a
    hand-built SVG temperature curve with crack markers, a fan/heat step
-   overlay, and a hover tooltip — plus a
+   overlay, a hover tooltip, and a toggleable rate-of-rise line — plus a
    [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx) for logging
    drops to friends, then the full event timeline
    ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)) as a
