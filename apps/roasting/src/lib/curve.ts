@@ -2,9 +2,9 @@ import { formatMMSS } from "@/lib/format";
 import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, type EventType } from "@/lib/constants";
 import type { RoastEvent } from "@prisma/client";
 
-const WIDTH = 760;
-const HEIGHT = 380;
-const MARGIN_LEFT = 44;
+export const CHART_WIDTH = 760;
+export const CHART_HEIGHT = 380;
+export const CHART_MARGIN_LEFT = 44;
 const MARGIN_RIGHT = 16;
 const MARGIN_TOP = 20;
 const AXIS_HEIGHT = 24;
@@ -19,6 +19,100 @@ const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
   { type: "SECOND_CRACK_START", label: "2C", color: "var(--mark-second-crack)" },
   { type: "SECOND_CRACK_END", label: "2C end", color: "var(--mark-second-crack)" },
 ];
+
+export interface CurveReading {
+  atSeconds: number;
+  temp: number;
+  fanLevel: number | null;
+  heatLevel: number | null;
+}
+
+function levelAt(points: { atSeconds: number; level: number }[], atSeconds: number): number | null {
+  let level: number | null = null;
+  for (const p of points) {
+    if (p.atSeconds > atSeconds) break;
+    level = p.level;
+  }
+  return level;
+}
+
+/**
+ * Real logged temperature readings (never interpolated), each paired with
+ * whichever fan/heat level was active at that same instant. This is both
+ * what buildRoastCurveSvg plots and what the live chart's hover tooltip
+ * snaps to — one function, so hovering can never show a value the curve
+ * itself didn't draw. Empty (rather than a single point) below two
+ * readings, matching the ">= 2 to draw a curve" gate everywhere else.
+ */
+export function getCurveReadings(events: RoastEvent[]): CurveReading[] {
+  const tempPoints = events
+    .filter((e) => e.type === "TEMP" && e.tempFahrenheit != null)
+    .map((e) => ({ atSeconds: e.atSeconds, temp: e.tempFahrenheit as number }))
+    .sort((a, b) => a.atSeconds - b.atSeconds);
+  if (tempPoints.length < 2) return [];
+
+  const fanPoints = events
+    .filter((e) => e.type === "FAN" && e.fanLevel != null)
+    .map((e) => ({ atSeconds: e.atSeconds, level: e.fanLevel as number }))
+    .sort((a, b) => a.atSeconds - b.atSeconds);
+  const heatPoints = events
+    .filter((e) => e.type === "HEAT" && e.heatLevel != null)
+    .map((e) => ({ atSeconds: e.atSeconds, level: e.heatLevel as number }))
+    .sort((a, b) => a.atSeconds - b.atSeconds);
+
+  return tempPoints.map((p) => ({
+    atSeconds: p.atSeconds,
+    temp: p.temp,
+    fanLevel: levelAt(fanPoints, p.atSeconds),
+    heatLevel: levelAt(heatPoints, p.atSeconds),
+  }));
+}
+
+export interface ChartLayout {
+  chartLeft: number;
+  chartRight: number;
+  tempChartTop: number;
+  tempChartBottom: number;
+  stripTop: number;
+  stripBottom: number;
+  minTemp: number;
+  maxTemp: number;
+  duration: number;
+  x: (seconds: number) => number;
+  yTemp: (temp: number) => number;
+  yLevel: (level: number) => number;
+}
+
+/**
+ * All the pixel-mapping math buildRoastCurveSvg uses to draw, exposed so
+ * the live chart's hover overlay (RoastCurveChart.tsx) can compute the same
+ * coordinates without duplicating — and risking drift from — this logic.
+ */
+export function getChartLayout(readings: CurveReading[], totalSeconds: number): ChartLayout {
+  const duration = readings.length === 0 ? Math.max(totalSeconds, 1) : Math.max(totalSeconds, readings[readings.length - 1].atSeconds, 1);
+
+  const rawMin = Math.min(...readings.map((p) => p.temp));
+  const rawMax = Math.max(...readings.map((p) => p.temp));
+  const minTemp = Math.floor((rawMin - 15) / 25) * 25;
+  const maxTemp = Math.ceil((rawMax + 15) / 25) * 25;
+
+  const chartLeft = CHART_MARGIN_LEFT;
+  const chartRight = CHART_WIDTH - MARGIN_RIGHT;
+  const chartWidth = chartRight - chartLeft;
+  const tempChartTop = MARGIN_TOP;
+  const tempChartHeight = CHART_HEIGHT - MARGIN_TOP - AXIS_HEIGHT - STRIP_HEIGHT - STRIP_GAP;
+  const tempChartBottom = tempChartTop + tempChartHeight;
+  const stripTop = tempChartBottom + STRIP_GAP;
+  const stripBottom = stripTop + STRIP_HEIGHT;
+
+  const x = (seconds: number) => chartLeft + (seconds / duration) * chartWidth;
+  const yTemp = (temp: number) =>
+    tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight;
+  const yLevel = (level: number) =>
+    stripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * STRIP_HEIGHT;
+
+  return { chartLeft, chartRight, tempChartTop, tempChartBottom, stripTop, stripBottom, minTemp, maxTemp, duration, x, yTemp, yLevel };
+}
 
 function buildStepPath(
   points: { atSeconds: number; level: number }[],
@@ -43,36 +137,13 @@ function buildStepPath(
  * the app, the static page inlines its own copy).
  */
 export function buildRoastCurveSvg(events: RoastEvent[], totalSeconds: number): string | null {
-  const tempPoints = events
-    .filter((e) => e.type === "TEMP" && e.tempFahrenheit != null)
-    .map((e) => ({ atSeconds: e.atSeconds, temp: e.tempFahrenheit as number }))
-    .sort((a, b) => a.atSeconds - b.atSeconds);
+  const readings = getCurveReadings(events);
+  if (readings.length < 2) return null;
 
-  if (tempPoints.length < 2) return null;
+  const layout = getChartLayout(readings, totalSeconds);
+  const { chartLeft, chartRight, tempChartTop, tempChartBottom, stripTop, stripBottom, minTemp, maxTemp, duration, x, yTemp, yLevel } = layout;
 
-  const duration = Math.max(totalSeconds, tempPoints[tempPoints.length - 1].atSeconds, 1);
-
-  const rawMin = Math.min(...tempPoints.map((p) => p.temp));
-  const rawMax = Math.max(...tempPoints.map((p) => p.temp));
-  const minTemp = Math.floor((rawMin - 15) / 25) * 25;
-  const maxTemp = Math.ceil((rawMax + 15) / 25) * 25;
-
-  const chartLeft = MARGIN_LEFT;
-  const chartRight = WIDTH - MARGIN_RIGHT;
-  const chartWidth = chartRight - chartLeft;
-  const tempChartTop = MARGIN_TOP;
-  const tempChartHeight = HEIGHT - MARGIN_TOP - AXIS_HEIGHT - STRIP_HEIGHT - STRIP_GAP;
-  const tempChartBottom = tempChartTop + tempChartHeight;
-  const stripTop = tempChartBottom + STRIP_GAP;
-  const stripBottom = stripTop + STRIP_HEIGHT;
-
-  const x = (seconds: number) => chartLeft + (seconds / duration) * chartWidth;
-  const yTemp = (temp: number) =>
-    tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight;
-  const yLevel = (level: number) =>
-    stripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * STRIP_HEIGHT;
-
-  const tempLine = tempPoints.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
+  const tempLine = readings.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
 
   const tempTicks = [minTemp, (minTemp + maxTemp) / 2, maxTemp];
   const timeTickCount = duration > 600 ? 6 : 4;
@@ -96,7 +167,7 @@ export function buildRoastCurveSvg(events: RoastEvent[], totalSeconds: number): 
   const parts: string[] = [];
 
   parts.push(
-    `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" class="roast-curve-svg" role="img" aria-label="Roasting curve">`
+    `<svg viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" class="roast-curve-svg" role="img" aria-label="Roasting curve">`
   );
 
   for (const t of tempTicks) {
@@ -129,7 +200,7 @@ export function buildRoastCurveSvg(events: RoastEvent[], totalSeconds: number): 
   parts.push(
     `<polyline points="${tempLine}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" />`
   );
-  for (const p of tempPoints) {
+  for (const p of readings) {
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
   }
 

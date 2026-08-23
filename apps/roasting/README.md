@@ -28,8 +28,13 @@ context, design standards, and build-order rationale.
   first/second crack) in real time — all manual entry, tapped in as you
   watch the physical roaster. Only one roast can be set up or running at a
   time.
-- **Roasting curve** — once a roast ends, its temperature readings render as
-  a hand-built SVG curve with crack markers and a fan/heat step overlay.
+- **Roasting curve** — once a roast ends (or live, once there are enough
+  readings), its temperature readings render as a hand-built SVG curve with
+  crack markers and a fan/heat step overlay. Hovering (or touching, on
+  mobile) snaps a crosshair to the nearest logged reading and shows a
+  tooltip with elapsed time, temp, and the fan/heat level active at that
+  moment — the same real, logged data points the curve itself draws, never
+  an interpolated value.
 - **Drops** — log roasted coffee given or sold to a friend, drawn from that
   roast's roasted-coffee stock. Over-drawing is rejected with a clear error;
   any drop can be undone.
@@ -138,9 +143,13 @@ section for the full rationale.
    completed page.
 4. The completed session renders
    [`RoastCurveChart.tsx`](src/components/roasts/RoastCurveChart.tsx) — a
-   hand-built SVG temperature curve with crack markers and a fan/heat step
-   overlay, plus a [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx)
-   for logging drops to friends, then the full event timeline.
+   hand-built SVG temperature curve with crack markers, a fan/heat step
+   overlay, and a hover tooltip — plus a
+   [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx) for logging
+   drops to friends, then the full event timeline
+   ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)), which
+   groups events sharing the same elapsed-time stamp (e.g. fan and heat set
+   together) into one row of small chips instead of a separate line each.
 
 ## Export & publish
 

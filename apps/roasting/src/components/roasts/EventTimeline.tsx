@@ -19,6 +19,21 @@ const ICONS: Record<EventType, React.ReactNode> = {
   DROP: <Square className="h-3.5 w-3.5" />,
 };
 
+/** Events sharing an exact atSeconds (e.g. the fan/heat set at roast start) render as one row. */
+function groupByTime(events: RoastEvent[]): RoastEvent[][] {
+  const sorted = [...events].sort((a, b) => b.atSeconds - a.atSeconds);
+  const groups: RoastEvent[][] = [];
+  for (const event of sorted) {
+    const current = groups[groups.length - 1];
+    if (current && current[0].atSeconds === event.atSeconds) {
+      current.push(event);
+    } else {
+      groups.push([event]);
+    }
+  }
+  return groups;
+}
+
 export default function EventTimeline({
   events,
   editable = false,
@@ -30,26 +45,34 @@ export default function EventTimeline({
     return <p className="text-sm text-muted">No events logged yet.</p>;
   }
 
-  const sorted = [...events].sort((a, b) => b.atSeconds - a.atSeconds);
+  const groups = groupByTime(events);
 
   return (
     <ol className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
-      {sorted.map((event) => (
-        <li key={event.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-          <div className="flex items-center gap-3">
-            <span className="w-12 shrink-0 font-mono text-xs text-muted">
-              {formatMMSS(event.atSeconds)}
-            </span>
-            <span className="text-muted">{ICONS[event.type as EventType]}</span>
-            <span>{describeEvent(event)}</span>
+      {groups.map((group) => (
+        <li key={group[0].atSeconds} className="flex items-start gap-3 px-4 py-2.5 text-sm">
+          <span className="w-12 shrink-0 pt-1 font-mono text-xs text-muted">
+            {formatMMSS(group[0].atSeconds)}
+          </span>
+          <div className="flex flex-1 flex-wrap items-center gap-1.5">
+            {group.map((event) => (
+              <span
+                key={event.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5"
+              >
+                <span className="text-muted">{ICONS[event.type as EventType]}</span>
+                <span>{describeEvent(event)}</span>
+                {editable && (
+                  <DeleteButton
+                    variant="icon"
+                    action={deleteEvent.bind(null, event.roastSessionId, event.id)}
+                    confirmText="Remove this event?"
+                    label="Remove event"
+                  />
+                )}
+              </span>
+            ))}
           </div>
-          {editable && (
-            <DeleteButton
-              action={deleteEvent.bind(null, event.roastSessionId, event.id)}
-              confirmText="Remove this event?"
-              label="Remove"
-            />
-          )}
         </li>
       ))}
     </ol>
