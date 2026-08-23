@@ -237,11 +237,20 @@ own full-width pill. A fixed-column table compresses each row to one line
 and lets a column (temp climbing, in particular) be scanned top-to-bottom,
 which pill rows couldn't do regardless of grouping. Events sharing an exact
 `atSeconds` (fan+heat set together at the same tap is the common case) still
-land on one row — now via matching column, not a wrapped pill. Each
-populated cell keeps its own delete trigger (`DeleteButton`'s
-`variant="icon"`, a compact X — same confirm/error-display logic as the
-existing text-label variant used everywhere else, just a different
-rendering). This is live-app-only — `publish.ts` builds its own
+land on one row — now via matching column, not a wrapped pill. Still felt
+noisy at first pass (empty cells shown as `—`, a delete X sitting right next
+to every value on every row); tightened further: empty cells are just
+blank (the table's own column structure already carries the alignment
+`—` was standing in for), the unit moved from every Temp cell into the
+column header (`Temp (°F)`), Temp/Fan/Heat are right-aligned with tabular
+numerals so the digits themselves line up for a top-to-bottom scan, and
+each cell's delete X sits at 40% opacity by default, full-strength on
+`group-hover` of its `<tr>` — present and tappable (so it's never gone on a
+touch device, where hover doesn't fire) but no longer competing with the
+number for attention on every row (`DeleteButton`'s `variant="icon"` under
+the hood — same confirm/error-display logic as the existing text-label
+variant used everywhere else, just a different rendering). This is
+live-app-only — `publish.ts` builds its own
 one-row-per-event `<ol>` for the static page directly (not via this
 component), left as-is since that page is a simpler, skimmable summary
 rather than a working log; revisit

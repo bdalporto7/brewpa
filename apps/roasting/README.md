@@ -148,10 +148,13 @@ section for the full rationale.
    [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx) for logging
    drops to friends, then the full event timeline
    ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)) as a
-   table — Time / Temp / Fan / Heat / Event columns, chronological — so
-   temp readings (most of a real roast's events) compress to one line each
-   and events sharing a timestamp (fan+heat set together) land on the same
-   row across matching columns instead of stacking as separate lines.
+   dense table — Time / Temp (°F) / Fan / Heat / Event columns, chronological,
+   right-aligned numeric columns, blank cells for "nothing happened here" —
+   so temp readings (most of a real roast's events) compress to one line
+   each and events sharing a timestamp (fan+heat set together) land on the
+   same row across matching columns. Per-event delete stays available on
+   every populated cell but fades to 40% opacity until you hover that row,
+   so it reads more like a log and less like a form.
 
 ## Export & publish
 

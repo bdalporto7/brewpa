@@ -19,7 +19,22 @@ function groupByTime(events: RoastEvent[]): RoastEvent[][] {
   return groups;
 }
 
-function Cell({
+/** Subtle by default, full-strength on row hover — visible without adding noise to every row, and never fully hidden, since group-hover never fires on touch. */
+function RowDelete({ event, editable }: { event: RoastEvent; editable: boolean }) {
+  if (!editable) return null;
+  return (
+    <span className="opacity-40 transition-opacity group-hover:opacity-100">
+      <DeleteButton
+        variant="icon"
+        action={deleteEvent.bind(null, event.roastSessionId, event.id)}
+        confirmText="Remove this event?"
+        label="Remove event"
+      />
+    </span>
+  );
+}
+
+function NumberCell({
   event,
   value,
   editable,
@@ -28,20 +43,14 @@ function Cell({
   value: React.ReactNode;
   editable: boolean;
 }) {
-  if (!event) return <td className="px-2 py-1.5 font-mono text-muted">—</td>;
   return (
-    <td className="px-2 py-1.5">
-      <span className="inline-flex items-center gap-1 font-mono">
-        {value}
-        {editable && (
-          <DeleteButton
-            variant="icon"
-            action={deleteEvent.bind(null, event.roastSessionId, event.id)}
-            confirmText="Remove this event?"
-            label="Remove event"
-          />
-        )}
-      </span>
+    <td className="px-2 py-1 text-right font-mono tabular-nums">
+      {event && (
+        <span className="inline-flex items-center gap-1">
+          {value}
+          <RowDelete event={event} editable={editable} />
+        </span>
+      )}
     </td>
   );
 }
@@ -63,12 +72,12 @@ export default function EventTimeline({
     <div className="overflow-x-auto rounded-lg border border-border bg-surface">
       <table className="w-full min-w-[420px] text-sm">
         <thead>
-          <tr className="border-b border-border text-left text-xs text-muted">
-            <th className="px-2 py-1.5 font-normal">Time</th>
-            <th className="px-2 py-1.5 font-normal">Temp</th>
-            <th className="px-2 py-1.5 font-normal">Fan</th>
-            <th className="px-2 py-1.5 font-normal">Heat</th>
-            <th className="px-2 py-1.5 font-normal">Event</th>
+          <tr className="border-b border-border text-xs text-muted">
+            <th className="px-2 py-1 text-left font-normal">Time</th>
+            <th className="px-2 py-1 text-right font-normal">Temp (°F)</th>
+            <th className="px-2 py-1 text-right font-normal">Fan</th>
+            <th className="px-2 py-1 text-right font-normal">Heat</th>
+            <th className="px-2 py-1 text-left font-normal">Event</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -81,27 +90,18 @@ export default function EventTimeline({
             );
 
             return (
-              <tr key={group[0].atSeconds}>
-                <td className="px-2 py-1.5 font-mono text-xs text-muted">{formatMMSS(group[0].atSeconds)}</td>
-                <Cell event={tempEvent} editable={editable} value={`${tempEvent?.tempFahrenheit}°F`} />
-                <Cell event={fanEvent} editable={editable} value={fanEvent?.fanLevel} />
-                <Cell event={heatEvent} editable={editable} value={heatEvent?.heatLevel} />
-                <td className="px-2 py-1.5">
-                  {otherEvents.length === 0 ? (
-                    <span className="text-muted">—</span>
-                  ) : (
-                    <div className="flex flex-col gap-1">
+              <tr key={group[0].atSeconds} className="group hover:bg-background/60">
+                <td className="px-2 py-1 font-mono text-xs text-muted">{formatMMSS(group[0].atSeconds)}</td>
+                <NumberCell event={tempEvent} editable={editable} value={tempEvent?.tempFahrenheit} />
+                <NumberCell event={fanEvent} editable={editable} value={fanEvent?.fanLevel} />
+                <NumberCell event={heatEvent} editable={editable} value={heatEvent?.heatLevel} />
+                <td className="px-2 py-1">
+                  {otherEvents.length > 0 && (
+                    <div className="flex flex-col gap-0.5">
                       {otherEvents.map((event) => (
                         <span key={event.id} className="inline-flex items-center gap-1">
                           {event.type === "NOTE" ? event.note : EVENT_LABELS[event.type as EventType]}
-                          {editable && (
-                            <DeleteButton
-                              variant="icon"
-                              action={deleteEvent.bind(null, event.roastSessionId, event.id)}
-                              confirmText="Remove this event?"
-                              label="Remove event"
-                            />
-                          )}
+                          <RowDelete event={event} editable={editable} />
                         </span>
                       ))}
                     </div>
