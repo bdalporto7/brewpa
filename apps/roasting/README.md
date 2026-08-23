@@ -149,11 +149,12 @@ section for the full rationale.
    drops to friends, then the full event timeline
    ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)) as a
    table — Time / Temp (°F) / Fan / Heat / Event columns, chronological,
-   right-aligned numeric columns. By default it shows only rows with
-   something other than a temp reading — fan/heat changes, milestones,
-   notes, the drop — since raw temp readings are most of a real roast's
-   events and don't individually tell you much; a "N temperature readings"
-   toggle expands the full log inline. Milestone rows get a colored dot and
+   right-aligned numeric columns. Fan/heat changes, milestones, notes, and
+   the drop always show; temp readings — most of a real roast's events —
+   are evenly down-sampled to about 10 by default (always including the
+   first and last) so the temperature trend stays visible without listing
+   every single reading, with a "+N more temperature readings" toggle for
+   the untouched full log. Milestone rows get a colored dot and
    label matching that milestone's line color on the curve chart, and Fan
    values pick up the same accent color as the curve's fan line, so the
    table and chart read as one connected system. Per-event delete stays

@@ -33,6 +33,26 @@ function groupByTime(events: RoastEvent[]): RoastEvent[][] {
   return groups;
 }
 
+/**
+ * Hiding every temp-only row (first pass) lost the trend entirely — you
+ * couldn't tell 340°F from 480°F without expanding. Showing all of them is
+ * what made the table long in the first place. This down-samples instead of
+ * choosing one extreme: an evenly-spaced subset (always including the very
+ * first and last reading, so the range is never a guess) stays inline by
+ * default, dense enough to see the climb, short enough to scan — the same
+ * trade-off a log/metrics viewer makes when it can't show every data point.
+ */
+const DEFAULT_TEMP_ROWS = 10;
+
+function sampleEvenly<T>(items: T[], target: number): T[] {
+  if (items.length <= target) return items;
+  const step = Math.ceil(items.length / target);
+  const sampled = items.filter((_, i) => i % step === 0);
+  const last = items[items.length - 1];
+  if (sampled[sampled.length - 1] !== last) sampled.push(last);
+  return sampled;
+}
+
 /** Subtle by default, full-strength on row hover — visible without adding noise to every row, and never fully hidden, since group-hover never fires on touch. */
 function RowDelete({ event, editable }: { event: RoastEvent; editable: boolean }) {
   if (!editable) return null;
@@ -126,8 +146,11 @@ export default function EventTimeline({
 
   const groups = groupByTime(events);
   const keyGroups = groups.filter((g) => g.some((e) => e.type !== "TEMP"));
-  const readingCount = groups.length - keyGroups.length;
-  const visibleGroups = showReadings ? groups : keyGroups;
+  const tempOnlyGroups = groups.filter((g) => g.every((e) => e.type === "TEMP"));
+  const sampledTemp = sampleEvenly(tempOnlyGroups, DEFAULT_TEMP_ROWS);
+  const hiddenCount = tempOnlyGroups.length - sampledTemp.length;
+  const defaultGroups = [...keyGroups, ...sampledTemp].sort((a, b) => a[0].atSeconds - b[0].atSeconds);
+  const visibleGroups = showReadings ? groups : defaultGroups;
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-surface">
@@ -142,25 +165,19 @@ export default function EventTimeline({
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {visibleGroups.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-2 py-3 text-center text-muted">
-                Only temperature readings logged so far.
-              </td>
-            </tr>
-          ) : (
-            visibleGroups.map((group) => <EventRow key={group[0].atSeconds} group={group} editable={editable} />)
-          )}
+          {visibleGroups.map((group) => (
+            <EventRow key={group[0].atSeconds} group={group} editable={editable} />
+          ))}
         </tbody>
       </table>
-      {readingCount > 0 && (
+      {hiddenCount > 0 && (
         <button
           type="button"
           onClick={() => setShowReadings((v) => !v)}
           className="flex w-full items-center justify-center gap-1.5 border-t border-border px-2 py-1.5 text-xs font-medium text-muted transition hover:text-foreground"
         >
           <ChevronDown className={`h-3 w-3 transition-transform ${showReadings ? "rotate-180" : ""}`} />
-          {showReadings ? "Hide temperature readings" : `${readingCount} temperature ${readingCount === 1 ? "reading" : "readings"}`}
+          {showReadings ? "Show fewer readings" : `+${hiddenCount} more temperature ${hiddenCount === 1 ? "reading" : "readings"}`}
         </button>
       )}
     </div>

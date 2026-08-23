@@ -236,11 +236,19 @@ every event) and the real fix turned out to be **filtering, not
 formatting**: most of a real roast's events are solo temp readings (one
 every 10-15s) with nothing else happening at that instant, so no amount of
 row-tightening made a 50-row table of mostly-repetitive numbers read as
-short. The table's default view now shows only rows with *something other
-than* a temp reading — fan/heat changes, milestones, notes, drop — which
-compresses a real roast from 50+ rows to roughly 10; a "N temperature
-readings" toggle at the bottom (`useState`, `EventTimeline` is now a client
-component) expands the full log inline for edits/corrections. Milestone rows
+short. First cut of that filter dropped *every* temp-only row by default,
+which went too far the other way — the whole point of a roast log is
+watching temp climb, and hiding all of it entirely lost that. Landed on
+down-sampling instead of an all-or-nothing filter: fan/heat changes,
+milestones, notes, and drop always show (never sampled — they're already
+sparse and are exactly what shouldn't get thinned out); temp-only rows get
+evenly sampled down to `DEFAULT_TEMP_ROWS` (10) when there are more than
+that, always keeping the first and last reading so the visible range is
+never a guess (`sampleEvenly` in `EventTimeline.tsx`) — the same trade-off
+a metrics/log viewer makes when it can't render every point: dense enough to
+see the trend, short enough to scan. A "+N more temperature readings"
+toggle at the bottom (`useState`, `EventTimeline` is now a client component)
+expands to the untouched full log for edits/corrections. Milestone rows
 get a small colored dot + colored label text using the exact same
 `--mark-*` tokens `curve.ts` uses for that milestone's line on the chart —
 one palette, so the table and the chart read as the same system rather than
