@@ -228,29 +228,29 @@ from what's actually drawn. The static published page has no JS by design
 (see "Not built yet" style notes elsewhere) and deliberately doesn't get
 this — hover is a live-app-only affordance.
 
-`EventTimeline.tsx` renders as a real `<table>` — columns Time / Temp / Fan /
-Heat / Event, chronological (oldest first, unlike the old newest-first
-list) — not a chip-pill list, which was tried first and rejected: most of a
-real roast's events are solo temp readings with nothing else at that
-`atSeconds`, so grouping alone barely helped — every reading was still its
-own full-width pill. A fixed-column table compresses each row to one line
-and lets a column (temp climbing, in particular) be scanned top-to-bottom,
-which pill rows couldn't do regardless of grouping. Events sharing an exact
-`atSeconds` (fan+heat set together at the same tap is the common case) still
-land on one row — now via matching column, not a wrapped pill. Still felt
-noisy at first pass (empty cells shown as `—`, a delete X sitting right next
-to every value on every row); tightened further: empty cells are just
-blank (the table's own column structure already carries the alignment
-`—` was standing in for), the unit moved from every Temp cell into the
-column header (`Temp (°F)`), Temp/Fan/Heat are right-aligned with tabular
-numerals so the digits themselves line up for a top-to-bottom scan, and
-each cell's delete X sits at 40% opacity by default, full-strength on
-`group-hover` of its `<tr>` — present and tappable (so it's never gone on a
-touch device, where hover doesn't fire) but no longer competing with the
-number for attention on every row (`DeleteButton`'s `variant="icon"` under
-the hood — same confirm/error-display logic as the existing text-label
-variant used everywhere else, just a different rendering). This is
-live-app-only — `publish.ts` builds its own
+`EventTimeline.tsx` renders as a real `<table>` — columns Time / Temp (°F) /
+Fan / Heat / Event, chronological, right-aligned tabular-numeral numeric
+columns, blank (not `—`) empty cells. Went through a few readability passes
+before landing here (chip pills grouped by timestamp, then a plain table of
+every event) and the real fix turned out to be **filtering, not
+formatting**: most of a real roast's events are solo temp readings (one
+every 10-15s) with nothing else happening at that instant, so no amount of
+row-tightening made a 50-row table of mostly-repetitive numbers read as
+short. The table's default view now shows only rows with *something other
+than* a temp reading — fan/heat changes, milestones, notes, drop — which
+compresses a real roast from 50+ rows to roughly 10; a "N temperature
+readings" toggle at the bottom (`useState`, `EventTimeline` is now a client
+component) expands the full log inline for edits/corrections. Milestone rows
+get a small colored dot + colored label text using the exact same
+`--mark-*` tokens `curve.ts` uses for that milestone's line on the chart —
+one palette, so the table and the chart read as the same system rather than
+coincidentally similar. Fan values render in `var(--accent)` for the same
+reason (matches the fan line/legend on the curve); Heat and Temp stay
+plain since there's no equivalent secondary accent reserved for them
+elsewhere. Delete stays on every populated cell but sits at 40% opacity
+until you hover that row (never fully hidden, so it's still reachable on
+touch, where hover doesn't fire) — same `DeleteButton` `variant="icon"`,
+just de-emphasized. This is live-app-only — `publish.ts` builds its own
 one-row-per-event `<ol>` for the static page directly (not via this
 component), left as-is since that page is a simpler, skimmable summary
 rather than a working log; revisit

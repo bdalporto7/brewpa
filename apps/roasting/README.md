@@ -148,13 +148,17 @@ section for the full rationale.
    [`SalesPanel.tsx`](src/components/roasts/SalesPanel.tsx) for logging
    drops to friends, then the full event timeline
    ([`EventTimeline.tsx`](src/components/roasts/EventTimeline.tsx)) as a
-   dense table — Time / Temp (°F) / Fan / Heat / Event columns, chronological,
-   right-aligned numeric columns, blank cells for "nothing happened here" —
-   so temp readings (most of a real roast's events) compress to one line
-   each and events sharing a timestamp (fan+heat set together) land on the
-   same row across matching columns. Per-event delete stays available on
-   every populated cell but fades to 40% opacity until you hover that row,
-   so it reads more like a log and less like a form.
+   table — Time / Temp (°F) / Fan / Heat / Event columns, chronological,
+   right-aligned numeric columns. By default it shows only rows with
+   something other than a temp reading — fan/heat changes, milestones,
+   notes, the drop — since raw temp readings are most of a real roast's
+   events and don't individually tell you much; a "N temperature readings"
+   toggle expands the full log inline. Milestone rows get a colored dot and
+   label matching that milestone's line color on the curve chart, and Fan
+   values pick up the same accent color as the curve's fan line, so the
+   table and chart read as one connected system. Per-event delete stays
+   available on every populated cell but fades to 40% opacity until you
+   hover that row.
 
 ## Export & publish
 

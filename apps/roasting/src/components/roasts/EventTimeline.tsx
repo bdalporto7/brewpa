@@ -1,8 +1,22 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { deleteEvent } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
 import { EVENT_LABELS, type EventType } from "@/lib/constants";
 import DeleteButton from "@/components/DeleteButton";
 import type { RoastEvent } from "@prisma/client";
+
+const MILESTONE_COLOR: Partial<Record<EventType, string>> = {
+  DRY_END: "var(--mark-dry-end)",
+  YELLOWING_END: "var(--mark-yellowing-end)",
+  FIRST_CRACK_START: "var(--mark-first-crack)",
+  FIRST_CRACK_END: "var(--mark-first-crack)",
+  SECOND_CRACK_START: "var(--mark-second-crack)",
+  SECOND_CRACK_END: "var(--mark-second-crack)",
+  DROP: "var(--mark-drop)",
+};
 
 /** Events sharing an exact atSeconds (e.g. fan/heat set together) render as one row. */
 function groupByTime(events: RoastEvent[]): RoastEvent[][] {
@@ -38,20 +52,62 @@ function NumberCell({
   event,
   value,
   editable,
+  color,
 }: {
   event: RoastEvent | undefined;
   value: React.ReactNode;
   editable: boolean;
+  color?: string;
 }) {
   return (
     <td className="px-2 py-1 text-right font-mono tabular-nums">
       {event && (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1" style={color ? { color } : undefined}>
           {value}
           <RowDelete event={event} editable={editable} />
         </span>
       )}
     </td>
+  );
+}
+
+function EventRow({
+  group,
+  editable,
+}: {
+  group: RoastEvent[];
+  editable: boolean;
+}) {
+  const tempEvent = group.find((e) => e.type === "TEMP");
+  const fanEvent = group.find((e) => e.type === "FAN");
+  const heatEvent = group.find((e) => e.type === "HEAT");
+  const otherEvents = group.filter((e) => e.type !== "TEMP" && e.type !== "FAN" && e.type !== "HEAT");
+
+  return (
+    <tr className="group hover:bg-background/60">
+      <td className="px-2 py-1 font-mono text-xs text-muted">{formatMMSS(group[0].atSeconds)}</td>
+      <NumberCell event={tempEvent} editable={editable} value={tempEvent?.tempFahrenheit} />
+      <NumberCell event={fanEvent} editable={editable} value={fanEvent?.fanLevel} color="var(--accent)" />
+      <NumberCell event={heatEvent} editable={editable} value={heatEvent?.heatLevel} />
+      <td className="px-2 py-1">
+        {otherEvents.length > 0 && (
+          <div className="flex flex-col gap-0.5">
+            {otherEvents.map((event) => {
+              const color = MILESTONE_COLOR[event.type as EventType];
+              return (
+                <span key={event.id} className="inline-flex items-center gap-1.5">
+                  {color && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />}
+                  <span style={color ? { color } : undefined}>
+                    {event.type === "NOTE" ? event.note : EVENT_LABELS[event.type as EventType]}
+                  </span>
+                  <RowDelete event={event} editable={editable} />
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -62,11 +118,16 @@ export default function EventTimeline({
   events: RoastEvent[];
   editable?: boolean;
 }) {
+  const [showReadings, setShowReadings] = useState(false);
+
   if (events.length === 0) {
     return <p className="text-sm text-muted">No events logged yet.</p>;
   }
 
   const groups = groupByTime(events);
+  const keyGroups = groups.filter((g) => g.some((e) => e.type !== "TEMP"));
+  const readingCount = groups.length - keyGroups.length;
+  const visibleGroups = showReadings ? groups : keyGroups;
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-surface">
@@ -81,37 +142,27 @@ export default function EventTimeline({
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {groups.map((group) => {
-            const tempEvent = group.find((e) => e.type === "TEMP");
-            const fanEvent = group.find((e) => e.type === "FAN");
-            const heatEvent = group.find((e) => e.type === "HEAT");
-            const otherEvents = group.filter(
-              (e) => e.type !== "TEMP" && e.type !== "FAN" && e.type !== "HEAT"
-            );
-
-            return (
-              <tr key={group[0].atSeconds} className="group hover:bg-background/60">
-                <td className="px-2 py-1 font-mono text-xs text-muted">{formatMMSS(group[0].atSeconds)}</td>
-                <NumberCell event={tempEvent} editable={editable} value={tempEvent?.tempFahrenheit} />
-                <NumberCell event={fanEvent} editable={editable} value={fanEvent?.fanLevel} />
-                <NumberCell event={heatEvent} editable={editable} value={heatEvent?.heatLevel} />
-                <td className="px-2 py-1">
-                  {otherEvents.length > 0 && (
-                    <div className="flex flex-col gap-0.5">
-                      {otherEvents.map((event) => (
-                        <span key={event.id} className="inline-flex items-center gap-1">
-                          {event.type === "NOTE" ? event.note : EVENT_LABELS[event.type as EventType]}
-                          <RowDelete event={event} editable={editable} />
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+          {visibleGroups.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="px-2 py-3 text-center text-muted">
+                Only temperature readings logged so far.
+              </td>
+            </tr>
+          ) : (
+            visibleGroups.map((group) => <EventRow key={group[0].atSeconds} group={group} editable={editable} />)
+          )}
         </tbody>
       </table>
+      {readingCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowReadings((v) => !v)}
+          className="flex w-full items-center justify-center gap-1.5 border-t border-border px-2 py-1.5 text-xs font-medium text-muted transition hover:text-foreground"
+        >
+          <ChevronDown className={`h-3 w-3 transition-transform ${showReadings ? "rotate-180" : ""}`} />
+          {showReadings ? "Hide temperature readings" : `${readingCount} temperature ${readingCount === 1 ? "reading" : "readings"}`}
+        </button>
+      )}
     </div>
   );
 }
