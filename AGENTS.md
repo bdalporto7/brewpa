@@ -225,14 +225,65 @@ XSS boundary, not just tidiness. `GITHUB_PAGES_BASE_URL` in `publish.ts` is
 hardcoded to `bdalporto7.github.io/brewpa` — this app is single-repo,
 single-user, so that's deliberate, not a TODO.
 
-Two things this doesn't do, both by design, not oversight: it doesn't enable
-GitHub Pages itself (one-time manual step: repo Settings → Pages → Deploy
-from a branch → `main` / `/docs` — I can't change repo settings), and it
-doesn't commit or push the generated `docs/` files (I've had no stored
-GitHub credentials in this environment so far — publishing writes local
-files only; committing/pushing them live is still a manual step). If a
-future agent finds working `git push` access, that's still worth confirming
-with the user before automating rather than silently wiring it up.
+One thing this still doesn't do: enable GitHub Pages itself (one-time manual
+step — see below, since it turned out to need more than a settings toggle).
+
+**Publish/unpublish now commit and push `docs/` automatically**
+(`syncGeneratedDocs` in `src/lib/git.ts`, called from `publishRoast`/
+`unpublishRoast`/the published-roast branch of `deleteRoastSession`). This
+wasn't the original design — publishing used to write local files only and
+leave committing/pushing as a manual step, because there was no confirmed
+`git push` access when that was built. That gap caused a real incident: a
+roast got published, the local `docs/` write never made it into git, and an
+iCloud sync event on this repo's Documents-folder location (see "Bulk
+historical import" era notes and the general iCloud-duplicate-file gotcha)
+silently reverted both the generated HTML and the session's `publishedAt`
+flag, leaving a dead link the user had already shared. `syncGeneratedDocs`
+closes that gap: `git add -- docs`, check `git status --porcelain -- docs`
+(skip commit/push if nothing changed, e.g. republishing identical content),
+`git commit`, `git push`, run via `execFile` with argument arrays (never a
+shell string) since the commit message is built from user-entered bean
+names. Two things worth knowing about how failure is handled:
+- **`publishRoast`/`unpublishRoast` fail loudly.** If the git steps throw
+  (no remote, diverged history, auth), the `publishedAt` write is rolled
+  back before the error propagates, so the UI never claims something is
+  live that isn't — the whole point of building this. `PublishControl.tsx`
+  (replacing the old plain `<form action={...}>` publish/unpublish buttons)
+  is a client component with real error display via `useTransition`, the
+  same pattern as `DropRoastButton`/`DeleteButton`, since a git failure is
+  now a genuinely expected failure mode, not a hypothetical.
+- **`deleteRoastSession`'s cleanup is best-effort.** The roast row is
+  already gone from the DB by the time it removes a published page, so
+  there's nothing meaningful to roll back to — a sync failure there just
+  logs and leaves the stale page live until the next successful publish/
+  unpublish resyncs `docs/`, rather than blocking the (already-committed)
+  deletion on a network call.
+
+**Gotcha this surfaced, worth remembering for any future client component
+near publishing:** `src/lib/publish.ts` imports `node:fs/promises` at module
+top level. That's fine when only Server Components/Actions import from it,
+but `PublishControl` originally imported `roastPageUrl` from `publish.ts`
+directly, and Turbopack tried to bundle the whole module — including `fs`
+— for the browser and hard-panicked (not a normal caught error; it took the
+whole dev server down and needed a restart). Fixed by splitting the two
+pure URL-building exports (`GITHUB_PAGES_BASE_URL`, `roastPageUrl`) into
+`src/lib/publish-url.ts`, a tiny module with no Node built-ins, which
+`publish.ts` now re-exports for server-side callers and `PublishControl`
+imports directly. Any new client component that needs something from
+`publish.ts` should pull it from `publish-url.ts` instead, or extract it
+there — don't import from `publish.ts` itself in client code.
+
+**Enabling GitHub Pages needed more than a settings toggle.** This repo was
+private, and GitHub Pages on a private repo requires a paid plan — the API
+call to enable it returned "Your current plan does not support GitHub Pages
+for this repository." The user chose to make the repo public (confirmed
+explicitly first, after checking no `.env`/credentials/DB files were
+tracked) rather than pay or find another host; Pages was then enabled via
+`gh api repos/bdalporto7/brewpa/pages -X POST -f "source[branch]=main" -f
+"source[path]=/docs"`. Worth knowing if this ever needs redoing (e.g. a
+fresh repo): private-repo Pages just isn't available on the free tier, full
+stop — don't spend time debugging settings before checking plan/visibility
+first.
 
 **Bulk historical import:** 34 real roasts came from the user's own
 spreadsheet (the "mikelipino Fluid Bed Roast Log" template, a known public

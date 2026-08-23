@@ -153,18 +153,22 @@ section for the full rationale.
   static, self-contained HTML page (no build step, no JS) to
   `docs/roasts/<id>.html`, via [`src/lib/publish.ts`](src/lib/publish.ts),
   and regenerates `docs/index.html` from every published roast. "Unpublish"
-  removes it and regenerates the index. The curve on that page comes from
-  the exact same function as the live chart
-  ([`buildRoastCurveSvg`](src/lib/curve.ts)) — they can't visually drift
-  apart. All user text (bean name, notes, friend names) is HTML-escaped,
-  since this page is genuinely public.
+  removes it and regenerates the index. Both then commit and push just the
+  `docs/` folder automatically (`syncGeneratedDocs` in
+  [`src/lib/git.ts`](src/lib/git.ts)) — if that fails (no remote, diverged
+  history, no auth), the publish/unpublish state rolls back and the button
+  shows a real error rather than claiming something is live that isn't. The
+  curve on the published page comes from the exact same function as the
+  live chart ([`buildRoastCurveSvg`](src/lib/curve.ts)) — they can't
+  visually drift apart. All user text (bean name, notes, friend names) is
+  HTML-escaped, since this page is genuinely public.
 
-Publishing only writes files locally — two things still need doing by hand,
-and neither is automatable from in here:
-1. **One-time repo setup**: GitHub → repo Settings → Pages → Deploy from a
-   branch → `main`, folder `/docs`.
-2. **Every publish**: `git add docs/ && git commit && git push` (or fold it
-   into whatever commit you're already making) to actually put it live.
+GitHub Pages itself needs a one-time repo setup — Settings → Pages → Deploy
+from a branch → `main`, folder `/docs` — but note it requires a **public**
+repo unless you're on a paid GitHub plan; Pages isn't available for a
+private repo on the free tier at all. Beyond that, publishing is now fully
+self-contained: clicking Publish/Unpublish generates the page *and* commits
++ pushes it, no manual git step left.
 
 ## Roast lifecycle
 

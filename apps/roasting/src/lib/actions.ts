@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import type { EventType } from "@/lib/constants";
 import { writeRoastPage, removeRoastPage, writeIndexPage, type PublishableSession } from "@/lib/publish";
+import { syncGeneratedDocs } from "@/lib/git";
 import { parseMMSS } from "@/lib/format";
 
 const PUBLISHABLE_SESSION_INCLUDE = {
@@ -526,13 +528,35 @@ export async function publishRoast(id: string) {
   await writeRoastPage(session as PublishableSession);
   await regeneratePublishedIndex();
 
+  try {
+    await syncGeneratedDocs(
+      `Publish roast: ${session.bean.name} (${format(session.startedAt!, "yyyy-MM-dd")})`
+    );
+  } catch (err) {
+    // Local files are already correct — only the DB's "this is live" claim needs undoing.
+    await prisma.roastSession.update({ where: { id }, data: { publishedAt: null } });
+    const detail = err instanceof Error ? err.message : "unknown error";
+    throw new Error(`Generated the page, but couldn't push it live: ${detail}`);
+  }
+
   revalidatePath(`/roasts/${id}`);
 }
 
 export async function unpublishRoast(id: string) {
+  const session = await prisma.roastSession.findUniqueOrThrow({ where: { id }, include: { bean: true } });
+  const previousPublishedAt = session.publishedAt;
+
   await prisma.roastSession.update({ where: { id }, data: { publishedAt: null } });
   await removeRoastPage(id);
   await regeneratePublishedIndex();
+
+  try {
+    await syncGeneratedDocs(`Unpublish roast: ${session.bean.name}`);
+  } catch (err) {
+    await prisma.roastSession.update({ where: { id }, data: { publishedAt: previousPublishedAt } });
+    const detail = err instanceof Error ? err.message : "unknown error";
+    throw new Error(`Removed the page, but couldn't push that live: ${detail}`);
+  }
 
   revalidatePath(`/roasts/${id}`);
 }
@@ -551,6 +575,12 @@ export async function deleteRoastSession(id: string) {
   if (session.publishedAt) {
     await removeRoastPage(id);
     await regeneratePublishedIndex();
+    // Best-effort: the roast is already gone from the DB, so there's nothing
+    // left to roll back to if this fails — just leave the stale page live
+    // until the next successful publish/unpublish resyncs docs/.
+    await syncGeneratedDocs(`Remove roast page: ${id}`).catch((err) => {
+      console.error("Failed to push docs/ after deleting a published roast:", err);
+    });
   }
 
   revalidatePath("/roasts");

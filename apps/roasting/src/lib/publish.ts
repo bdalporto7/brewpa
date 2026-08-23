@@ -5,10 +5,8 @@ import { buildRoastCurveSvg } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
 import { describeEvent } from "@/lib/constants";
+import { GITHUB_PAGES_BASE_URL, roastPageUrl } from "@/lib/publish-url";
 import type { Bean, Friend, RoastEvent, RoastSession, Sale } from "@prisma/client";
-
-/** This repo's GitHub Pages origin — single-repo app, not meant to be portable. */
-export const GITHUB_PAGES_BASE_URL = "https://bdalporto7.github.io/brewpa";
 
 export type PublishableSession = RoastSession & {
   bean: Bean;
@@ -25,9 +23,7 @@ function roastsDir(): string {
   return path.join(docsDir(), "roasts");
 }
 
-export function roastPageUrl(id: string): string {
-  return `${GITHUB_PAGES_BASE_URL}/roasts/${id}.html`;
-}
+export { GITHUB_PAGES_BASE_URL, roastPageUrl };
 
 function escapeHtml(value: string | number | null | undefined): string {
   if (value == null) return "";

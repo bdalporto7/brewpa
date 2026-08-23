@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { Download, Globe } from "lucide-react";
+import { Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { deleteRoastSession, publishRoast, unpublishRoast } from "@/lib/actions";
-import { roastPageUrl } from "@/lib/publish";
+import { deleteRoastSession } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
 import { computeHistoricalBaseline } from "@/lib/tips";
@@ -15,6 +14,7 @@ import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
 import DropRoastButton from "@/components/roasts/DropRoastButton";
 import RoastDetailsForm from "@/components/roasts/RoastDetailsForm";
+import PublishControl from "@/components/roasts/PublishControl";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
@@ -106,34 +106,7 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
               </a>
-              {session.publishedAt ? (
-                <div className="flex items-center gap-2 text-xs">
-                  <a
-                    href={roastPageUrl(session.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 font-medium text-accent hover:opacity-80"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    Published
-                  </a>
-                  <form action={unpublishRoast.bind(null, session.id)}>
-                    <button type="submit" className="text-muted transition hover:text-foreground">
-                      Unpublish
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <form action={publishRoast.bind(null, session.id)}>
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1.5 text-xs font-medium text-muted transition hover:text-foreground"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    Publish
-                  </button>
-                </form>
-              )}
+              <PublishControl roastSessionId={session.id} publishedAt={session.publishedAt} />
             </>
           )}
           <DeleteButton
