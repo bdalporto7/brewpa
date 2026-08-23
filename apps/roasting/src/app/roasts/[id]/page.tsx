@@ -13,7 +13,8 @@ import Timer from "@/components/roasts/Timer";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
-import EndRoastForm from "@/components/roasts/EndRoastForm";
+import DropRoastButton from "@/components/roasts/DropRoastButton";
+import RoastDetailsForm from "@/components/roasts/RoastDetailsForm";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
@@ -169,7 +170,7 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
             loggedMilestoneTypes={loggedMilestoneTypes}
           />
           <EventTimeline events={session.events} editable />
-          <EndRoastForm roastSessionId={session.id} />
+          <DropRoastButton roastSessionId={session.id} />
         </>
       )}
 
@@ -185,6 +186,7 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
               value={session.roastedRemainingGrams != null ? `${session.roastedRemainingGrams}g` : "—"}
             />
           </div>
+          <RoastDetailsForm session={session} />
           <RoastCurveChart events={session.events} totalSeconds={durationSeconds ?? 0} />
           <PhaseBar phases={phases} />
           {session.notes && <p className="text-sm text-foreground/80">{session.notes}</p>}

@@ -320,16 +320,15 @@ export async function deleteEvent(roastSessionId: string, eventId: string) {
   revalidatePath(`/roasts/${roastSessionId}`);
 }
 
-export async function endRoast(roastSessionId: string, formData: FormData) {
-  const roastedWeightGrams = num(formData, "roastedWeightGrams");
-  const roastLevel = str(formData, "roastLevel");
-  const rating = num(formData, "rating");
-  const notes = str(formData, "notes");
-
-  if (!roastLevel) {
-    throw new Error("Roast level is required to end the roast.");
-  }
-
+/**
+ * Ends a roast immediately — no form, no required fields. Splitting this
+ * from the follow-up details (updateRoastDetails, below) matters for the
+ * same reason the pending/live split on the start side does: filling in a
+ * dropdown shouldn't add seconds to the recorded roast duration. Dropping
+ * IS the moment that matters; the roast level/weight/rating can be filled
+ * in at whatever pace afterward without affecting anything already logged.
+ */
+export async function dropRoast(roastSessionId: string) {
   await prisma.$transaction(async (tx) => {
     const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
     if (session.endedAt) {
@@ -349,12 +348,54 @@ export async function endRoast(roastSessionId: string, formData: FormData) {
       data: { roastSessionId, type: "DROP", atSeconds },
     });
 
+    await tx.roastSession.update({ where: { id: roastSessionId }, data: { endedAt } });
+  });
+
+  revalidatePath(`/roasts/${roastSessionId}`);
+  revalidatePath("/roasts");
+  revalidatePath("/");
+}
+
+/**
+ * Fills in (or edits) a completed roast's weight/level/rating/notes,
+ * independent of when it was actually dropped. Re-editable, not one-shot:
+ * if roastedWeightGrams was already set and some of it has since been
+ * dropped to friends, correcting the total preserves the already-dropped
+ * amount rather than resetting roastedRemainingGrams back to the full new
+ * total — same "correcting a total shouldn't erase consumption" logic as
+ * adjustBeanStock/updateBean's weightGrams field.
+ */
+export async function updateRoastDetails(roastSessionId: string, formData: FormData) {
+  const roastedWeightGrams = num(formData, "roastedWeightGrams");
+  const roastLevel = str(formData, "roastLevel");
+  const rating = num(formData, "rating");
+  const notes = str(formData, "notes");
+
+  if (roastedWeightGrams !== null && roastedWeightGrams < 0) {
+    throw new Error("Roasted weight can't be negative.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    if (!session.endedAt) {
+      throw new Error("This roast hasn't been dropped yet.");
+    }
+
+    let roastedRemainingGrams = session.roastedRemainingGrams;
+    if (roastedWeightGrams !== null) {
+      if (session.roastedWeightGrams == null) {
+        roastedRemainingGrams = roastedWeightGrams;
+      } else {
+        const alreadyDropped = session.roastedWeightGrams - (session.roastedRemainingGrams ?? 0);
+        roastedRemainingGrams = Math.max(0, Math.round((roastedWeightGrams - alreadyDropped) * 10) / 10);
+      }
+    }
+
     await tx.roastSession.update({
       where: { id: roastSessionId },
       data: {
-        endedAt,
-        roastedWeightGrams,
-        roastedRemainingGrams: roastedWeightGrams,
+        roastedWeightGrams: roastedWeightGrams ?? session.roastedWeightGrams,
+        roastedRemainingGrams,
         roastLevel,
         rating,
         notes,
@@ -364,6 +405,7 @@ export async function endRoast(roastSessionId: string, formData: FormData) {
 
   revalidatePath(`/roasts/${roastSessionId}`);
   revalidatePath("/roasts");
+  revalidatePath("/beans");
   revalidatePath("/");
 }
 

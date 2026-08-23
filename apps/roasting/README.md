@@ -133,8 +133,9 @@ section for the full rationale.
    and [`EventLogPanel.tsx`](src/components/roasts/EventLogPanel.tsx) for
    logging fan/heat/temp/crack/note events against the elapsed time — all
    manual entry, since the SR800 has no data output of its own.
-3. Ending the roast (roasted weight, roast level, rating) sets `endedAt` and
-   logs a `DROP` event.
+3. "Drop Roast" sets `endedAt` and logs a `DROP` event immediately — roasted
+   weight, roast level, and rating are filled in afterward on the now-
+   completed page.
 4. The completed session renders
    [`RoastCurveChart.tsx`](src/components/roasts/RoastCurveChart.tsx) — a
    hand-built SVG temperature curve with crack markers and a fan/heat step
@@ -174,6 +175,14 @@ written yet. Tapping "Begin Roast" is the actual transition: it sets the
 session's start time and logs the chosen fan/heat as the first events, and
 *that's* what starts the timer everywhere else in the app measures against.
 Three states in total: pending → live → completed.
+
+Ending a roast works the same way, in reverse: "Drop Roast" ends the session
+immediately — one click, no form — setting `endedAt` and logging the `DROP`
+event right then, since the whole point is that dropping the beans and
+weighing/rating them are two different moments. The completed page then
+shows "How'd it turn out?" — roasted weight, roast level, rating, notes —
+auto-expanded until you've filled it in at least once, editable anytime
+after via "Edit details."
 
 ## Roast phases & live tips
 

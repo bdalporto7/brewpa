@@ -154,12 +154,18 @@ silently. This is also how the "used 20g for a brew, no money changed hands"
 gap (noted below under Sales) gets covered in practice — just remove that
 amount directly rather than logging a `Sale` with no buyer.
 
-**Roasted-coffee stock:** ending a roast (`endRoast`) sets
-`RoastSession.roastedRemainingGrams` to the entered `roastedWeightGrams` —
-green weight moves out of `Bean.remainingGrams` at roast *start*, roasted
-weight moves into `RoastSession.roastedRemainingGrams` at roast *end*. Each
-roast session is its own roasted-stock ledger entry (no separate model) since
-roasted coffee is roast-specific, not blended across sessions.
+**Roasted-coffee stock:** dropping a roast (`dropRoast`) just sets `endedAt`
+and logs the `DROP` event — no weight is known yet at that instant, since the
+whole point is that dropping happens immediately, before the roaster has
+weighed anything. `roastedWeightGrams`/`roastedRemainingGrams` get filled in
+afterward via `updateRoastDetails` (also handles `roastLevel`/`rating`/
+`notes`), which can be called again later to correct the weight — in that
+case it preserves however much has already been sold/given away rather than
+resetting it (same "total moves, gap to remaining stays fixed" logic as
+`adjustBeanStock`, reused here for a different total). Green weight moves out
+of `Bean.remainingGrams` at roast *start* regardless. Each roast session is
+its own roasted-stock ledger entry (no separate model) since roasted coffee
+is roast-specific, not blended across sessions.
 
 **Sales ("drops"):** a `Sale` is roasted coffee given/sold to a `Friend` from
 one `RoastSession` — `weightGrams`, optional `friendId`/`price`/`notes`,
@@ -263,7 +269,17 @@ clock the rest of the app measures against. This exists because the timer
 starting the instant "Start" was clicked (the original behavior) was wrong
 for how this app is actually used — you need a moment to dial in the
 roaster's dials before the roast itself begins, and that setup time isn't
-part of the roast. `startedAt` being nullable now (was `@default(now())`,
+part of the roast. Ending a roast got the same treatment in reverse:
+`dropRoast` sets `endedAt` and logs the `DROP` event with one click and
+nothing else, so the transition to completed happens the instant the beans
+actually come out of the roaster, not whenever the roaster finishes typing
+in a weight. `RoastDetailsForm` (roasted weight, roast level, rating, notes)
+renders on the now-completed page as a separate step, auto-expanded when
+nothing's been filled in yet — `updateRoastDetails` is a second,
+independently-callable action, re-editable afterward via the same form. This
+mirrors the pending→live split (`startRoast`/`beginRoast`): don't make
+someone fill out a form before the thing they're actually doing can start or
+stop; let the form come after, on its own time. `startedAt` being nullable now (was `@default(now())`,
 migration `nullable_started_at`) touches everywhere a `RoastSession` is
 read: anything scoped to completed roasts (CSV, publish, `computeHistoricalBaseline`,
 the dashboard's month/recent-roasts queries) is safe with a `!` assertion
