@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Roasts</title>
+<style>
+:root {
+  --background: #faf6f0; --surface: #ffffff; --foreground: #2b1d14;
+  --muted: #7a6a5c; --border: #e5dcd0; --accent: #b5502c;
+  --accent-foreground: #fdf6f0; --accent-soft: #f3e0d3;
+  --mark-dry-end: #8a7a63; --mark-yellowing-end: #b8973f; --mark-first-crack: #c17d1f; --mark-second-crack: #8a3a24; --mark-drop: #2b1d14;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a140f; --surface: #241c15; --foreground: #f3eadd;
+    --muted: #a89684; --border: #3a2e24; --accent: #d97a4f;
+    --accent-foreground: #1a140f; --accent-soft: #3a2418;
+    --mark-dry-end: #b8a68e; --mark-yellowing-end: #d4b158; --mark-first-crack: #d99a3f; --mark-second-crack: #d97a4f; --mark-drop: #f3eadd;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--background); color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 44rem; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+a { color: inherit; }
+.back { font-size: 0.8rem; color: var(--muted); text-decoration: none; }
+.back:hover { color: var(--foreground); }
+h1 { font-size: 1.375rem; margin: 0.75rem 0 0.125rem; }
+.subtitle { font-size: 0.875rem; color: var(--muted); margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+.stat { border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem; padding: 0.75rem; }
+.stat-value { font-family: var(--font-mono); font-size: 1.125rem; font-weight: 600; margin: 0; }
+.stat-label { font-size: 0.75rem; color: var(--muted); margin: 0.125rem 0 0; }
+.card { border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem; padding: 1rem; margin: 1rem 0; }
+.section-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted); margin: 0 0 0.75rem; }
+ol, ul { list-style: none; margin: 0; padding: 0; }
+.timeline li, .drops li { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.625rem 0; border-top: 1px solid var(--border); font-size: 0.875rem; }
+.timeline li:first-child, .drops li:first-child { border-top: none; }
+.t { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); width: 3rem; flex-shrink: 0; display: inline-block; }
+.notes { font-size: 0.875rem; white-space: pre-wrap; }
+.roast-curve-svg { width: 100%; min-width: 560px; }
+.mono-10 { font-family: var(--font-mono); font-size: 10px; }
+.marker-label { font-size: 9px; font-weight: 500; }
+.footer { margin-top: 2.5rem; font-size: 0.75rem; color: var(--muted); }
+.index-list li { border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 0.5rem; }
+.index-list a { text-decoration: none; font-weight: 500; }
+.index-list .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.125rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Roasts</h1>
+  <p class="subtitle">Published roast logs.</p>
+  <ul class="index-list" style="margin-top: 1.5rem;">
+    <li><a href="roasts/cmt4ug8uy017xxcvi6euve573.html">Ethiopia Halo Beriti — </a><p class="meta">Aug 18, 2026</p></li>
+  </ul>
+</div>
+</body>
+</html>
