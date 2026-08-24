@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Flame } from "lucide-react";
+import { logout } from "@/lib/auth-actions";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -16,12 +17,17 @@ export default function Nav() {
           <Flame className="h-5 w-5 text-accent" />
           Roasting
         </Link>
-        <nav className="flex gap-4 text-sm">
+        <nav className="flex items-center gap-4 text-sm">
           {LINKS.map((link) => (
             <Link key={link.href} href={link.href} className="text-muted transition hover:text-foreground">
               {link.label}
             </Link>
           ))}
+          <form action={logout}>
+            <button type="submit" className="text-muted transition hover:text-foreground">
+              Log out
+            </button>
+          </form>
         </nav>
       </div>
     </header>

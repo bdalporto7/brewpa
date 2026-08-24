@@ -74,11 +74,19 @@ context, design standards, and build-order rationale.
   deterministic, see AGENTS.md for why.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
+- **Auth** — a single shared password (`APP_PASSWORD`) gates the whole app
+  via `src/middleware.ts`, since this is meant to be usable by more than one
+  person from more than one device, not just `localhost` on one laptop. Not
+  per-user accounts — nothing here is scoped to who specifically logged a
+  given roast.
 
 ## Setup
 
-From the repo root, `./start.sh` handles install + DB setup + dev server in
-one command (safe to re-run). Or, manually from here:
+Copy `.env.example` to `.env` and fill in `AUTH_SECRET` (`openssl rand
+-base64 32`) and `APP_PASSWORD` (whatever you want the shared login
+password to be) — the app won't start without these. From the repo root,
+`./start.sh` then handles install + DB setup + dev server in one command
+(safe to re-run). Or, manually from here:
 
 ```bash
 npm install

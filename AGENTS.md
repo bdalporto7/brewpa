@@ -563,6 +563,53 @@ a wrapper around the data model. Concretely:
 - Keep each app's README up to date with its own setup/run instructions —
   don't rely on this file for per-app specifics once an app exists.
 
+## Multi-device / sharing with a friend (in progress)
+
+The app was local-only by design (see the "Runtime target" note above) until
+the user wanted a friend to be able to use it too, which needs the database
+and the app itself reachable from more than one machine. Plan, in order:
+
+1. **Auth (done).** Deploying anything public means the app is no longer
+   gated by "you have to be on my laptop" — something has to replace that.
+   `src/lib/auth.ts` is a single shared password (not per-user accounts:
+   nothing in the data model is scoped to "which of the two of us logged
+   this," so the goal is keeping the open internet out, not identifying
+   who's who) gating every route via `src/middleware.ts`. Session tokens are
+   HMAC-signed and verified with the Web Crypto API
+   (`crypto.subtle`/`btoa`/`atob`), not Node's `crypto` module or a JWT
+   library — middleware runs on the Edge runtime by default, and Web Crypto
+   is the one signing approach that works in both that and a normal Node
+   process without extra config. `APP_PASSWORD` and `AUTH_SECRET` are new
+   required env vars (`.env.example` documents them;
+   `openssl rand -base64 32` for the latter). Known minor gap: the nav bar
+   (with a "Log out" button) still renders on `/login` before you've
+   actually logged in — cosmetically odd, not a security hole (middleware
+   still gates every real page), just not fixed yet; would need pulling
+   `Nav` out of the root layout into a route-group layout that `/login`
+   sits outside of.
+2. **Database (pending user account setup).** Moving from a local SQLite
+   file to Turso (hosted libSQL — SQLite-compatible, so this is closer to
+   swapping the connection than rewriting queries) via `@prisma/adapter-libsql`
+   pinned to the exact installed Prisma version (`6.19.3` as of this
+   writing — these adapter packages version in lockstep with `prisma`
+   itself, confirmed by checking available versions on npm rather than
+   assuming). Blocked on the user creating a Turso account and running
+   `turso auth login` themselves — account creation isn't something to do
+   on someone's behalf.
+3. **Hosting (pending user account setup).** Deploying to Vercel so a
+   second person doesn't need to clone the repo and run a dev server
+   themselves — same account-creation constraint, `vercel login` first.
+   Should tie into the existing "push to main" git workflow (Vercel's
+   GitHub integration deploys on push) rather than replacing it.
+4. **Backups (pending step 2).** The user explicitly wants local backups of
+   the hosted DB "just in case," and explicitly does **not** want backup
+   data anywhere in the public repo — rules out committing dumps to git and
+   rules out GitHub Actions artifacts too (those are publicly downloadable
+   on a public repo, which would defeat the point). Plan: a script using
+   the Turso CLI's dump capability, writing to a local, gitignored
+   directory; true "always on" automation would need a scheduled task on
+   the user's own machine (e.g. `launchd`), not a repo-hosted one.
+
 ## Commands
 
 `./start.sh` from the repo root is the one-command way to get the dev server
