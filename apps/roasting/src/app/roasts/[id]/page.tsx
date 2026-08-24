@@ -23,6 +23,7 @@ import PhaseBar from "@/components/roasts/PhaseBar";
 import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
 import SalesPanel from "@/components/roasts/SalesPanel";
 import AddEventForm from "@/components/roasts/AddEventForm";
+import CuppingTab from "@/components/roasts/CuppingTab";
 import DeleteButton from "@/components/DeleteButton";
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -34,8 +35,16 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function RoastSessionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RoastSessionPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
+  const { tab } = await searchParams;
+  const activeTab = tab === "cupping" ? "cupping" : "roast";
   const [session, friends] = await Promise.all([
     prisma.roastSession.findUnique({
       where: { id },
@@ -43,6 +52,7 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
         bean: true,
         events: { orderBy: { atSeconds: "asc" } },
         sales: { orderBy: { soldAt: "desc" }, include: { friend: true } },
+        cuppingNotes: { orderBy: { cuppedAt: "desc" } },
       },
     }),
     prisma.friend.findMany({ orderBy: { name: "asc" } }),
@@ -182,6 +192,35 @@ export default async function RoastSessionPage({ params }: { params: Promise<{ i
       )}
 
       {isCompleted && (
+        <div className="flex gap-4 border-b border-border text-sm font-medium">
+          <a
+            href={`/roasts/${session.id}`}
+            className={`-mb-px border-b-2 px-1 pb-2 transition ${
+              activeTab === "roast"
+                ? "border-accent text-foreground"
+                : "border-transparent text-muted hover:text-foreground"
+            }`}
+          >
+            Roast
+          </a>
+          <a
+            href={`/roasts/${session.id}?tab=cupping`}
+            className={`-mb-px border-b-2 px-1 pb-2 transition ${
+              activeTab === "cupping"
+                ? "border-accent text-foreground"
+                : "border-transparent text-muted hover:text-foreground"
+            }`}
+          >
+            Cupping{session.cuppingNotes.length > 0 ? ` (${session.cuppingNotes.length})` : ""}
+          </a>
+        </div>
+      )}
+
+      {isCompleted && activeTab === "cupping" && (
+        <CuppingTab roastSessionId={session.id} cuppingNotes={session.cuppingNotes} />
+      )}
+
+      {isCompleted && activeTab === "roast" && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Stat label="Duration" value={formatMMSS(durationSeconds ?? 0)} />

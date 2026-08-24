@@ -93,6 +93,11 @@ dial, no digital output of its own. Scope, current priority order:
    milestone events, shown on every completed roast and live during one; a
    small rule-based tips panel surfaces during a live roast. Built — see
    "Roast phases & tips" below.
+8. **Cupping notes** — a separate evaluation of a roasted coffee, done
+   (often days) after the roast itself, based on the SCA/Q-grading form. A
+   completed roast has its own "Cupping" tab (`/roasts/[id]?tab=cupping`)
+   for logging one or more cupping sessions. Built — see "Cupping notes"
+   below.
 
 **Why this isn't a hardware-integration problem:** the SR800 has no data
 output — everything logged comes from the person watching the roaster and
@@ -510,6 +515,44 @@ doesn't currently render during a live roast at all, only once completed) —
 the live tip line was the right-sized first cut; revisit if a visual
 overlay turns out to matter more than the text comparison.
 
+**Cupping notes:** `CuppingNote` (migration `add_cupping_notes`) is a
+one-to-many off `RoastSession` — a roast can be cupped more than once (e.g.
+day-2 vs day-7 rest are genuinely different tastings), each session its own
+row with its own `cuppedAt`. Every score field is nullable by design: the
+user explicitly asked for "fields can all be optional... user can just add
+basic notes and score if they want," so `src/lib/cupping.ts`'s
+`computeCuppingTotal` only returns a real total when *all ten* Q-grading
+categories are filled (same "null rather than guessed" rule
+`computeRoastPhases` already uses) — a partial entry is a fully valid,
+expected state, not an incomplete one waiting to be finished.
+Fragrance/Aroma, Flavor, Aftertaste, Acidity, Body, Balance, and Overall
+keep the real SCA form's 6-10 (0.25-increment) scale; Uniformity/Clean
+Cup/Sweetness are simplified from the professional protocol's 5-identical-
+cups-per-category setup (2 points each cup) down to one 0-10 score each,
+since a home roaster tasting their own single pot of coffee isn't running a
+cupping lab. Verified the category list and scoring structure against real
+sources before building this (`royalny.com`'s cupping-form guide) rather
+than reconstructing it from memory — the same bar as the DTR figure
+correction above.
+`CuppingNoteForm.tsx` only ever shows Notes + Overall by default; the other
+nine fields sit behind a native `<details>` disclosure (open automatically
+only when editing a note that already has one of them filled) — no client
+JS needed for the collapse/expand itself, `ActionForm` is the only reason
+this component needs `"use client"` at all. `/roasts/[id]` gained real tab
+navigation for this (`?tab=cupping`, a plain searchParam so it's linkable
+and needs no client state) — "Roast" (the existing curve/phases/events
+view) and "Cupping" are peers, both server-rendered from the same page
+based on which tab is active; only shown once a roast is completed, since
+cupping an unfinished roast isn't a coherent action.
+**Gotcha hit while building this:** a `type="date"` input's value
+(`"2026-08-24"`, no time component) parses as **UTC midnight** per the
+ECMAScript spec — formatting it back out in a timezone behind UTC displays
+as the *previous* day, silently off-by-one from what the user actually
+picked. Fixed in `addCuppingNote` by appending a bare `T00:00` (no `Z`/
+offset) before constructing the `Date`, which forces local-midnight parsing
+instead — caught by actually entering today's date and checking what
+rendered, not by reading the code.
+
 **Gotcha:** after `prisma migrate dev` (or any schema change), restart the
 Next dev server. The regenerated Prisma Client on disk doesn't get picked up
 by an already-running process — you'll see `PrismaClientValidationError:
@@ -652,6 +695,16 @@ and the app itself reachable from more than one machine. Live at
    Also worth remembering: destroying and recreating a database changes its
    instance ID, which invalidates any auth token issued for the old one —
    `turso db tokens create <name>` again after any recreate, not before.
+
+   **Ongoing schema changes** (as opposed to that one-time creation) are a
+   separate, simpler, already-proven path: `npx prisma migrate dev --name
+   <name>` as always (this only ever touches the local `dev.db` — libSQL's
+   HTTP-based protocol means Prisma Migrate can't reach Turso directly),
+   then apply the exact same generated `migration.sql` to the live database
+   with `turso db shell roasting < prisma/migrations/<name>/migration.sql`.
+   Used successfully for `add_cupping_notes`; verify with `turso db shell
+   roasting ".schema <Table>"` after, since `turso db shell`'s own success
+   output has already proven unreliable once above.
 3. **Hosting (done).** Deployed to Vercel — live at
    `https://roasting-three.vercel.app`. `vercel link` run from
    `apps/roasting/` (not the repo root) initially set the project's Root

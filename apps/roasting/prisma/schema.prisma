@@ -61,8 +61,9 @@ model RoastSession {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  events RoastEvent[]
-  sales  Sale[]
+  events       RoastEvent[]
+  sales        Sale[]
+  cuppingNotes CuppingNote[]
 
   goldenForBean Bean? @relation("BeanGoldenRoast")
 
@@ -101,6 +102,41 @@ model Sale {
 
   @@index([roastSessionId])
   @@index([friendId])
+}
+
+// A cupping session for a roasted coffee — the SCA/Q-grading-style
+// evaluation, done separately from (and usually days after) the roast
+// itself. A roast can have several of these over time (e.g. day-2 vs
+// day-7 rest). Every score field is optional — the Q form's real 10
+// categories (7 scored 6-10, 3 scored 0-10 from a home-cupping
+// simplification of the professional 5-cups-per-category protocol) plus a
+// defects deduction, but a cupper can fill in just notes and an overall
+// score, or nothing quantitative at all. See src/lib/cupping.ts for the
+// field list/order and how these combine into a total score.
+model CuppingNote {
+  id             String       @id @default(cuid())
+  roastSessionId String
+  roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
+  cuppedAt       DateTime     @default(now())
+
+  fragranceAroma Float?
+  flavor         Float?
+  aftertaste     Float?
+  acidity        Float?
+  body           Float?
+  balance        Float?
+  uniformity     Float?
+  cleanCup       Float?
+  sweetness      Float?
+  overall        Float?
+  defects        Float?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roastSessionId])
 }
 
 // A person drops go to — lets you see everything one friend has ever

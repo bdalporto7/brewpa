@@ -446,6 +446,60 @@ export async function updateRoastDetails(roastSessionId: string, formData: FormD
   revalidatePath("/");
 }
 
+function cuppingScoresFromForm(formData: FormData) {
+  return {
+    fragranceAroma: num(formData, "fragranceAroma"),
+    flavor: num(formData, "flavor"),
+    aftertaste: num(formData, "aftertaste"),
+    acidity: num(formData, "acidity"),
+    body: num(formData, "body"),
+    balance: num(formData, "balance"),
+    uniformity: num(formData, "uniformity"),
+    cleanCup: num(formData, "cleanCup"),
+    sweetness: num(formData, "sweetness"),
+    overall: num(formData, "overall"),
+    defects: num(formData, "defects"),
+    notes: str(formData, "notes"),
+  };
+}
+
+export async function addCuppingNote(roastSessionId: string, formData: FormData) {
+  const session = await prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+  if (!session.endedAt) {
+    throw new Error("Only a completed roast can be cupped.");
+  }
+
+  const cuppedAtRaw = str(formData, "cuppedAt");
+  // A date-only string ("2026-08-24") parses as UTC midnight per spec, which
+  // display-formats as the *previous* day in any timezone behind UTC —
+  // appending a bare time (no "Z"/offset) forces local-midnight parsing
+  // instead, matching what the date picker actually showed the user.
+  const cuppedAt = cuppedAtRaw ? new Date(`${cuppedAtRaw}T00:00`) : new Date();
+  await prisma.cuppingNote.create({
+    data: {
+      roastSessionId,
+      cuppedAt,
+      ...cuppingScoresFromForm(formData),
+    },
+  });
+
+  revalidatePath(`/roasts/${roastSessionId}`);
+}
+
+export async function updateCuppingNote(cuppingNoteId: string, formData: FormData) {
+  const note = await prisma.cuppingNote.update({
+    where: { id: cuppingNoteId },
+    data: cuppingScoresFromForm(formData),
+  });
+
+  revalidatePath(`/roasts/${note.roastSessionId}`);
+}
+
+export async function deleteCuppingNote(roastSessionId: string, cuppingNoteId: string) {
+  await prisma.cuppingNote.delete({ where: { id: cuppingNoteId } });
+  revalidatePath(`/roasts/${roastSessionId}`);
+}
+
 export async function adjustRoastedStock(
   roastSessionId: string,
   direction: "add" | "remove",

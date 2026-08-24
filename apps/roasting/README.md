@@ -72,6 +72,16 @@ context, design standards, and build-order rationale.
   automatically (falling back to the bean's most recent roast if none is
   set — never to a different bean's data). No LLM call — deliberately
   deterministic, see AGENTS.md for why.
+- **Cupping notes** — a completed roast gets its own "Cupping" tab
+  (separate from the roast/curve view) for logging one or more formal
+  tastings, based on the real SCA/Q-grading cupping form. Every field is
+  optional — jot down just notes and an Overall score, or fill in the full
+  ten-category breakdown (Fragrance/Aroma, Flavor, Aftertaste, Acidity,
+  Body, Balance, Uniformity, Clean Cup, Sweetness, Overall, plus a Defects
+  deduction) behind a collapsible "Full Q-grading breakdown." The headline
+  total score only appears once every category is actually filled in —
+  a partial entry never gets a misleading number. A roast can be cupped
+  more than once (e.g. day-2 vs. day-7 rest), each session its own row.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
 - **Auth** — real per-user login via GitHub or Google (Auth.js /
@@ -187,6 +197,11 @@ section for the full rationale.
   doesn't touch their past drops, it just un-links them (they show as
   anonymous on the roast they came from). No merge action for near-duplicate
   friends yet — see AGENTS.md.
+- **CuppingNote** — one formal tasting of a roasted coffee, on the
+  `/roasts/[id]` "Cupping" tab. A roast can have several (`cuppedAt` per
+  session). Every score field is nullable; `computeCuppingTotal`
+  (`src/lib/cupping.ts`) only returns a total once all ten Q-grading
+  categories are filled in.
 
 ## How a roast works
 
