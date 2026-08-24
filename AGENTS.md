@@ -625,15 +625,32 @@ and the app itself reachable from more than one machine. Plan, in order:
    `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (`.env.example` documents all of
    this), plus `ALLOWED_EMAILS` with the exact addresses both people will
    actually sign in with.
-2. **Database (pending user account setup).** Moving from a local SQLite
-   file to Turso (hosted libSQL — SQLite-compatible, so this is closer to
-   swapping the connection than rewriting queries) via `@prisma/adapter-libsql`
-   pinned to the exact installed Prisma version (`6.19.3` as of this
-   writing — these adapter packages version in lockstep with `prisma`
-   itself, confirmed by checking available versions on npm rather than
-   assuming). Blocked on the user creating a Turso account and running
-   `turso auth login` themselves — account creation isn't something to do
-   on someone's behalf.
+2. **Database (done).** Moved from a local SQLite file to Turso (hosted
+   libSQL — SQLite-compatible, so this ended up closer to swapping the
+   connection than rewriting queries) via `@prisma/adapter-libsql` pinned to
+   the exact installed Prisma version (`6.19.3` — these adapter packages
+   version in lockstep with `prisma` itself, confirmed by checking available
+   versions on npm rather than assuming). `src/lib/prisma.ts` uses the
+   adapter only when `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` are both set,
+   falling back to the plain local file otherwise — cloning this repo
+   without Turso configured still works against a local `dev.db`.
+
+   **Real gotcha, worth remembering if this database is ever recreated:**
+   `turso db create --from-file <path>` and `--from-dump <path>` both
+   report success ("Uploaded data in 0 seconds") while silently creating a
+   **completely empty** database — no tables, no error, `Size: 0 B` in
+   `turso db show`. This wasn't a fluke of one bad file; it failed
+   identically for both the raw `.db` file and a proper `sqlite3 .dump`
+   output, ruled out by actually checking `turso db show`'s reported size
+   and querying `sqlite_master` directly rather than trusting the CLI's own
+   "success" message. What *does* work: a plain `turso db create <name>`
+   (no import flag) followed by feeding the dump SQL through
+   `@libsql/client`'s `executeMultiple()` in a small one-off script — direct
+   writes via `turso db shell` also work fine, confirming the database
+   itself was never the problem, only those two create-time import flags.
+   Also worth remembering: destroying and recreating a database changes its
+   instance ID, which invalidates any auth token issued for the old one —
+   `turso db tokens create <name>` again after any recreate, not before.
 3. **Hosting (pending user account setup).** Deploying to Vercel so a
    second person doesn't need to clone the repo and run a dev server
    themselves — same account-creation constraint, `vercel login` first.

@@ -89,9 +89,13 @@ Copy `.env.example` to `.env` and fill in `AUTH_SECRET` (`openssl rand
 (`AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET`/`AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`
 — see AGENTS.md for how to register those apps and the exact callback URL
 each one needs), and `ALLOWED_EMAILS` (comma-separated) — the app won't let
-anyone in without these. From the repo root, `./start.sh` then handles
-install + DB setup + dev server in one command (safe to re-run). Or,
-manually from here:
+anyone in without these. Leave `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` blank
+to use a local SQLite file (`dev.db`), or fill them in to point at the
+hosted Turso database instead (`src/lib/prisma.ts` prefers Turso when both
+are set) — see AGENTS.md's "Multi-device / sharing with a friend" section
+for how that database was set up and a real gotcha worth knowing if it's
+ever recreated. From the repo root, `./start.sh` then handles install + DB
+setup + dev server in one command (safe to re-run). Or, manually from here:
 
 ```bash
 npm install
