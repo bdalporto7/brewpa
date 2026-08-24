@@ -72,3 +72,6 @@ prisma/migrations/
 
 # Claude Code — personal/local overrides, not shared
 .claude/settings.local.json
+
+# Local database backups (backup-db.sh) — never goes in the public repo
+backups/

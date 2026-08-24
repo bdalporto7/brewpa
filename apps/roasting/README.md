@@ -117,9 +117,25 @@ npx prisma migrate dev --name <name>   # after editing prisma/schema.prisma
 **After any schema change, restart the dev server** — the regenerated
 Prisma Client on disk isn't picked up by an already-running process.
 
+## Deployment & backups
+
+Live at `https://roasting-three.vercel.app`, deployed via Vercel's GitHub
+integration — a normal `git push` to `main` deploys automatically, no
+separate step. Env vars (Turso credentials, OAuth credentials,
+`ALLOWED_EMAILS`) are set directly in Vercel (`vercel env add` /
+`vercel env ls`), not committed anywhere. See AGENTS.md's "Multi-device /
+sharing with a friend" section for the full setup, including a couple of
+non-obvious gotchas worth reading before touching any of this again (a
+monorepo Root Directory pitfall, and a Turso CLI import bug).
+
+`./backup-db.sh` (repo root) dumps the live Turso database to a timestamped
+file in `backups/` (gitignored, local-only) — run it anytime; it's not on
+an automatic schedule yet.
+
 ## Stack
 
-Next.js 15 (App Router) + TypeScript + Tailwind CSS v4 + Prisma 6 + SQLite.
+Next.js 16 (App Router) + TypeScript + Tailwind CSS v4 + Prisma 6 +
+Turso (SQLite-compatible).
 Mutations go through Server Actions in
 [`src/lib/actions.ts`](src/lib/actions.ts) — no separate REST API. Shared UI
 primitives live in [`src/components/ui/`](src/components/ui); the app's

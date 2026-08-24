@@ -563,11 +563,12 @@ a wrapper around the data model. Concretely:
 - Keep each app's README up to date with its own setup/run instructions —
   don't rely on this file for per-app specifics once an app exists.
 
-## Multi-device / sharing with a friend (in progress)
+## Multi-device / sharing with a friend
 
 The app was local-only by design (see the "Runtime target" note above) until
 the user wanted a friend to be able to use it too, which needs the database
-and the app itself reachable from more than one machine. Plan, in order:
+and the app itself reachable from more than one machine. Live at
+`https://roasting-three.vercel.app`. What actually got built, in order:
 
 1. **Auth (done, twice — see below).** Deploying anything public means the
    app is no longer gated by "you have to be on my laptop" — something has
@@ -651,19 +652,40 @@ and the app itself reachable from more than one machine. Plan, in order:
    Also worth remembering: destroying and recreating a database changes its
    instance ID, which invalidates any auth token issued for the old one —
    `turso db tokens create <name>` again after any recreate, not before.
-3. **Hosting (pending user account setup).** Deploying to Vercel so a
-   second person doesn't need to clone the repo and run a dev server
-   themselves — same account-creation constraint, `vercel login` first.
-   Should tie into the existing "push to main" git workflow (Vercel's
-   GitHub integration deploys on push) rather than replacing it.
-4. **Backups (pending step 2).** The user explicitly wants local backups of
-   the hosted DB "just in case," and explicitly does **not** want backup
-   data anywhere in the public repo — rules out committing dumps to git and
-   rules out GitHub Actions artifacts too (those are publicly downloadable
-   on a public repo, which would defeat the point). Plan: a script using
-   the Turso CLI's dump capability, writing to a local, gitignored
-   directory; true "always on" automation would need a scheduled task on
-   the user's own machine (e.g. `launchd`), not a repo-hosted one.
+3. **Hosting (done).** Deployed to Vercel — live at
+   `https://roasting-three.vercel.app`. `vercel link` run from
+   `apps/roasting/` (not the repo root) initially set the project's Root
+   Directory to `.`, which would have broken git-triggered builds on this
+   monorepo (a push-triggered build starts from the repo root, `brewpa/`,
+   not wherever `vercel link` happened to run from) — caught by actually
+   inspecting `vercel project inspect roasting` rather than assuming the
+   link picked up the right directory, fixed with
+   `vercel project update roasting --root-directory apps/roasting`. Git
+   integration ties into the existing "push to main" workflow as intended
+   (`vercel git connect` found it already auto-connected from the linked
+   GitHub account) — a normal `git push` now deploys, no separate deploy
+   step. All required env vars are set via `vercel env add` for both
+   Production and Preview (never committed — `.vercelignore` was added
+   after noticing a CLI deploy, unlike a git-triggered one, does *not*
+   automatically respect `.gitignore` and will happily upload a local
+   `.env` otherwise; the actual runtime secrets came from `vercel env add`
+   either way, so this was a hygiene fix, not a live leak). OAuth apps
+   (GitHub, Google) need the production callback URLs
+   (`https://roasting-three.vercel.app/api/auth/callback/github` and
+   `/google`) added *alongside* the existing localhost ones, not instead of
+   — GitHub OAuth Apps gained multi-callback-URL support (up to 10) only a
+   couple weeks before this was built, confirmed by checking rather than
+   assuming the old one-URL-per-app limitation still applied; Google
+   clients have always supported multiple redirect URIs.
+4. **Backups (done).** `backup-db.sh` (repo root) runs
+   `turso db shell roasting ".dump"` and writes a timestamped SQL file to
+   `backups/` (gitignored — never touches the public repo, and rules out
+   GitHub Actions artifacts too, since those are publicly downloadable on a
+   public repo, which would defeat the point), pruning down to the most
+   recent 20 backups each run so it doesn't grow forever. Manual for now —
+   run it anytime; true "always on" automation would need a scheduled task
+   on the user's own machine (e.g. `launchd`), which only runs while that
+   machine is on, not a repo-hosted one.
 
 ## Commands
 

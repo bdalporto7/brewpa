@@ -1,0 +1,6 @@
+# Vercel CLI deploys (vercel --prod) don't automatically respect .gitignore
+# the way git-push-triggered deploys do — this makes sure local secrets
+# never travel with a CLI deployment. Real config lives in Vercel's own
+# env vars (vercel env add), not in an uploaded file.
+.env
+.env.local
