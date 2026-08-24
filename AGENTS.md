@@ -730,6 +730,23 @@ and the app itself reachable from more than one machine. Live at
    couple weeks before this was built, confirmed by checking rather than
    assuming the old one-URL-per-app limitation still applied; Google
    clients have always supported multiple redirect URIs.
+
+   **Gotcha hit later, by the cupping-notes deploy:** `package.json` had no
+   `postinstall` script, so nothing forced Prisma Client to regenerate on
+   Vercel — a build that restores a cached `node_modules` (logged as
+   "Restored build cache from previous deployment") can restore a stale
+   generated client alongside it, one that predates whatever's newest in
+   `schema.prisma`. That build failed `tsc` with `cuppingNotes`/`bean`/
+   `events` all reported as not existing on the session type — the generated
+   types were simply out of date, not a real code error, confirmed by
+   running `npx prisma generate` locally and watching `tsc` pass clean
+   immediately after. Fixed for good with `"postinstall": "prisma
+   generate"` in `package.json`, so `npm install` always regenerates a
+   client matching the current schema — verified by deleting
+   `node_modules/.prisma` locally and confirming a plain `npm install`
+   brought it back, not by reasoning about what *should* happen. Any schema
+   change from here on should be safe from this class of failure without
+   needing to remember it.
 4. **Backups (done).** `backup-db.sh` (repo root) runs
    `turso db shell roasting ".dump"` and writes a timestamped SQL file to
    `backups/` (gitignored — never touches the public repo, and rules out
