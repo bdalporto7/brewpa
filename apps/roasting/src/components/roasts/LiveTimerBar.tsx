@@ -9,12 +9,12 @@ function CompactBar({ startedAt, beanName }: { startedAt: string; beanName: stri
   const elapsed = useElapsedSeconds(startedAt);
   return (
     <div className="fixed inset-x-0 top-0 z-30 bg-accent shadow-lg">
-      <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-2 sm:px-6">
-        <span className="flex min-w-0 items-center gap-2 text-accent-foreground/85">
-          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-accent-foreground" />
-          <span className="truncate text-sm font-medium">{beanName}</span>
+      <div className="mx-auto flex max-w-4xl flex-col items-center px-4 py-2 sm:py-3">
+        <span className="flex items-center gap-2 text-accent-foreground/80">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent-foreground" />
+          <span className="truncate text-xs font-medium sm:text-sm">{beanName}</span>
         </span>
-        <span className="shrink-0 font-mono text-4xl leading-none font-bold tabular-nums text-accent-foreground sm:text-5xl">
+        <span className="font-mono text-7xl leading-none font-bold tabular-nums text-accent-foreground sm:text-8xl">
           {formatMMSS(elapsed)}
         </span>
       </div>
