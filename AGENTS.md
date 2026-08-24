@@ -682,10 +682,27 @@ and the app itself reachable from more than one machine. Live at
    `backups/` (gitignored — never touches the public repo, and rules out
    GitHub Actions artifacts too, since those are publicly downloadable on a
    public repo, which would defeat the point), pruning down to the most
-   recent 20 backups each run so it doesn't grow forever. Manual for now —
-   run it anytime; true "always on" automation would need a scheduled task
-   on the user's own machine (e.g. `launchd`), which only runs while that
-   machine is on, not a repo-hosted one.
+   recent 20 backups each run so it doesn't grow forever. Worth knowing
+   before reaching for this: Turso already gives 24-hour point-in-time
+   recovery on the free tier automatically, backed up at every commit — no
+   setup, covers "I just fat-fingered a delete a few hours ago" on its own.
+   `backup-db.sh` is for the gap PITR doesn't cover: something happening to
+   the Turso account/platform itself, where an independent local copy
+   actually matters, and that risk doesn't need high frequency to be
+   covered.
+   `launchd` (a scheduled background job) was tried first for automating
+   this and abandoned: it hit a real macOS Transparency, Consent, and
+   Control (TCC) wall — background processes need explicit Full Disk Access
+   to touch `~/Documents` (where this repo happens to live), which an
+   interactive Bash tool session already has but a freshly-spawned `launchd`
+   job does not, and granting that is a system security setting only the
+   user can do (a GUI toggle, no programmatic path — by design). Given the
+   user didn't want to grant that, `start.sh` calls `backup-db.sh` instead,
+   conditioned on `TURSO_DATABASE_URL` actually being set in `.env` — since
+   `start.sh` is already the one command run every session, this gets a
+   fresh backup on ordinary use without any background daemon or extra
+   permission at all. Non-blocking (`|| echo ... >&2`, not `set -e`
+   propagating): a failed backup shouldn't stop the app from starting.
 
 ## Commands
 

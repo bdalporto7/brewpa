@@ -129,8 +129,12 @@ non-obvious gotchas worth reading before touching any of this again (a
 monorepo Root Directory pitfall, and a Turso CLI import bug).
 
 `./backup-db.sh` (repo root) dumps the live Turso database to a timestamped
-file in `backups/` (gitignored, local-only) — run it anytime; it's not on
-an automatic schedule yet.
+file in `backups/` (gitignored, local-only) — run it anytime. `./start.sh`
+also runs it automatically before starting the dev server, whenever Turso
+is configured, so ordinary use already leaves a fresh local snapshot with
+no scheduler or extra permissions involved. (Turso itself also keeps
+24-hour point-in-time recovery on the free tier — this is for the gap that
+doesn't cover, not the first line of defense.)
 
 ## Stack
 
