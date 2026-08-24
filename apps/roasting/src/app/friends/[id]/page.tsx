@@ -28,7 +28,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
 
   if (!friend) notFound();
 
-  const totalGrams = friend.sales.reduce((sum, s) => sum + s.weightGrams, 0);
+  const totalGrams = Math.round(friend.sales.reduce((sum, s) => sum + s.weightGrams, 0) * 10) / 10;
   const totalSpent = friend.sales.reduce((sum, s) => sum + (s.price ?? 0), 0);
 
   return (
@@ -55,7 +55,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
                       <span className="font-normal text-muted"> — {sale.roastSession.roastLevel}</span>
                     )}
                   </h3>
-                  <span className="font-mono text-sm">{sale.weightGrams}g</span>
+                  <span className="font-mono text-sm">{Math.round(sale.weightGrams * 10) / 10}g</span>
                 </div>
                 <p className="mt-1 text-xs text-muted">
                   {format(sale.soldAt, "MMM d, yyyy")}

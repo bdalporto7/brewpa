@@ -51,7 +51,7 @@ export default function RoastSessionCard({
         {roastedPercentLeft != null && (
           <div className="mt-3">
             <div className="flex justify-between font-mono text-xs text-muted">
-              <span>{session.roastedRemainingGrams}g roasted coffee on hand</span>
+              <span>{Math.round((session.roastedRemainingGrams ?? 0) * 10) / 10}g roasted coffee on hand</span>
               <span>{Math.round(roastedPercentLeft)}%</span>
             </div>
             <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">

@@ -13,7 +13,7 @@ export default function BeanStockBar({ bean }: { bean: Bean }) {
       <div className="flex items-start justify-between">
         <StockAdjuster
           currentGrams={bean.remainingGrams}
-          unitLabel={`left of ${bean.weightGrams}g`}
+          unitLabel={`left of ${Math.round(bean.weightGrams * 10) / 10}g`}
           onAdd={adjustBeanStock.bind(null, bean.id, "add")}
           onRemove={adjustBeanStock.bind(null, bean.id, "remove")}
           onSet={setBeanStock.bind(null, bean.id)}

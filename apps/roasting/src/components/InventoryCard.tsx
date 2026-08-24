@@ -38,7 +38,7 @@ export default function InventoryCard({
                 className="flex items-center justify-between gap-3 py-1.5 text-sm transition hover:text-accent"
               >
                 <span className="truncate">{item.label}</span>
-                <span className="shrink-0 font-mono text-muted">{item.grams}g</span>
+                <span className="shrink-0 font-mono text-muted">{Math.round(item.grams * 10) / 10}g</span>
               </Link>
             </li>
           ))}

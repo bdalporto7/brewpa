@@ -229,7 +229,11 @@ export default async function RoastSessionPage({
             <Stat label="Rating" value={session.rating != null ? "★".repeat(session.rating) : "—"} />
             <Stat
               label="Roasted on hand"
-              value={session.roastedRemainingGrams != null ? `${session.roastedRemainingGrams}g` : "—"}
+              value={
+                session.roastedRemainingGrams != null
+                  ? `${Math.round(session.roastedRemainingGrams * 10) / 10}g`
+                  : "—"
+              }
             />
           </div>
           <RoastDetailsForm session={session} />

@@ -35,7 +35,7 @@ export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () 
         mono
       />
       <TextField
-        label={`Total purchased (g) — min ${bean.remainingGrams}g (currently remaining)`}
+        label={`Total purchased (g) — min ${Math.round(bean.remainingGrams * 10) / 10}g (currently remaining)`}
         name="weightGrams"
         type="number"
         step="0.1"

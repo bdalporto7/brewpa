@@ -77,7 +77,7 @@ export default function SalesPanel({
           {sales.map((sale) => (
             <li key={sale.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div>
-                <span className="font-mono">{sale.weightGrams}g</span>
+                <span className="font-mono">{Math.round(sale.weightGrams * 10) / 10}g</span>
                 {sale.friend && (
                   <span>
                     {" "}

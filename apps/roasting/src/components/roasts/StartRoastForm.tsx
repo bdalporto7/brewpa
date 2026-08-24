@@ -24,7 +24,7 @@ export default function StartRoastForm({ beans }: { beans: Bean[] }) {
           </option>
           {beans.map((bean) => (
             <option key={bean.id} value={bean.id}>
-              {bean.name} ({bean.remainingGrams}g left)
+              {bean.name} ({Math.round(bean.remainingGrams * 10) / 10}g left)
             </option>
           ))}
         </SelectField>

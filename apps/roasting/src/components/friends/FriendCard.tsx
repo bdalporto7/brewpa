@@ -3,7 +3,7 @@ import Card from "@/components/ui/Card";
 import type { Friend, Sale } from "@prisma/client";
 
 export default function FriendCard({ friend }: { friend: Friend & { sales: Sale[] } }) {
-  const totalGrams = friend.sales.reduce((sum, s) => sum + s.weightGrams, 0);
+  const totalGrams = Math.round(friend.sales.reduce((sum, s) => sum + s.weightGrams, 0) * 10) / 10;
   const totalSpent = friend.sales.reduce((sum, s) => sum + (s.price ?? 0), 0);
 
   return (

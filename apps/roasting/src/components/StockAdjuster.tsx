@@ -55,7 +55,7 @@ export default function StockAdjuster({
         onClick={() => setMode("adjust")}
         className="flex items-center gap-1 font-mono text-xs text-muted transition hover:text-accent"
       >
-        {currentGrams}g {unitLabel}
+        {Math.round(currentGrams * 10) / 10}g {unitLabel}
         <Pencil className="h-3 w-3" />
       </button>
     );
