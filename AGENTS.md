@@ -467,11 +467,16 @@ than an average.
 **Live-view ergonomics:** two small additions address "the timer/plan
 scrolls out of view while you're logging events." `LiveTimerBar.tsx` wraps
 the hero `Timer` with an `IntersectionObserver` on it; once it scrolls out
-of the viewport, a slim `position: fixed` bar takes over showing bean name +
-ticking elapsed time. Deliberately two separate elements rather than one
-that shrinks on scroll — keeps the hero timer's full size while it's in
-view (it's meant to dominate the screen, per the design-standards section
-below) without needing a scroll-linked resize animation. `RoastPlanCard.tsx`
+of the viewport, a fixed bar takes over showing bean name + ticking elapsed
+time. Deliberately two separate elements rather than one that shrinks on
+scroll — keeps the hero timer's full size while it's in view (it's meant to
+dominate the screen, per the design-standards section below) without
+needing a scroll-linked resize animation. The pinned bar was initially a
+slim, muted status strip and the user asked for it louder — glancing over
+from across the room while watching the physical roaster is the actual use
+case, not confirming-on-close-inspection that it's still there — so it's now
+a solid `bg-accent` band with large bold digits, closer to an alert banner
+than nav chrome. `RoastPlanCard.tsx`
 puts `RoastSession.notes` — the same field `RoastDetailsForm` edits after a
 roast ends — in front of the roaster *before* and *during* a roast too, via
 a new standalone action (`updateRoastNotes`, no completed-roast gate, unlike

@@ -29,9 +29,11 @@ context, design standards, and build-order rationale.
   fan level, heat level, temperature readings, and milestone markers (dry
   end, yellowing end, first/second crack) in real time — all manual entry,
   tapped in as you watch the physical roaster. The timer stays visible the
-  whole time: scroll down to log an event or check the plan and a compact
-  version pins to the top instead of scrolling away. Only one roast can be
-  set up or running at a time.
+  whole time: scroll down to log an event or check the plan and a bold
+  accent-colored bar with large digits pins to the top instead of scrolling
+  away — built to catch your eye from across the room while you're watching
+  the physical roaster, not just to technically still be on the page. Only
+  one roast can be set up or running at a time.
 - **Roasting curve** — once a roast ends, its temperature readings render as
   a hand-built SVG curve with
   crack markers and a fan/heat step overlay. Hovering (or touching, on
