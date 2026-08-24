@@ -569,24 +569,62 @@ The app was local-only by design (see the "Runtime target" note above) until
 the user wanted a friend to be able to use it too, which needs the database
 and the app itself reachable from more than one machine. Plan, in order:
 
-1. **Auth (done).** Deploying anything public means the app is no longer
-   gated by "you have to be on my laptop" — something has to replace that.
-   `src/lib/auth.ts` is a single shared password (not per-user accounts:
-   nothing in the data model is scoped to "which of the two of us logged
-   this," so the goal is keeping the open internet out, not identifying
-   who's who) gating every route via `src/middleware.ts`. Session tokens are
-   HMAC-signed and verified with the Web Crypto API
-   (`crypto.subtle`/`btoa`/`atob`), not Node's `crypto` module or a JWT
-   library — middleware runs on the Edge runtime by default, and Web Crypto
-   is the one signing approach that works in both that and a normal Node
-   process without extra config. `APP_PASSWORD` and `AUTH_SECRET` are new
-   required env vars (`.env.example` documents them;
-   `openssl rand -base64 32` for the latter). Known minor gap: the nav bar
-   (with a "Log out" button) still renders on `/login` before you've
-   actually logged in — cosmetically odd, not a security hole (middleware
-   still gates every real page), just not fixed yet; would need pulling
-   `Nav` out of the root layout into a route-group layout that `/login`
-   sits outside of.
+1. **Auth (done, twice — see below).** Deploying anything public means the
+   app is no longer gated by "you have to be on my laptop" — something has
+   to replace that. First cut was a single shared password
+   (`src/lib/auth.ts`, HMAC-signed session cookie via the Web Crypto API).
+   The user then asked for real per-user identity instead — each person
+   signs in with their *own* GitHub or Google account (they don't share
+   one) rather than both typing the same secret — plus wanted the door open
+   to other coffee businesses joining someday, which raised a bigger
+   question: full multi-tenancy (an `Organization` model, every table
+   scoped to one, an admin invite/approve flow) is a genuinely large
+   project, not a tweak. Landed on a middle ground, explicitly chosen over
+   building the whole thing speculatively: **real OAuth now, multi-org
+   later, only if a second organization actually shows up.** `src/auth.ts`
+   (Auth.js v5 / `next-auth@beta`) wires up GitHub and Google as providers;
+   `callbacks.signIn` rejects any authenticated identity whose email isn't
+   in the `ALLOWED_EMAILS` allowlist — so a GitHub/Google login can fully
+   succeed as authentication and still be denied a session, which is the
+   "OAuth proves who, the allowlist decides if" split the user asked for
+   explicitly. `callbacks.authorized` (checked by `src/proxy.ts` on every
+   request) is what actually gates page access — no valid session, no data,
+   full stop. Still no `Organization`/`User` table: the allowlist is just
+   an env var (`ALLOWED_EMAILS`, comma-separated), which is exactly the
+   right amount of infrastructure for "a fixed, small set of known people"
+   and exactly the wrong amount for "let people request access" — revisit
+   when that distinction actually matters.
+
+   **`middleware.ts` → `proxy.ts`:** this app runs Next.js **16.3.2** (see
+   the top-of-file banner — genuinely not the Next.js most training data
+   describes), where `middleware.ts` was renamed to `proxy.ts` and Proxy
+   now defaults to the **Node.js runtime**, not Edge. `middleware.ts` still
+   works (deprecated, not removed) but the new file was built as `proxy.ts`
+   directly rather than starting from the deprecated convention. This also
+   means the earlier password-auth version's reason for using Web Crypto
+   over Node's `crypto` module (Edge-runtime portability) no longer applies
+   under this Next version — moot now since that file's gone, but worth
+   knowing if a similar signing need comes up again here.
+
+   Known minor gap, unchanged from before: the nav bar (with a working
+   "Log out") still renders on `/login` before you've signed in —
+   cosmetically odd, not a security hole (`proxy.ts` still gates every real
+   page regardless of what the nav shows), just not fixed yet; would need
+   pulling `Nav` out of the root layout into a route-group layout that
+   `/login` sits outside of.
+
+   **What the user still needs to do:** register an OAuth app with GitHub
+   (github.com/settings/developers → New OAuth App) and one with Google
+   (Google Cloud Console → APIs & Services → Credentials → OAuth client ID,
+   type "Web application"), each with callback/redirect URI
+   `http://localhost:3000/api/auth/callback/github` (or `/google`) for
+   local dev — add the equivalent with the real Vercel domain once deployed
+   (both providers support multiple registered redirect URIs on one app, no
+   need to create a second app for production). Resulting client
+   ID/secret pairs go in `.env` as `AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET`/
+   `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (`.env.example` documents all of
+   this), plus `ALLOWED_EMAILS` with the exact addresses both people will
+   actually sign in with.
 2. **Database (pending user account setup).** Moving from a local SQLite
    file to Turso (hosted libSQL — SQLite-compatible, so this is closer to
    swapping the connection than rewriting queries) via `@prisma/adapter-libsql`

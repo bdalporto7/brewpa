@@ -74,19 +74,24 @@ context, design standards, and build-order rationale.
   deterministic, see AGENTS.md for why.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
-- **Auth** — a single shared password (`APP_PASSWORD`) gates the whole app
-  via `src/middleware.ts`, since this is meant to be usable by more than one
-  person from more than one device, not just `localhost` on one laptop. Not
-  per-user accounts — nothing here is scoped to who specifically logged a
-  given roast.
+- **Auth** — real per-user login via GitHub or Google (Auth.js /
+  `next-auth`, `src/auth.ts`), gated to a fixed allowlist of emails
+  (`ALLOWED_EMAILS`) rather than open sign-up — OAuth proves who someone
+  is, the allowlist decides whether that's enough to get in. Not
+  per-organization data yet (see AGENTS.md's "Multi-device / sharing with a
+  friend" section for the full reasoning and what a real multi-tenant
+  version would need) — just real identity instead of a shared secret.
 
 ## Setup
 
 Copy `.env.example` to `.env` and fill in `AUTH_SECRET` (`openssl rand
--base64 32`) and `APP_PASSWORD` (whatever you want the shared login
-password to be) — the app won't start without these. From the repo root,
-`./start.sh` then handles install + DB setup + dev server in one command
-(safe to re-run). Or, manually from here:
+-base64 32`), OAuth app credentials for GitHub and/or Google
+(`AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET`/`AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`
+— see AGENTS.md for how to register those apps and the exact callback URL
+each one needs), and `ALLOWED_EMAILS` (comma-separated) — the app won't let
+anyone in without these. From the repo root, `./start.sh` then handles
+install + DB setup + dev server in one command (safe to re-run). Or,
+manually from here:
 
 ```bash
 npm install

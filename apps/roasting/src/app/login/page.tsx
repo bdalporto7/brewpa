@@ -1,6 +1,5 @@
 import { Flame } from "lucide-react";
-import { login } from "@/lib/auth-actions";
-import ActionForm from "@/components/ActionForm";
+import { signInWithGitHub, signInWithGoogle } from "@/lib/auth-actions";
 import Button from "@/components/ui/Button";
 
 export default function LoginPage() {
@@ -10,18 +9,19 @@ export default function LoginPage() {
         <Flame className="h-5 w-5 text-accent" />
         Roasting
       </div>
-      <ActionForm action={login} className="flex w-full flex-col gap-3">
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          autoFocus
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
-        />
-        <Button type="submit" className="w-full justify-center">
-          Log in
-        </Button>
-      </ActionForm>
+      <div className="flex w-full flex-col gap-3">
+        <form action={signInWithGitHub}>
+          <Button type="submit" className="w-full justify-center">
+            Continue with GitHub
+          </Button>
+        </form>
+        <form action={signInWithGoogle}>
+          <Button type="submit" variant="secondary" className="w-full justify-center">
+            Continue with Google
+          </Button>
+        </form>
+      </div>
+      <p className="text-center text-xs text-muted">Access is limited to invited accounts.</p>
     </div>
   );
 }
