@@ -98,21 +98,28 @@ context, design standards, and build-order rationale.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
 - **Auth** — real per-user login via GitHub or Google (Auth.js /
-  `next-auth`, `src/auth.ts`), gated to a fixed allowlist of emails
-  (`ALLOWED_EMAILS`) rather than open sign-up — OAuth proves who someone
-  is, the allowlist decides whether that's enough to get in. Not
-  per-organization data yet (see AGENTS.md's "Multi-device / sharing with a
-  friend" section for the full reasoning and what a real multi-tenant
-  version would need) — just real identity instead of a shared secret.
+  `next-auth`, `src/auth.ts`), gated to an allowlist of emails (the
+  `AllowedUser` table) rather than open sign-up — OAuth proves who someone
+  is, the allowlist decides whether that's enough to get in. Admins manage
+  who's allowed in — and who else is an admin — from `/admin` (only linked
+  in the nav for admins; `src/lib/admin.ts` / `src/lib/admin-actions.ts`).
+  Not per-organization data yet (see AGENTS.md's "Multi-device / sharing
+  with a friend" section for the full reasoning and what a real
+  multi-tenant version would need) — just real identity instead of a
+  shared secret.
 
 ## Setup
 
 Copy `.env.example` to `.env` and fill in `AUTH_SECRET` (`openssl rand
--base64 32`), OAuth app credentials for GitHub and/or Google
+-base64 32`) and OAuth app credentials for GitHub and/or Google
 (`AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET`/`AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`
 — see AGENTS.md for how to register those apps and the exact callback URL
-each one needs), and `ALLOWED_EMAILS` (comma-separated) — the app won't let
-anyone in without these. Leave `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` blank
+each one needs). There's no allowlist env var — seed the first admin's
+email directly into the `AllowedUser` table after running migrations
+(`npx prisma studio` is the easiest way, or `INSERT INTO "AllowedUser"
+("id", "email", "isAdmin") VALUES ('seed', 'you@example.com', true);` via
+`sqlite3 prisma/dev.db`), then admit everyone else from `/admin` once
+signed in. Leave `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` blank
 to use a local SQLite file (`dev.db`), or fill them in to point at the
 hosted Turso database instead (`src/lib/prisma.ts` prefers Turso when both
 are set) — see AGENTS.md's "Multi-device / sharing with a friend" section
@@ -144,8 +151,8 @@ Prisma Client on disk isn't picked up by an already-running process.
 
 Live at `https://roasting-three.vercel.app`, deployed via Vercel's GitHub
 integration — a normal `git push` to `main` deploys automatically, no
-separate step. Env vars (Turso credentials, OAuth credentials,
-`ALLOWED_EMAILS`) are set directly in Vercel (`vercel env add` /
+separate step. Env vars (Turso credentials, OAuth credentials) are set
+directly in Vercel (`vercel env add` /
 `vercel env ls`), not committed anywhere. See AGENTS.md's "Multi-device /
 sharing with a friend" section for the full setup, including a couple of
 non-obvious gotchas worth reading before touching any of this again (a
@@ -227,6 +234,10 @@ section for the full rationale.
   decrementing `roastedRemainingGrams` the same way the roast-drops `Sale`
   flow does. A claim is "fulfilled" exactly when `saleId != null`; undoing
   it deletes the `Sale` and restores the roasted stock.
+- **AllowedUser** — one row per email allowed to sign in (`callbacks.signIn`
+  in `src/auth.ts` checks this table); `isAdmin` controls access to
+  `/admin`, where the table is managed. Replaces the old `ALLOWED_EMAILS`
+  env var.
 
 ## How a roast works
 

@@ -713,16 +713,35 @@ and the app itself reachable from more than one machine. Live at
    later, only if a second organization actually shows up.** `src/auth.ts`
    (Auth.js v5 / `next-auth@beta`) wires up GitHub and Google as providers;
    `callbacks.signIn` rejects any authenticated identity whose email isn't
-   in the `ALLOWED_EMAILS` allowlist — so a GitHub/Google login can fully
-   succeed as authentication and still be denied a session, which is the
-   "OAuth proves who, the allowlist decides if" split the user asked for
+   in the `AllowedUser` table — so a GitHub/Google login can fully succeed
+   as authentication and still be denied a session, which is the "OAuth
+   proves who, the allowlist decides if" split the user asked for
    explicitly. `callbacks.authorized` (checked by `src/proxy.ts` on every
    request) is what actually gates page access — no valid session, no data,
-   full stop. Still no `Organization`/`User` table: the allowlist is just
-   an env var (`ALLOWED_EMAILS`, comma-separated), which is exactly the
+   full stop. Still no `Organization` table: the allowlist is one flat
+   table (`id`, `email`, `isAdmin`, `createdAt`), which is exactly the
    right amount of infrastructure for "a fixed, small set of known people"
    and exactly the wrong amount for "let people request access" — revisit
    when that distinction actually matters.
+
+   **Allowlist is DB-backed and admin-managed, not an env var.** It started
+   as `ALLOWED_EMAILS` (comma-separated env var, redeploy to change) and was
+   later migrated to the `AllowedUser` table (migration
+   `20260825020342_add_allowed_users`, which both creates the table and
+   seeds the three emails that used to live in the env var — two marked
+   `isAdmin`, the friend's not) once the user wanted to admit people without
+   touching Vercel env vars or redeploying. `src/lib/admin.ts` exports
+   `getCurrentAllowedUser()`/`requireAdmin()`; `src/lib/admin-actions.ts`
+   has the mutating Server Actions (`addAllowedUser`, `setAllowedUserAdmin`,
+   `removeAllowedUser`), each re-checking `requireAdmin()` itself rather
+   than trusting the UI to have gated access — Server Actions are callable
+   directly, so the page-level `notFound()` in `src/app/admin/page.tsx`
+   alone wouldn't be enough. Both the demote and remove paths refuse to
+   touch the last remaining admin (`assertNotLastAdmin`), so the allowlist
+   can't be locked out from itself. `/admin` itself does `notFound()` (not
+   a redirect) for a signed-in non-admin, and the nav's "Admin" link
+   (`src/components/Nav.tsx`) only renders for admins — cosmetic, since the
+   route is still actually gated server-side either way.
 
    **`middleware.ts` → `proxy.ts`:** this app runs Next.js **16.3.2** (see
    the top-of-file banner — genuinely not the Next.js most training data
@@ -752,8 +771,10 @@ and the app itself reachable from more than one machine. Live at
    need to create a second app for production). Resulting client
    ID/secret pairs go in `.env` as `AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET`/
    `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (`.env.example` documents all of
-   this), plus `ALLOWED_EMAILS` with the exact addresses both people will
-   actually sign in with.
+   this). No allowlist env var to set — seed the first admin's email
+   directly into the `AllowedUser` table (a fresh clone's local `dev.db`
+   starts with none), then admit everyone else from `/admin` once signed
+   in.
 2. **Database (done).** Moved from a local SQLite file to Turso (hosted
    libSQL — SQLite-compatible, so this ended up closer to swapping the
    connection than rewriting queries) via `@prisma/adapter-libsql` pinned to

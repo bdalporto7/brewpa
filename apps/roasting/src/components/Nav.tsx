@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Flame } from "lucide-react";
 import { auth } from "@/auth";
 import { logout } from "@/lib/auth-actions";
+import { getCurrentAllowedUser } from "@/lib/admin";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -12,6 +13,7 @@ const LINKS = [
 
 export default async function Nav() {
   const session = await auth();
+  const currentUser = session?.user ? await getCurrentAllowedUser() : null;
 
   return (
     <header className="border-b border-border">
@@ -27,6 +29,11 @@ export default async function Nav() {
                 {link.label}
               </Link>
             ))}
+            {currentUser?.isAdmin && (
+              <Link href="/admin" className="text-muted transition hover:text-foreground">
+                Admin
+              </Link>
+            )}
             <form action={logout}>
               <button type="submit" className="text-muted transition hover:text-foreground">
                 Log out

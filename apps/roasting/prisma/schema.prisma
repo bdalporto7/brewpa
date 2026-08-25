@@ -207,3 +207,14 @@ model DropClaim {
   @@index([dropId])
   @@index([friendId])
 }
+
+// Who's allowed to sign in via OAuth (checked in auth.ts's signIn callback)
+// and, via isAdmin, who's allowed to manage this table through the /admin
+// portal. Replaces the old ALLOWED_EMAILS env var, which required a
+// redeploy to change.
+model AllowedUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
