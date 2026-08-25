@@ -44,12 +44,25 @@ context, design standards, and build-order rationale.
   °F/min between consecutive readings, on its own right-side axis — off by
   default, on when you want to watch how fast the roast is climbing rather
   than just where the temp sits.
-- **Drops** — log roasted coffee given or sold to a friend, drawn from that
-  roast's roasted-coffee stock. Over-drawing is rejected with a clear error;
-  any drop can be undone.
-- **Friends** (`/friends`, `/friends/[id]`) — every person a drop has gone
-  to, with their full history across every roast and running totals (grams
-  received, amount paid). Editable and deletable.
+- **Roast drops** — log roasted coffee given or sold to a friend, drawn
+  from that roast's roasted-coffee stock, right on the roast page. For
+  unplanned "I roasted extra, want some?" gifting. Over-drawing is
+  rejected with a clear error; any drop can be undone.
+- **Drops (green-coffee group buys)** (`/friends`, `/drops/[id]`) — a
+  different, planned kind of drop: reserve a chunk of a bean's green stock
+  ("we bought 5lbs, opening it up in ~200g portions") and let friends claim
+  portions first-come-first-serve, ahead of actually roasting it. The
+  "Drops" nav tab is the hub — start a new drop, see active/past drops with
+  a claimed/remaining progress bar, and (below that) every friend who's
+  ever gotten a drop of either kind, with their full history and running
+  totals. A drop's own page (`/drops/[id]`) is where claims get logged,
+  marked paid, or removed (freeing that grams back up). Over-claiming past
+  what's left on a drop is rejected the same way over-drawing roasted
+  stock is. Fulfilling a claim isn't a checkbox — it draws real roasted
+  weight from a completed roast of that bean (creating an actual roast
+  drop behind the scenes), so a claim and the roasted-coffee stock it
+  eventually comes from stay in sync instead of tracked twice; "Undo"
+  reverses that the same way undoing a roast drop does.
 - **Export & publish** — download a completed roast as CSV, or publish it as
   a static page to this repo's GitHub Pages site (curve, stats, event log).
   See "Export & publish" below — there's a one-time repo setting and a
@@ -190,18 +203,30 @@ section for the full rationale.
   (called a "drop" in the UI, unrelated to the `DROP` event above — see
   AGENTS.md if that's confusing). Decrements that session's
   `roastedRemainingGrams`; deleting a sale ("Undo") restores it.
-- **Friend** — a person drops go to. Created automatically (case-insensitive
-  find-or-create) the first time you type their name into a drop's "Friend"
-  field; `/friends` and `/friends/[id]` show their drop history across every
-  roast. Editable (name/notes) and deletable from `/friends/[id]` — deleting
-  doesn't touch their past drops, it just un-links them (they show as
-  anonymous on the roast they came from). No merge action for near-duplicate
+- **Friend** — a person drops (of either kind) go to. Created automatically
+  (case-insensitive find-or-create) the first time you type their name into
+  a roast drop's or a claim's "Friend" field; `/friends/[id]` shows their
+  full history across both. Editable (name/notes) and deletable — deleting
+  doesn't touch their past sales/claims, it just un-links them (shown as
+  anonymous where they came from). No merge action for near-duplicate
   friends yet — see AGENTS.md.
 - **CuppingNote** — one formal tasting of a roasted coffee, on the
   `/roasts/[id]` "Cupping" tab. A roast can have several (`cuppedAt` per
   session). Every score field is nullable; `computeCuppingTotal`
   (`src/lib/cupping.ts`) only returns a total once all ten Q-grading
   categories are filled in.
+- **Drop** — a green-coffee group buy against one `Bean`: `totalGrams`
+  reserved out of that bean's stock the moment the drop is created (same
+  pattern as starting a roast), an optional suggested `portionGrams` and
+  `pricePerGram`, `closedAt` once no more claims should be accepted.
+  Deleting a drop restores its reservation and cascades its claims.
+- **DropClaim** — one friend's claimed portion of a `Drop`, first-come-
+  first-serve (rejected once a drop's `totalGrams` is fully claimed).
+  `paid` is a plain manual checkbox. Fulfillment is real, not a checkbox:
+  `saleId` links to an actual `Sale` created from a specific `RoastSession`,
+  decrementing `roastedRemainingGrams` the same way the roast-drops `Sale`
+  flow does. A claim is "fulfilled" exactly when `saleId != null`; undoing
+  it deletes the `Sale` and restores the roasted stock.
 
 ## How a roast works
 
@@ -312,3 +337,16 @@ after via "Edit details."
 - No merge action for near-duplicate friends (e.g. "Jake" vs. "Jake S.").
 - Nothing here needs serial/USB/Bluetooth hardware access — see AGENTS.md
   for why that's a deliberate choice, not a gap.
+- Drop claims aren't wired to actual fulfillment — marking one "fulfilled"
+  is a manual checkbox, it doesn't auto-create a `Sale` or touch a roast's
+  `roastedRemainingGrams`. Worth building if the two systems' bookkeeping
+  needs to actually reconcile in practice.
+- **Chat-platform integration for Drops** (Discord was the example) — click
+  "Start a drop" and have a bot post it to a channel, let people
+  react/reply to claim a portion, and have those responses turn into real
+  `DropClaim`s automatically instead of typing each one in by hand. The
+  outbound half (a webhook posting when a drop starts) is straightforward;
+  the inbound half is the real work — matching a Discord user to a `Friend`
+  record (a new identity-linking problem, probably a stored Discord user ID
+  on `Friend`) before a reaction/reply can safely become a claim. Not
+  scoped further than this — see AGENTS.md's "Drops" section.

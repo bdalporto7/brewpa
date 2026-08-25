@@ -98,6 +98,15 @@ dial, no digital output of its own. Scope, current priority order:
    completed roast has its own "Cupping" tab (`/roasts/[id]?tab=cupping`)
    for logging one or more cupping sessions. Built — see "Cupping notes"
    below.
+9. **Drops (green-coffee group buys)** — reserve a chunk of a green bean's
+   stock and open it up for friends to claim portions of,
+   first-come-first-serve, ahead of actually roasting it. The "Friends" nav
+   tab is now "Drops" — `/friends` is the hub (start a drop, active/past
+   drops, the friends list), `/drops/[id]` is one drop's claims. A
+   deliberately separate thing from `Sale`/"log a drop" on a roast page
+   (roasted coffee handed out *after* a specific roast, unplanned) — see
+   "Drops" below for why both exist side by side rather than one replacing
+   the other.
 
 **Why this isn't a hardware-integration problem:** the SR800 has no data
 output — everything logged comes from the person watching the roaster and
@@ -552,6 +561,82 @@ picked. Fixed in `addCuppingNote` by appending a bare `T00:00` (no `Z`/
 offset) before constructing the `Date`, which forces local-midnight parsing
 instead — caught by actually entering today's date and checking what
 rendered, not by reading the code.
+
+**Drops:** `Drop` (a green-coffee group buy — "we bought 2268g of this
+bean, opening it up for friends to claim 200g portions of") and `DropClaim`
+(one friend's claimed portion) are a deliberately separate system from
+`Sale`, not a replacement for it — the user was explicit that backward
+compatibility with existing `Sale`/`Friend` data wasn't a constraint, but
+chose to keep both rather than unify them. The distinction that matters:
+a `Sale` happens *after* a specific roast completes (unplanned — "I roasted
+extra, want some?"), drawing down that `RoastSession.roastedRemainingGrams`
+directly; a `Drop` happens *before* any roasting, against a `Bean`'s green
+stock, and a claim is a pre-order against whatever gets roasted later, not
+a literal handoff of raw green beans (confirmed with the user before
+building — the other reading, "friends receive actual green beans," would
+have meant a completely different fulfillment model). Creating a `Drop`
+reserves `totalGrams` out of `Bean.remainingGrams` immediately, same
+"decrement at commitment time, restore on delete" pattern `startRoast`
+already uses — `deleteDrop` returns the reservation, cascade-deletes its
+claims (`DropClaim.dropId` is `onDelete: Cascade`). `addDropClaim` enforces
+first-come-first-serve inside a transaction: sums existing claims, rejects
+anything that would exceed the drop's `totalGrams`, the same shape as
+`recordSale`'s over-draw check.
+
+`paid` is a plain boolean (group-buy money often changes hands before
+anything's even roasted, independent of fulfillment) — but **fulfillment is
+not a checkbox**, on purpose, after an explicit correction from the user
+mid-build: a claim reserves *green* weight at claim time, but should draw
+down *roasted* weight once it's actually handed over, reconciled through
+the real roasted-stock ledger rather than a second tracker that could drift
+from it. `DropClaim.saleId` (nullable, `@unique`, `onDelete: SetNull`) is
+the mechanism — `fulfillDropClaim` picks a completed `RoastSession` of the
+*same bean* with stock on hand and a roasted weight (defaulted to
+`gramsClaimed` but editable, since roast loss means the real number is
+usually a bit less), then does exactly what `recordSale` already does:
+decrements that session's `roastedRemainingGrams` and creates a real `Sale`
+(carrying over the claim's `friendId`/`price`/`notes`) — `DropClaim.saleId`
+just points at it. "Fulfilled" is therefore derived (`claim.saleId != null`
+in the UI), not its own stored flag — one source of truth instead of two
+that could disagree. `unfulfillDropClaim` reverses it the same way
+`deleteSale` does: restores the roasted weight, deletes the `Sale` (which
+nulls `DropClaim.saleId` automatically via the FK's `onDelete: SetNull`,
+not a manual second update). `/drops/[id]/page.tsx` fetches "eligible
+roasts" as completed `RoastSession`s of the drop's own bean with
+`roastedRemainingGrams > 0`; a claim with none available shows a plain
+"no completed roast of this bean with stock yet" message instead of a
+useless empty picker.
+
+The "Friends" nav tab is renamed "Drops" (`Nav.tsx`), but the underlying
+route stayed `/friends` rather than moving to `/drops` — that page is now
+the hub (start a drop, active/past drops, then the existing friends list
+below, unchanged), while a genuinely new top-level route, `/drops/[id]`,
+holds one drop's own claims/management page. Deliberately did **not**
+rename the URL to match the nav label: friend detail pages already live at
+`/friends/[id]`, and reusing the same top-level segment for two different
+ID spaces (`/drops/[friendId]` vs `/drops/[dropId]`) would collide, while a
+full route reorg (`/drops/friends/[id]`) was a bigger, riskier change than
+the ask's actual point — the tab's *label* and what it leads to, not its
+URL slug. Worth a real rename later if the URL mismatch (nav says "Drops,"
+address bar says `/friends`) turns out to bother anyone.
+
+**Future direction, explicitly requested as a TODO rather than built now:**
+integrating a Drop's claim flow with a chat platform (Discord was the
+example given) — clicking "Start a drop" would also post a message to a
+Discord channel (a bot/webhook, not a person doing it by hand), people
+would react or reply to claim a portion, and those responses would get
+parsed back into `addDropClaim` calls automatically rather than the roaster
+typing each claim in by hand. Concretely, this would mean: a Discord bot
+application with a webhook posting into a specific channel when `startDrop`
+runs (an outbound integration, straightforward); then either polling or a
+gateway connection to that bot watching for reactions/replies on that
+specific message and mapping "this Discord user reacted/replied X grams"
+to a real `Friend` (new identity-matching problem — Discord users aren't
+the same identity as this app's `Friend` records, so linking the two,
+probably via a stored Discord user ID on `Friend`, is a real prerequisite,
+not an afterthought) before calling `addDropClaim` on their behalf. Notably
+harder than the outbound half, and not attempted here — flagged for
+whoever picks this up next, not scoped or estimated further than this.
 
 **Gotcha:** after `prisma migrate dev` (or any schema change), restart the
 Next dev server. The regenerated Prisma Client on disk doesn't get picked up

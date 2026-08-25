@@ -40,6 +40,7 @@ model Bean {
   goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
 
   roastSessions RoastSession[] @relation("BeanRoasts")
+  drops         Drop[]
 
   @@index([origin])
   @@index([createdAt])
@@ -100,6 +101,8 @@ model Sale {
   notes          String?
   createdAt      DateTime     @default(now())
 
+  fulfillsClaim DropClaim?
+
   @@index([roastSessionId])
   @@index([friendId])
 }
@@ -148,7 +151,59 @@ model Friend {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sales Sale[]
+  sales      Sale[]
+  dropClaims DropClaim[]
 
   @@index([name])
+}
+
+// A green-coffee group buy: "we bought N grams of this bean, opening it up
+// to friends to claim portions of, first-come-first-serve." Distinct from
+// Sale (roasted coffee given away from a specific completed roast, after
+// the fact) — a Drop happens at purchase time, before any roasting, and a
+// claim is a pre-order against the eventual roast(s) of this bean, not a
+// literal share of raw green beans. Creating a Drop reserves totalGrams out
+// of the bean's remainingGrams immediately (same "decrement at commitment
+// time" pattern startRoast already uses), restored if the drop is deleted.
+model Drop {
+  id           String    @id @default(cuid())
+  beanId       String
+  bean         Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
+  totalGrams   Float
+  portionGrams Float?
+  pricePerGram Float?
+  notes        String?
+  closedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  claims DropClaim[]
+
+  @@index([beanId])
+}
+
+// One friend's claimed portion of a Drop — a pre-order against green
+// weight (gramsClaimed, out of the Drop's reservation). "Fulfilled" isn't
+// a checkbox: it means a real Sale exists (saleId), drawn from an actual
+// completed roast's roastedRemainingGrams once that roast happens — the
+// claim and the roasted-stock ledger stay reconciled through the same
+// Sale row rather than two disconnected trackers. paid is independent and
+// stays a plain boolean, since group-buy money often changes hands before
+// anything's even roasted.
+model DropClaim {
+  id           String   @id @default(cuid())
+  dropId       String
+  drop         Drop     @relation(fields: [dropId], references: [id], onDelete: Cascade)
+  friendId     String?
+  friend       Friend?  @relation(fields: [friendId], references: [id], onDelete: SetNull)
+  gramsClaimed Float
+  price        Float?
+  paid         Boolean  @default(false)
+  saleId       String?  @unique
+  sale         Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  notes        String?
+  claimedAt    DateTime @default(now())
+
+  @@index([dropId])
+  @@index([friendId])
 }

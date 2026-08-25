@@ -7,7 +7,7 @@ const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/beans", label: "Beans" },
   { href: "/roasts", label: "Roasts" },
-  { href: "/friends", label: "Friends" },
+  { href: "/friends", label: "Drops" },
 ] as const;
 
 export default async function Nav() {
