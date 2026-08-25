@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import Timer from "@/components/roasts/Timer";
 import Button from "@/components/ui/Button";
 import InventoryCard from "@/components/InventoryCard";
+import DropCard from "@/components/friends/DropCard";
+import StartDropToggle from "@/components/friends/StartDropToggle";
 
 export default async function DashboardPage() {
   const [
@@ -15,6 +17,7 @@ export default async function DashboardPage() {
     recentSessions,
     greenBeans,
     beansWithRoasts,
+    activeDrops,
   ] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),
     prisma.bean.count(),
@@ -37,6 +40,11 @@ export default async function DashboardPage() {
           select: { roastedRemainingGrams: true },
         },
       },
+    }),
+    prisma.drop.findMany({
+      where: { closedAt: null },
+      include: { bean: true, claims: true },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -131,6 +139,25 @@ export default async function DashboardPage() {
             emptyText="No roasted stock on hand."
           />
         </div>
+      </div>
+
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium">Drops</h2>
+          <Link href="/friends" className="text-sm text-muted hover:text-foreground">
+            Manage all →
+          </Link>
+        </div>
+        {activeDrops.length === 0 ? (
+          <p className="mb-3 text-sm text-muted">No active drops right now.</p>
+        ) : (
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {activeDrops.map((drop) => (
+              <DropCard key={drop.id} drop={drop} />
+            ))}
+          </div>
+        )}
+        <StartDropToggle beans={greenBeans} />
       </div>
 
       <div>

@@ -4,11 +4,23 @@ import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
 import type { Bean } from "@prisma/client";
 
-export default function StartDropForm({ beans }: { beans: Bean[] }) {
-  if (beans.length === 0) {
+export default function StartDropForm({
+  beans,
+  lockedBeanId,
+  onSuccess,
+}: {
+  beans: Bean[];
+  lockedBeanId?: string;
+  onSuccess?: () => void;
+}) {
+  const lockedBean = lockedBeanId ? beans.find((b) => b.id === lockedBeanId) : undefined;
+
+  if (beans.length === 0 || (lockedBeanId && !lockedBean)) {
     return (
       <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
-        Add a green bean first — you need stock on hand to open a drop.
+        {lockedBeanId
+          ? "No green stock left for this bean."
+          : "Add a green bean first — you need stock on hand to open a drop."}
       </p>
     );
   }
@@ -16,17 +28,30 @@ export default function StartDropForm({ beans }: { beans: Bean[] }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <p className="mb-3 text-sm font-medium">Start a drop</p>
-      <ActionForm action={startDrop} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <SelectField label="Bean" name="beanId" required defaultValue="">
-          <option value="" disabled>
-            Select bean
-          </option>
-          {beans.map((bean) => (
-            <option key={bean.id} value={bean.id}>
-              {bean.name} ({Math.round(bean.remainingGrams * 10) / 10}g left)
+      <ActionForm action={startDrop} onSuccess={onSuccess} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {lockedBean ? (
+          <div className="flex flex-col gap-1 sm:col-span-2">
+            <span className="text-xs font-medium text-muted">Bean</span>
+            <p className="text-sm">
+              {lockedBean.name}{" "}
+              <span className="font-mono text-muted">
+                ({Math.round(lockedBean.remainingGrams * 10) / 10}g left)
+              </span>
+            </p>
+            <input type="hidden" name="beanId" value={lockedBean.id} />
+          </div>
+        ) : (
+          <SelectField label="Bean" name="beanId" required defaultValue="">
+            <option value="" disabled>
+              Select bean
             </option>
-          ))}
-        </SelectField>
+            {beans.map((bean) => (
+              <option key={bean.id} value={bean.id}>
+                {bean.name} ({Math.round(bean.remainingGrams * 10) / 10}g left)
+              </option>
+            ))}
+          </SelectField>
+        )}
         <TextField
           label="Total weight to open up (g)"
           name="totalGrams"

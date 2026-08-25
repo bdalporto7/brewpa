@@ -4,6 +4,8 @@ import BeanHeader from "@/components/BeanHeader";
 import BeanStockBar from "@/components/BeanStockBar";
 import BeanMeta from "@/components/BeanMeta";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
+import DropCard from "@/components/friends/DropCard";
+import StartDropToggle from "@/components/friends/StartDropToggle";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -22,6 +24,10 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       roastSessions: {
         include: { bean: true },
         orderBy: { startedAt: "desc" },
+      },
+      drops: {
+        include: { bean: true, claims: true },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -50,6 +56,20 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
         <Stat label="Roasted on hand" value={`${Math.round(roastedTotal * 10) / 10}g`} />
         <Stat label="Total roasts" value={String(completed.length)} />
         <Stat label="Avg. rating" value={avgRating != null ? avgRating.toFixed(1) : "—"} />
+      </div>
+
+      <div>
+        <h2 className="mb-3 font-medium">Drops</h2>
+        {bean.drops.length === 0 ? (
+          <p className="mb-3 text-sm text-muted">No drops opened for this bean yet.</p>
+        ) : (
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {bean.drops.map((drop) => (
+              <DropCard key={drop.id} drop={drop} />
+            ))}
+          </div>
+        )}
+        <StartDropToggle beans={bean.remainingGrams > 0 ? [bean] : []} lockedBeanId={bean.id} />
       </div>
 
       <div>
