@@ -62,9 +62,10 @@ model RoastSession {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  events       RoastEvent[]
-  sales        Sale[]
-  cuppingNotes CuppingNote[]
+  events              RoastEvent[]
+  sales               Sale[]
+  cuppingNotes        CuppingNote[]
+  temperatureReadings TemperatureReading[]
 
   goldenForBean Bean? @relation("BeanGoldenRoast")
 
@@ -83,6 +84,30 @@ model RoastEvent {
   tempFahrenheit Float?
   note           String?
   createdAt      DateTime     @default(now())
+
+  @@index([roastSessionId, atSeconds])
+}
+
+// A continuous reading from a live temperature probe (e.g. a bean-temp
+// probe on the FreshRoast), arriving every few seconds while a roast
+// runs — deliberately not a RoastEvent. Events are discrete, human-visible
+// moments (fan/heat changes, cracks, notes); folding in a reading every
+// few seconds would flood that table and its timeline UI. atSeconds is
+// null for readings recorded before the roast timer starts — the probe
+// can already be posting during setup, which is how "connected" gets
+// detected without a manual toggle (see
+// src/app/api/probe/temperature/route.ts). probeType defaults to "bean"
+// but isn't constrained, leaving room for a second probe (environment/
+// exhaust temp, the other half of a typical BT/ET rig) later without a
+// migration.
+model TemperatureReading {
+  id             String       @id @default(cuid())
+  roastSessionId String
+  roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
+  atSeconds      Int?
+  tempFahrenheit Float
+  probeType      String       @default("bean")
+  recordedAt     DateTime     @default(now())
 
   @@index([roastSessionId, atSeconds])
 }

@@ -11,24 +11,26 @@ import {
   type CurveReading,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
-import type { RoastEvent } from "@prisma/client";
+import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export default function RoastCurveChart({
   events,
   totalSeconds,
+  probeReadings = [],
 }: {
   events: RoastEvent[];
   totalSeconds: number;
+  probeReadings?: TemperatureReading[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<CurveReading | null>(null);
   const [showRor, setShowRor] = useState(false);
 
   const svg = useMemo(
-    () => buildRoastCurveSvg(events, totalSeconds, { showRor }),
-    [events, totalSeconds, showRor]
+    () => buildRoastCurveSvg(events, totalSeconds, { showRor, probeReadings }),
+    [events, totalSeconds, showRor, probeReadings]
   );
-  const readings = useMemo(() => getCurveReadings(events), [events]);
+  const readings = useMemo(() => getCurveReadings(events, probeReadings), [events, probeReadings]);
   const layout = useMemo(
     () => (readings.length > 0 ? getChartLayout(readings, totalSeconds) : null),
     [readings, totalSeconds]

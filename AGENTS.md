@@ -880,6 +880,108 @@ and the app itself reachable from more than one machine. Live at
    permission at all. Non-blocking (`|| echo ... >&2`, not `set -e`
    propagating): a failed backup shouldn't stop the app from starting.
 
+## Temperature probe (backbone only — no hardware yet)
+
+The user wants to wire up a bean-temperature probe on the FreshRoast
+eventually, but doesn't have the physical hardware yet, so what got built
+is deliberately just the backbone: a place for real readings to land and
+be displayed, with the actual "read this specific piece of hardware" part
+left for later, once the probe exists and its protocol is known.
+
+**The core design question, raised by the user directly:** the app is a
+hosted web app (Vercel), not something running on the same machine as the
+probe — so how does a reading get from a serial/USB/Bluetooth device to a
+server that isn't there? Two options, and only one makes sense without
+knowing the hardware yet:
+
+- **A local bridge script** (chosen): something running on the same
+  computer as the probe reads it — whatever that protocol turns out to be —
+  and forwards each reading as a plain HTTP POST to
+  `/api/probe/temperature`, authenticated with a bearer token
+  (`PROBE_INGEST_TOKEN`, a flat secret like `AUTH_SECRET`, not a per-user
+  OAuth concern). This keeps the web app completely decoupled from the
+  hardware protocol — it only ever has to understand "a JSON body with a
+  `tempFahrenheit` number arrived over HTTP" — which is exactly what you
+  want when the actual probe is still unknown. Works unattended for a full
+  roast; no browser tab needs to stay open.
+- **Web Serial API directly in the browser** (rejected as the primary
+  path): Chrome/Edge can read a USB-serial device straight from page JS
+  with no separate script. Ruled out here because it doesn't work in
+  Safari/Firefox, requires that exact tab to stay open and focused for the
+  whole roast, and re-requires the permission grant every session rather
+  than silently reconnecting — fragile for something meant to run
+  untouched through a roast.
+
+**Data model.** `TemperatureReading` (`roastSessionId`, `atSeconds` —
+nullable, `tempFahrenheit`, `probeType` defaulting to `"bean"`,
+`recordedAt`) is deliberately its own table, not folded into `RoastEvent`.
+The user's own framing: events are discrete, human-visible moments
+(fan/heat changes, cracks, notes); a probe posts every few seconds, and
+mixing the two would flood the event table and its timeline UI. `atSeconds`
+is nullable because a reading can arrive before `startedAt` is set (the
+probe can already be posting during roast setup) — that's also how
+"connected" is detected, with no manual toggle: presence and recency of
+readings *is* the connection state, not a separate flag that could drift
+out of sync (same reasoning as `DropClaim`'s fulfillment redesign earlier —
+derive it, don't cache a boolean next to the truth).
+
+**Ingest endpoint** (`src/app/api/probe/temperature/route.ts`, `POST`):
+bearer-token authed via `crypto.timingSafeEqual` (not `===`, since this is
+an internet-reachable endpoint on Vercel — worth doing right for a couple
+extra lines). Always logs against whichever `RoastSession` currently has
+`endedAt: null` rather than requiring the caller to pass a session id — this
+app only ever has one roast in flight at a time, so "the active one" is
+unambiguous, and it's what lets the bridge script stay completely dumb: point
+it at this endpoint once, it never needs to learn a new roast has started.
+Excluded from `proxy.ts`'s session gate (alongside `api/auth`, for the
+opposite reason — this caller has a bearer token, not a browser session, and
+`authorized` would reject it outright for having no session at all).
+
+**Read endpoint** (`src/app/api/roasts/[id]/temperature/route.ts`, `GET`):
+normal session-authed (double-checks `auth()` itself rather than trusting
+`proxy.ts` alone, same reasoning as `requireAdmin()` in
+`admin-actions.ts`), polled by `LiveProbePanel` every 5s while a roast is
+pending or live. This is the first thing in the app that needs live
+updates from a source other than the signed-in user's own action (every
+other "live" UI — the timer, fan/heat, event log — only ever changes
+because the person using the app just submitted something) — client-side
+polling is new here for exactly that reason, not available anywhere else
+to reuse.
+
+**Roast curve integration.** `src/lib/curve.ts`'s `getCurveReadings` takes
+an optional `probeReadings` param: when at least two probe readings exist,
+they replace manually-logged `TEMP` events entirely for the temp/RoR line
+(a probe is always denser and more accurate; mixing both would draw a
+jagged, doubled-up curve). Fan/heat/milestone markers stay event-sourced
+regardless — a bean-temp probe doesn't know about those. Verified live end
+to end with a throwaway 10g test roast: posted six readings via `curl`
+during setup and the live phase, watched `LiveProbePanel` go from "No probe
+connected" to "Connected" automatically with no toggle touched, completed
+the roast, and confirmed `RoastCurveChart` rendered the curve from those
+six readings alone (temp axis exactly matched their min/max) — then deleted
+the test roast and confirmed the `TemperatureReading` rows cascade-deleted
+and the bean's green stock came back to its exact prior value.
+
+**Deliberately not done yet** (would need the real hardware or a decision
+this doesn't require to unblock):
+
+- The bridge script itself — nothing to write until the actual probe and
+  its wire protocol are known.
+- `src/lib/tips.ts`'s live golden-roast comparison and its "log a temp
+  reading" nudge are still event-based only; a live roast with a connected
+  probe currently still sees the stale "no reading in the last minute"
+  hint even though the curve underneath is auto-updating fine. Wiring
+  `temperatureReadings` through the baseline/reference-roast comparison in
+  `src/app/roasts/[id]/page.tsx` (the same query would need each
+  `sameBeanCompleted` session's readings, not just its events) is the
+  natural next step, deferred to keep this pass's surface area contained.
+- The static "Publish to GitHub Pages" export renders its curve from
+  events only — probe-sourced curves aren't reflected there yet.
+- A second probe channel (environment/exhaust temp, the other half of a
+  typical BT/ET roast-logging rig) — `probeType` exists specifically so
+  this doesn't need a migration later, but nothing reads anything other
+  than `"bean"` yet.
+
 ## Commands
 
 `./start.sh` from the repo root is the one-command way to get the dev server

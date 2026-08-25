@@ -16,9 +16,15 @@
  * fail this way — confirmed by watching the dev server logs during a real
  * attempt (GitHub's callback request logged as a GET to /login instead of
  * /api/auth/callback/github), not by inspection alone.
+ *
+ * `api/probe` is excluded for the opposite reason: the temperature-probe
+ * ingest endpoint (src/app/api/probe/temperature/route.ts) is called by a
+ * local script, not a signed-in browser, and authenticates with a bearer
+ * token instead of a session cookie — `authorized` would reject it outright
+ * for having no session at all.
  */
 export { auth as proxy } from "@/auth";
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|api/probe|_next/static|_next/image|favicon.ico).*)"],
 };

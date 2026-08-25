@@ -1,6 +1,6 @@
 import { formatMMSS } from "@/lib/format";
 import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, type EventType } from "@/lib/constants";
-import type { RoastEvent } from "@prisma/client";
+import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export const CHART_WIDTH = 760;
 export const CHART_HEIGHT = 380;
@@ -48,12 +48,27 @@ function levelAt(points: { atSeconds: number; level: number }[], atSeconds: numb
  * snaps to — one function, so hovering can never show a value the curve
  * itself didn't draw. Empty (rather than a single point) below two
  * readings, matching the ">= 2 to draw a curve" gate everywhere else.
+ *
+ * probeReadings (from a connected temperature probe, TemperatureReading
+ * rows) take over the temp/RoR line entirely once there are at least two
+ * of them — a probe logs every few seconds, so it's always denser and
+ * more accurate than hand-logged TEMP events, and mixing the two would
+ * produce a jagged, doubled-up line. Fan/heat/milestones stay event-
+ * sourced regardless, since a bean-temp probe doesn't know about those.
  */
-export function getCurveReadings(events: RoastEvent[]): CurveReading[] {
-  const tempPoints = events
-    .filter((e) => e.type === "TEMP" && e.tempFahrenheit != null)
-    .map((e) => ({ atSeconds: e.atSeconds, temp: e.tempFahrenheit as number }))
+export function getCurveReadings(events: RoastEvent[], probeReadings: TemperatureReading[] = []): CurveReading[] {
+  const probePoints = probeReadings
+    .filter((r): r is TemperatureReading & { atSeconds: number } => r.atSeconds != null)
+    .map((r) => ({ atSeconds: r.atSeconds, temp: r.tempFahrenheit }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
+
+  const tempPoints =
+    probePoints.length >= 2
+      ? probePoints
+      : events
+          .filter((e) => e.type === "TEMP" && e.tempFahrenheit != null)
+          .map((e) => ({ atSeconds: e.atSeconds, temp: e.tempFahrenheit as number }))
+          .sort((a, b) => a.atSeconds - b.atSeconds);
   if (tempPoints.length < 2) return [];
 
   const fanPoints = events
@@ -221,9 +236,9 @@ function buildStepPath(
 export function buildRoastCurveSvg(
   events: RoastEvent[],
   totalSeconds: number,
-  options: { showRor?: boolean } = {}
+  options: { showRor?: boolean; probeReadings?: TemperatureReading[] } = {}
 ): string | null {
-  const readings = getCurveReadings(events);
+  const readings = getCurveReadings(events, options.probeReadings);
   if (readings.length < 2) return null;
 
   const layout = getChartLayout(readings, totalSeconds);

@@ -85,6 +85,16 @@ context, design standards, and build-order rationale.
   automatically (falling back to the bean's most recent roast if none is
   set — never to a different bean's data). No LLM call — deliberately
   deterministic, see AGENTS.md for why.
+- **Temperature probe (backbone only, no hardware yet)** — a bean-temp
+  probe can post readings to `/api/probe/temperature` (bearer-token authed,
+  see AGENTS.md) and they'll show up automatically: `LiveProbePanel` polls
+  and shows "Connected" the moment readings start arriving, no manual
+  toggle, and a completed roast's curve chart draws from those readings
+  instead of hand-logged temp events once there are at least two of them.
+  What's *not* here yet is the other half — a script that actually reads
+  physical hardware and forwards it to that endpoint — since the probe
+  itself doesn't exist yet; see AGENTS.md's "Temperature probe" section for
+  the full design (why a local bridge script, not the Web Serial API).
 - **Cupping notes** — a completed roast gets its own "Cupping" tab
   (separate from the roast/curve view) for logging one or more formal
   tastings, based on the real SCA/Q-grading cupping form. Every field is
@@ -206,6 +216,13 @@ section for the full rationale.
 - **RoastEvent** — a timestamped entry within a session (`atSeconds` elapsed
   from `startedAt`): a fan or heat level change, a temperature reading, a
   crack marker, a free note, or the drop event auto-logged when a roast ends.
+- **TemperatureReading** — one reading from a connected temperature probe
+  (`atSeconds`, nullable for readings recorded before the roast timer
+  starts; `tempFahrenheit`; `probeType`, currently always `"bean"`).
+  Deliberately separate from `RoastEvent`: a probe posts every few seconds,
+  and folding that into the event table/timeline would flood it. "Probe
+  connected" is derived from whether recent readings exist, not a stored
+  flag — see AGENTS.md's "Temperature probe" section.
 - **Sale** — roasted coffee given/sold to a `Friend` from one `RoastSession`
   (called a "drop" in the UI, unrelated to the `DROP` event above — see
   AGENTS.md if that's confusing). Decrements that session's

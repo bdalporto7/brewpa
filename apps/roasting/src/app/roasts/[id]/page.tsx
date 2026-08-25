@@ -10,6 +10,7 @@ import { getCurveReadings } from "@/lib/curve";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import LiveTimerBar from "@/components/roasts/LiveTimerBar";
+import LiveProbePanel from "@/components/roasts/LiveProbePanel";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import RoastPlanCard from "@/components/roasts/RoastPlanCard";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
@@ -53,6 +54,7 @@ export default async function RoastSessionPage({
         events: { orderBy: { atSeconds: "asc" } },
         sales: { orderBy: { soldAt: "desc" }, include: { friend: true } },
         cuppingNotes: { orderBy: { cuppedAt: "desc" } },
+        temperatureReadings: { orderBy: { atSeconds: "asc" } },
       },
     }),
     prisma.friend.findMany({ orderBy: { name: "asc" } }),
@@ -162,6 +164,7 @@ export default async function RoastSessionPage({
 
       {isPending && (
         <>
+          <LiveProbePanel roastSessionId={session.id} />
           <RoastSetupPanel roastSessionId={session.id} />
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
         </>
@@ -170,6 +173,7 @@ export default async function RoastSessionPage({
       {isLive && (
         <>
           <LiveTimerBar startedAt={session.startedAt!.toISOString()} beanName={session.bean.name} />
+          <LiveProbePanel roastSessionId={session.id} />
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
           {baseline && (
             <LiveTipsPanel
@@ -237,7 +241,11 @@ export default async function RoastSessionPage({
             />
           </div>
           <RoastDetailsForm session={session} />
-          <RoastCurveChart events={session.events} totalSeconds={durationSeconds ?? 0} />
+          <RoastCurveChart
+            events={session.events}
+            totalSeconds={durationSeconds ?? 0}
+            probeReadings={session.temperatureReadings}
+          />
           <PhaseBar phases={phases} />
           {session.notes && <p className="text-sm text-foreground/80">{session.notes}</p>}
           {session.roastedWeightGrams != null && (
