@@ -825,6 +825,35 @@ whenever Roasting is the active mode, falling droplets above the cup icon
 whenever Brewing is — plus the existing dashboard active-roast-banner
 steam and Brews-page ripple from the same building blocks.
 
+**Real bug fixed here, worth remembering the shape of:** these motifs
+originally inherited `currentColor` from their parent. Inside the active
+nav pill that parent has `text-accent-foreground`, and in dark mode
+`--accent-foreground` (`#1a140f`) happens to equal `--background`
+(`#1a140f`) exactly — wherever a wisp/droplet poked above the pill onto
+the nav bar, it was rendering in a color identical to what it sat on.
+Fixed by giving them an explicit `text-foreground` instead of inheriting.
+Any small decorative element positioned to spill outside its parent's
+background should get an explicit color, not `currentColor` — inherited
+context and "is this actually visible against what's behind it" are two
+different questions, and this app's `accent`/`accent-foreground` pair
+genuinely does collide with `background` in dark mode.
+
+`BeanBurst.tsx` (a one-shot particle burst, original bean-shaped SVGs,
+not mascot-derived) plays on `roasts/[id]/page.tsx` when
+`session.endedAt` is within the last 8 seconds of the request — computed
+server-side per-request, not a client flag threaded through from
+`DropRoastButton`, so it fires correctly whether the roast was just
+dropped live or the page was simply loaded/refreshed right after.
+`CoffeeRingStain.tsx` is a similar original-SVG decorative flourish (a
+faint imperfect coffee-cup ring), used once so far on the Brews page's
+empty state. `Card.tsx` also got a subtle hover lift/tilt
+(`hover:-translate-y-0.5 hover:-rotate-[0.4deg]`) — cascades to every
+component that actually uses the shared `Card`, which turned out to be
+most of the clickable list-item cards (`BeanCard`, `RoastSessionCard`,
+`BrewCard`, `RecipeCard`, `FriendCard`, `BeanRoastedSummaryCard`);
+`DropCard.tsx` is the one exception still using the inline className
+directly instead of `<Card>`, patched separately to match.
+
 ## Conventions
 
 - TypeScript everywhere, no exceptions, no `any` without a comment explaining why.

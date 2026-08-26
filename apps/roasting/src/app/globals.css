@@ -179,3 +179,16 @@ body {
 .drop-fall {
   animation: drop-fall 1.3s ease-in infinite;
 }
+
+/* One-shot celebration burst — see BeanBurst.tsx. --tx/--ty are set per
+   particle (varying angle/distance), not looping. */
+@keyframes bean-burst {
+  0% {
+    transform: translate(0, 0) scale(0.5) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(1) rotate(200deg);
+    opacity: 0;
+  }
+}

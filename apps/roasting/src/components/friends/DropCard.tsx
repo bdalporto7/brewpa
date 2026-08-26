@@ -11,7 +11,7 @@ export default function DropCard({ drop }: { drop: Drop & { bean: Bean; claims: 
 
   return (
     <Link href={`/drops/${drop.id}`}>
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4 transition hover:border-accent">
+      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4 transition duration-200 hover:border-accent hover:-translate-y-0.5 hover:-rotate-[0.4deg]">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-medium">{drop.bean.name}</h3>
           <span className={`text-xs font-medium ${isClosed ? "text-muted" : "text-accent"}`}>

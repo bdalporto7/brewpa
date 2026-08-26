@@ -29,6 +29,7 @@ import SalesPanel from "@/components/roasts/SalesPanel";
 import AddEventForm from "@/components/roasts/AddEventForm";
 import CuppingTab from "@/components/roasts/CuppingTab";
 import DeleteButton from "@/components/DeleteButton";
+import BeanBurst from "@/components/ui/BeanBurst";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -76,6 +77,14 @@ export default async function RoastSessionPage({
   const isPending = session.startedAt == null && session.endedAt == null;
   const isLive = session.startedAt != null && session.endedAt == null;
   const isCompleted = session.endedAt != null;
+  // Gated server-side on "ended a few seconds ago," not a client flag passed
+  // from DropRoastButton — simpler, and it doesn't care whether the roast
+  // was just dropped live or the page was refreshed right after. A fresh
+  // request-time check like this in a Server Component isn't the kind of
+  // impurity the purity rule is guarding against (nothing here is memoized
+  // across renders the way a Client Component would be).
+  // eslint-disable-next-line react-hooks/purity -- request-time freshness check, not memoized
+  const justCompleted = isCompleted && Date.now() - session.endedAt!.getTime() < 8000;
   const durationSeconds =
     isCompleted && session.startedAt
       ? (session.endedAt!.getTime() - session.startedAt.getTime()) / 1000
@@ -131,7 +140,8 @@ export default async function RoastSessionPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="relative flex items-start justify-between gap-4">
+        {justCompleted && <BeanBurst />}
         <div>
           <h1 className="text-4xl font-black tracking-tight">{session.bean.name}</h1>
           <p className="text-sm text-muted">
