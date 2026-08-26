@@ -133,10 +133,10 @@ body {
     opacity: 0;
   }
   25% {
-    opacity: 0.55;
+    opacity: 0.9;
   }
   100% {
-    transform: translateY(-10px) scaleX(1.4);
+    transform: translateY(-12px) scaleX(1.4);
     opacity: 0;
   }
 }
@@ -148,7 +148,7 @@ body {
 @keyframes ripple-out {
   0% {
     transform: scale(0.3);
-    opacity: 0.55;
+    opacity: 0.85;
   }
   100% {
     transform: scale(1.8);
@@ -166,10 +166,10 @@ body {
     opacity: 0;
   }
   30% {
-    opacity: 0.8;
+    opacity: 1;
   }
   90% {
-    opacity: 0.8;
+    opacity: 1;
   }
   100% {
     transform: translateY(11px);

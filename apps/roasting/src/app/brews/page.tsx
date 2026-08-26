@@ -33,7 +33,7 @@ export default async function BrewsPage({
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-4xl font-black tracking-tight">Brews</h1>
-          <span className="relative -top-1 inline-flex h-6 w-6 text-accent/70">
+          <span className="relative -top-1 inline-flex h-7 w-7 text-accent">
             <WaterRipple className="h-full w-full" />
           </span>
         </div>

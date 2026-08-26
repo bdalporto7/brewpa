@@ -50,7 +50,12 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
             <span className="relative inline-flex">
               <Flame className="h-3.5 w-3.5" />
               {mode === "roasting" && (
-                <SteamWisp className="pointer-events-none absolute -top-2.5 left-0 h-2.5 w-3.5" />
+                // Explicit color, not inherited: this sits inside the active
+                // pill's text-accent-foreground, which in dark mode is the
+                // exact same value as the page background — invisible where
+                // the wisp pokes above the pill. text-foreground always
+                // contrasts against both the pill and the nav bar.
+                <SteamWisp className="pointer-events-none absolute -top-3.5 left-0 h-3.5 w-5 text-foreground" />
               )}
             </span>
             Roasting
@@ -64,7 +69,7 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
             <span className="relative inline-flex">
               <BrewedCupIcon className="h-3.5 w-3.5" />
               {mode === "brewing" && (
-                <WaterPour className="pointer-events-none absolute -top-2.5 left-0.5 h-2.5 w-3.5" />
+                <WaterPour className="pointer-events-none absolute -top-3.5 left-0.5 h-3.5 w-5 text-foreground" />
               )}
             </span>
             Brewing

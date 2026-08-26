@@ -91,7 +91,7 @@ export default async function DashboardPage() {
           <span className="flex items-center gap-1.5 text-sm font-medium text-accent">
             <span className="relative inline-flex">
               <Flame className="h-4 w-4" />
-              {!isPending && <SteamWisp className="absolute -top-3 left-0 h-3 w-4 text-accent/70" />}
+              {!isPending && <SteamWisp className="absolute -top-4 left-0 h-4 w-5 text-accent" />}
             </span>
             {activeSession.bean.name} {isPending ? "is set up, ready to roast" : "is roasting"}
           </span>

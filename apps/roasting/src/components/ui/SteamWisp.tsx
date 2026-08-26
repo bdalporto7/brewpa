@@ -7,7 +7,7 @@ export default function SteamWisp({ className = "" }: { className?: string }) {
         className="steam-path"
         style={{ animationDelay: "0s" }}
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.9"
         strokeLinecap="round"
       />
       <path
@@ -15,7 +15,7 @@ export default function SteamWisp({ className = "" }: { className?: string }) {
         className="steam-path"
         style={{ animationDelay: "0.6s" }}
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.9"
         strokeLinecap="round"
       />
       <path
@@ -23,7 +23,7 @@ export default function SteamWisp({ className = "" }: { className?: string }) {
         className="steam-path"
         style={{ animationDelay: "1.2s" }}
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.9"
         strokeLinecap="round"
       />
     </svg>
