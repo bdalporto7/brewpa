@@ -79,24 +79,23 @@ export default async function DashboardPage() {
     { label: "Most-used level", value: favoriteLevel },
   ];
 
-  if (activeSession) {
-    const isPending = activeSession.startedAt == null;
-    return (
-      <div className="flex flex-col items-center gap-6 py-10 text-center">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-accent">
-          <Flame className="h-4 w-4" />
-          {activeSession.bean.name} {isPending ? "is set up, ready to roast" : "is roasting"}
-        </span>
-        {!isPending && <Timer startedAt={activeSession.startedAt!.toISOString()} />}
-        <Link href={`/roasts/${activeSession.id}`}>
-          <Button>{isPending ? "Finish setup" : "Open live log"}</Button>
-        </Link>
-      </div>
-    );
-  }
+  const isPending = activeSession?.startedAt == null;
 
   return (
     <div className="flex flex-col gap-8">
+      {activeSession && (
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-accent/30 bg-accent-soft px-6 py-8 text-center">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-accent">
+            <Flame className="h-4 w-4" />
+            {activeSession.bean.name} {isPending ? "is set up, ready to roast" : "is roasting"}
+          </span>
+          {!isPending && <Timer startedAt={activeSession.startedAt!.toISOString()} />}
+          <Link href={`/roasts/${activeSession.id}`}>
+            <Button>{isPending ? "Finish setup" : "Open live log"}</Button>
+          </Link>
+        </div>
+      )}
+
       <div>
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-sm text-muted">Your roasting activity at a glance.</p>
