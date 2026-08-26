@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { format, startOfMonth } from "date-fns";
-import { Flame, Sprout, Coffee } from "lucide-react";
+import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import Timer from "@/components/roasts/Timer";
 import Button from "@/components/ui/Button";
 import InventoryCard from "@/components/InventoryCard";
+import { GreenBeanIcon, RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
+import SteamWisp from "@/components/ui/SteamWisp";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
@@ -87,7 +89,10 @@ export default async function DashboardPage() {
       {activeSession && (
         <div className="flex flex-col items-center gap-4 rounded-lg border border-accent/30 bg-accent-soft px-6 py-8 text-center">
           <span className="flex items-center gap-1.5 text-sm font-medium text-accent">
-            <Flame className="h-4 w-4" />
+            <span className="relative inline-flex">
+              <Flame className="h-4 w-4" />
+              {!isPending && <SteamWisp className="absolute -top-3 left-0 h-3 w-4 text-accent/70" />}
+            </span>
             {activeSession.bean.name} {isPending ? "is set up, ready to roast" : "is roasting"}
           </span>
           {!isPending && <Timer startedAt={activeSession.startedAt!.toISOString()} />}
@@ -117,7 +122,7 @@ export default async function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <InventoryCard
-            icon={<Sprout className="h-3.5 w-3.5" />}
+            icon={<GreenBeanIcon className="h-3.5 w-3.5" />}
             label="Green coffee"
             totalGrams={greenTotal}
             items={greenBeans.map((b) => ({
@@ -129,7 +134,7 @@ export default async function DashboardPage() {
             emptyText="No green stock on hand."
           />
           <InventoryCard
-            icon={<Coffee className="h-3.5 w-3.5" />}
+            icon={<RoastedBeanIcon className="h-3.5 w-3.5" />}
             label="Roasted coffee"
             totalGrams={roastedTotal}
             items={roastedByBean.map((r) => ({

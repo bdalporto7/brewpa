@@ -123,3 +123,39 @@ body {
   font-size: 9px;
   font-weight: 500;
 }
+
+/* Steam (Roasting) and ripple (Brewing) motifs — see SteamWisp.tsx /
+   WaterRipple.tsx. Named keyframes live here rather than inline/arbitrary
+   Tailwind since each has several staggered elements. */
+@keyframes steam-rise {
+  0% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateY(-10px) scaleX(1.4);
+    opacity: 0;
+  }
+}
+.steam-path {
+  animation: steam-rise 2.6s ease-in infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes ripple-out {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+.ripple-circle {
+  animation: ripple-out 2.4s ease-out infinite;
+  transform-origin: center;
+}

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Coffee } from "lucide-react";
+import { Flame } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
+import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
 
 const ROASTING_LINKS = [
   { href: "/", label: "Dashboard" },
@@ -53,7 +54,7 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
               mode === "brewing" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
             }`}
           >
-            <Coffee className="h-3.5 w-3.5" />
+            <BrewedCupIcon className="h-3.5 w-3.5" />
             Brewing
           </Link>
         </div>

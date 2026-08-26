@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentAllowedUser } from "@/lib/admin";
 import LogBrewForm from "@/components/brews/LogBrewForm";
 import BrewCard from "@/components/brews/BrewCard";
+import WaterRipple from "@/components/ui/WaterRipple";
 
 export default async function BrewsPage({
   searchParams,
@@ -30,7 +31,12 @@ export default async function BrewsPage({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-4xl font-black tracking-tight">Brews</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-4xl font-black tracking-tight">Brews</h1>
+          <span className="relative -top-1 inline-flex h-6 w-6 text-accent/70">
+            <WaterRipple className="h-full w-full" />
+          </span>
+        </div>
         <p className="text-sm text-muted">Your own brew journal — nobody else&apos;s brews show up here.</p>
       </div>
 

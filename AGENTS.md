@@ -784,11 +784,24 @@ primary/secondary only, since ghost/danger have no shadow to collapse
 into). `src/app/loading.tsx` is a new root-level Next.js loading file — a
 spinning mascot mark (theme-aware, same `<picture>` swap as the nav)
 instead of a generic spinner, shown automatically during route
-navigation. Proposed but not yet built, waiting on the user: steam
-rising in Roasting mode / water ripples in Brewing mode, mascot
-illustrations in empty states, and real green/roasted/brewed coffee
-iconography replacing the generic Sprout/Coffee lucide icons — the first
-two need new mascot artwork poses we don't have yet, the third doesn't.
+navigation.
+
+**Coffee-stage iconography and motion motifs** (`src/components/ui/`):
+`CoffeeIcons.tsx` draws a real bean shape (oval + center crease) rather
+than a generic lucide glyph — `GreenBeanIcon` (pale sage-green, an actual
+new hue in the palette specifically because unroasted beans really are
+that color) and `RoastedBeanIcon` (`--accent`) replace `Sprout`/`Coffee`
+on the dashboard's "On hand" cards; `BrewedCupIcon` replaces the nav's
+Brewing-mode icon. `SteamWisp.tsx`/`WaterRipple.tsx` are small looping
+SVG animations (keyframes in `globals.css`: `steam-rise`, `ripple-out`)
+— steam only shows next to the Flame icon on the dashboard's active-roast
+banner once a roast is actually live (not during pending setup); the
+ripple sits by the "Brews" h1 unconditionally, since brewing has no
+live/pending state to gate on the way roasting does.
+
+Still not built: mascot illustrations in empty states — needs new mascot
+artwork poses that don't exist yet, unlike the icons/motifs above which
+used only existing assets and CSS.
 
 ## Conventions
 
