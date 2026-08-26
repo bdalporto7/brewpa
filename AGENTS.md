@@ -688,6 +688,24 @@ a wrapper around the data model. Concretely:
   product for a specific roaster, or could it be the placeholder output of
   any CRUD generator? If it's the latter, it's not done.
 
+**Future direction, explicitly requested as a TODO rather than built now:**
+pulling the app's component-level design language (cards, buttons, form
+chrome — not just the logo) toward Cybar Coffee's actual brand aesthetic,
+described by the user as "cardboard with black sharpie" — hand-drawn,
+imperfect linework, kraft-paper warmth. The current warm rust/cream palette
+above already leans that direction tonally, but the *shapes* are still
+conventional rounded-lg SaaS chrome (clean borders, uniform corner radii,
+no hand-drawn texture). Explicit constraint from the user when this came up
+(2026-08-25): the brand mark itself should stay true to its sharpie
+character, but the surrounding app UI should stay "modern, sleek, and not
+messy" — this is not a mandate to reskin the whole app in a literal
+cardboard/marker style, more a direction to explore (textures, corner
+treatment, maybe a hand-drawn accent here and there) without sacrificing
+usability or making the app read as cluttered/DIY. Not scoped further than
+this — whoever picks it up should mock up a couple of concrete component
+treatments and check them against the user's taste before committing to a
+direction, rather than guessing at "how sharpie" is too far.
+
 ## Conventions
 
 - TypeScript everywhere, no exceptions, no `any` without a comment explaining why.

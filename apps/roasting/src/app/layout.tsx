@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Roasting",
-  description: "Log roasts and track green bean inventory.",
+  title: "Cybar Coffee",
+  description: "Roasting and brewing, tracked end to end.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
