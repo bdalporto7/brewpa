@@ -1,12 +1,13 @@
 # Architecture
 
 Visual reference for how this app is put together. For *what* each feature
-does, see [`README.md`](../README.md); for the *why* behind specific design
-decisions, see [`AGENTS.md`](../../AGENTS.md) — this doc doesn't repeat that
-reasoning, it just points at it. Diagrams here are hand-maintained, not
-generated — if the schema or deployment shape changes, update this file in
-the same PR, the same way you'd update a doc comment next to code it
-describes.
+does, see [`README.md`](../README.md); for field-by-field schema detail and
+every API/Server Action signature, see [`SCHEMA.md`](SCHEMA.md) and
+[`API.md`](API.md); for the *why* behind specific design decisions, see
+[`AGENTS.md`](../../AGENTS.md) — this doc doesn't repeat that reasoning, it
+just points at it. Diagrams here are hand-maintained, not generated — if
+the schema or deployment shape changes, update this file in the same PR,
+the same way you'd update a doc comment next to code it describes.
 
 ## System overview
 

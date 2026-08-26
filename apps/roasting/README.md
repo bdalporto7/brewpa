@@ -6,7 +6,9 @@ fan/heat changes and crack markers in real time, review the resulting
 roasting curve, then track roasted coffee as you drop it to friends or
 brew it yourself), and **brewing**, a personal brew journal alongside it.
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a diagram-first
-overview of how the pieces connect, and the repo-level
+overview of how the pieces connect, [`docs/SCHEMA.md`](docs/SCHEMA.md) for
+a field-by-field data dictionary, [`docs/API.md`](docs/API.md) for every
+route and Server Action, and the repo-level
 [AGENTS.md](../../AGENTS.md) for full project context, design standards,
 and the reasoning behind specific decisions.
 
