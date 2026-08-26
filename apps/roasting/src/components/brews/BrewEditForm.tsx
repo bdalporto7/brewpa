@@ -26,7 +26,7 @@ export default function BrewEditForm({ brew, recipes }: { brew: Brew; recipes: R
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <p className="mb-3 text-sm font-medium">Edit brew</p>
       <ActionForm
         action={updateBrew.bind(null, brew.id)}

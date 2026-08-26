@@ -7,7 +7,7 @@ import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
 
 export default function BeanForm() {
   return (
-    <details className="group rounded-lg border border-border bg-surface">
+    <details className="group rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]">
       <summary className="flex cursor-pointer items-center gap-1.5 px-4 py-3 text-sm font-medium group-open:border-b group-open:border-border">
         <Plus className="h-4 w-4" /> Add green bean
       </summary>

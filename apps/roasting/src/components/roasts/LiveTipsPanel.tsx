@@ -26,7 +26,7 @@ export default function LiveTipsPanel({
     <div className="flex flex-col gap-3">
       <PhaseBar phases={phases} />
       {tips.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
           <p className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
             <Sparkles className="h-3.5 w-3.5" />
             Tips

@@ -22,7 +22,7 @@ export default function RoastPlanCard({
   const [isEditing, setIsEditing] = useState(!notes);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
           <NotebookPen className="h-3.5 w-3.5" />

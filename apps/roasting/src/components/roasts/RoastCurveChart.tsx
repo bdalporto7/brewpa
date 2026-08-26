@@ -80,7 +80,7 @@ export default function RoastCurveChart({
           Rate of rise
         </button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface p-4">
+      <div className="overflow-x-auto rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
         <div
           ref={containerRef}
           className="relative cursor-crosshair"

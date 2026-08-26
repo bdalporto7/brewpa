@@ -10,7 +10,7 @@ export default function LogPastRoastForm({ beans }: { beans: Bean[] }) {
   if (beans.length === 0) return null;
 
   return (
-    <details className="group rounded-lg border border-border bg-surface">
+    <details className="group rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]">
       <summary className="flex cursor-pointer items-center gap-1.5 px-4 py-3 text-sm font-medium group-open:border-b group-open:border-border">
         <History className="h-4 w-4" /> Log a past roast
       </summary>

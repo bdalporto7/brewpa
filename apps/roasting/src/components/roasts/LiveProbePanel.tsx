@@ -64,7 +64,7 @@ export default function LiveProbePanel({ roastSessionId }: { roastSessionId: str
   const isLive = secondsSinceReading < STALE_AFTER_SECONDS;
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
+    <div className="flex items-center justify-between gap-3 rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
       <div className="flex items-center gap-2">
         <Thermometer className="h-3.5 w-3.5 text-accent" />
         <span className="font-mono text-lg font-semibold">{Math.round(latest.tempFahrenheit)}°F</span>

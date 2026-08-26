@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import FriendCard from "@/components/friends/FriendCard";
 import StartDropForm from "@/components/friends/StartDropForm";
 import DropCard from "@/components/friends/DropCard";
+import SectionHeading from "@/components/ui/SectionHeading";
 
 export default async function FriendsPage() {
   const [friends, beans, drops] = await Promise.all([
@@ -30,7 +31,9 @@ export default async function FriendsPage() {
 
       {activeDrops.length > 0 && (
         <div>
-          <h2 className="mb-3 font-medium">Active drops</h2>
+          <div className="mb-3">
+            <SectionHeading>Active drops</SectionHeading>
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activeDrops.map((drop) => (
               <DropCard key={drop.id} drop={drop} />
@@ -41,7 +44,9 @@ export default async function FriendsPage() {
 
       {pastDrops.length > 0 && (
         <div>
-          <h2 className="mb-3 font-medium">Past drops</h2>
+          <div className="mb-3">
+            <SectionHeading>Past drops</SectionHeading>
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {pastDrops.map((drop) => (
               <DropCard key={drop.id} drop={drop} />
@@ -51,7 +56,9 @@ export default async function FriendsPage() {
       )}
 
       <div>
-        <h2 className="mb-3 font-medium">Friends</h2>
+        <div className="mb-3">
+          <SectionHeading>Friends</SectionHeading>
+        </div>
         {friends.length === 0 ? (
           <p className="text-sm text-muted">
             No friends yet — they show up automatically the first time you log a drop for someone,

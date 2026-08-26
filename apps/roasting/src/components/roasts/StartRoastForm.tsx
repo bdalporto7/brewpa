@@ -8,14 +8,14 @@ import type { Bean } from "@prisma/client";
 export default function StartRoastForm({ beans }: { beans: Bean[] }) {
   if (beans.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
+      <p className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4 py-3 text-sm text-muted">
         Add a green bean first — you need stock on hand to start a roast.
       </p>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <p className="mb-3 text-sm font-medium">Start a roast</p>
       <ActionForm action={startRoast} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
         <SelectField label="Bean" name="beanId" required defaultValue="">

@@ -728,23 +728,49 @@ a wrapper around the data model. Concretely:
   product for a specific roaster, or could it be the placeholder output of
   any CRUD generator? If it's the latter, it's not done.
 
-**Future direction, explicitly requested as a TODO rather than built now:**
-pulling the app's component-level design language (cards, buttons, form
-chrome — not just the logo) toward Cybar Coffee's actual brand aesthetic,
-described by the user as "cardboard with black sharpie" — hand-drawn,
-imperfect linework, kraft-paper warmth. The current warm rust/cream palette
-above already leans that direction tonally, but the *shapes* are still
-conventional rounded-lg SaaS chrome (clean borders, uniform corner radii,
-no hand-drawn texture). Explicit constraint from the user when this came up
-(2026-08-25): the brand mark itself should stay true to its sharpie
-character, but the surrounding app UI should stay "modern, sleek, and not
-messy" — this is not a mandate to reskin the whole app in a literal
-cardboard/marker style, more a direction to explore (textures, corner
-treatment, maybe a hand-drawn accent here and there) without sacrificing
-usability or making the app read as cluttered/DIY. Not scoped further than
-this — whoever picks it up should mock up a couple of concrete component
-treatments and check them against the user's taste before committing to a
-direction, rather than guessing at "how sharpie" is too far.
+**Brand identity** (2026-08-25, superseding the TODO that used to be here).
+Cybar Coffee's actual brand color is Cardboard Brown, `#AF916D` — sampled
+directly from the source logo art, not invented — distinct from `--accent`
+(`#B5502C` light / `#D97A4F` dark), which stays the *functional* color
+(primary actions, active state, the roast curve). Two browns, two jobs:
+identity vs. function. New token: `--brand` (same value both color
+schemes — mid-toned enough to read on dark without a separate variant,
+confirmed by direct testing, not assumption).
+
+Logo usage: a white-on-brand-brown badge/stamp works as a fixed-color
+asset anywhere (used for the favicon); a brand-brown-ink lockup
+(`public/cybar-stamp.png`) for light contexts (the login page — also
+holds up fine on dark at that size, tested directly, so it doesn't need a
+dark variant); the small nav-bar mark is the one asset that DOES need a
+dark swap — Cardboard Brown reads too soft at ~26px, so
+`public/cybar-mark.png` (light) and `public/cybar-mark-dark.png` (the
+app's own dark-mode `--foreground` cream, not pure white) are swapped via
+a `<picture>`/`prefers-color-scheme` source in `NavClient.tsx`, no JS.
+
+Component direction ("Kraft & Ink" — mocked as three options against the
+old plain rounded-lg chrome before landing here; see the design canvas
+linked from this conversation if it's still around): `Card`/`Button`
+(primary, secondary) got a thicker ink-toned border (`--border-strong`) and
+a small offset "stamped" shadow (`--shadow-ink`), both theme-aware tokens
+in `globals.css`; the page background got a very faint (0.05 opacity)
+SVG paper-grain texture. The exact same `rounded-lg border border-border
+bg-surface` className had been copy-pasted across ~29 files instead of
+using the shared `Card` component — swept in one pass rather than fixed
+component-by-component, but those call sites still don't use `<Card>`
+itself, worth a real refactor later.
+
+A `SectionHeading` component (dot + hand-drawn underline, both Cardboard
+Brown) was added and rolled out to the dashboard and Drops hub as a first
+pass — not swept across every page's h2/h1 yet. The leading dot was cut
+after feedback that it didn't read as meaningful ("doesn't serve any
+purpose") — the squiggle underline stayed.
+
+Still open, not built: a distinctive display face for the wordmark
+specifically (Geist stays for the app's actual UI/data — this was scoped
+as a nice-to-have, not done); "quirkier" interactive chrome (buttons,
+nav) that leans into the mascot's playful character rather than just
+border/shadow treatment — raised by the user right as this was being
+implemented, not yet explored.
 
 ## Conventions
 

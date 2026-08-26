@@ -32,7 +32,7 @@ import DeleteButton from "@/components/DeleteButton";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
       <p className="font-mono text-lg font-semibold">{value}</p>
       <p className="text-xs text-muted">{label}</p>
     </div>
@@ -284,7 +284,7 @@ export default async function RoastSessionPage({
               </div>
             )}
           </div>
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
             <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Add event</p>
             <AddEventForm roastSessionId={session.id} />
           </div>

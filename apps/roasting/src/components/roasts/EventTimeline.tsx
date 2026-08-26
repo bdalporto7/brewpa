@@ -153,7 +153,7 @@ export default function EventTimeline({
   const visibleGroups = showReadings ? groups : defaultGroups;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+    <div className="overflow-x-auto rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]">
       <table className="w-full min-w-[420px] text-sm">
         <thead>
           <tr className="border-b border-border text-xs text-muted">

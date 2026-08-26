@@ -42,7 +42,7 @@ export default function BeanFilters({
   const hasFilters = origin || process || (searchParams.get("q") ?? "");
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
       <div className="relative min-w-[160px] flex-1">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
         <input

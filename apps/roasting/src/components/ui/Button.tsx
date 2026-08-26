@@ -1,8 +1,10 @@
 import type { ButtonHTMLAttributes } from "react";
 
 const VARIANTS = {
-  primary: "bg-accent text-accent-foreground hover:opacity-90",
-  secondary: "bg-accent-soft text-foreground hover:opacity-80",
+  primary:
+    "bg-accent text-accent-foreground border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--shadow-ink)] hover:opacity-90",
+  secondary:
+    "bg-accent-soft text-foreground border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--shadow-ink)] hover:opacity-80",
   ghost: "text-muted hover:text-foreground",
   danger: "text-danger/80 hover:text-danger",
 } as const;
@@ -24,7 +26,7 @@ export default function Button({
 }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     />
   );

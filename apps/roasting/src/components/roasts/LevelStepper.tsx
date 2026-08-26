@@ -17,7 +17,7 @@ export default function LevelStepper({
   pending: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface p-4">
+    <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
         {icon}
         {label}

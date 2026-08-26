@@ -7,7 +7,7 @@ import DropClaimsPanel from "@/components/friends/DropClaimsPanel";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
       <p className="font-mono text-lg font-semibold">{value}</p>
       <p className="text-xs text-muted">{label}</p>
     </div>

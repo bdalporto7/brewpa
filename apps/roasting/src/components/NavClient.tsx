@@ -30,12 +30,14 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
     <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
       <div className="flex items-center gap-3">
         <Link href={mode === "brewing" ? "/brews" : "/"} className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- static local asset, next/image's optimizer fails to decode this specific file */}
-          <img src="/cybar-mark.png" alt="Cybar Coffee" className="h-7 w-auto" />
-          <span className="text-lg font-semibold tracking-tight">Cybar</span>
+          <picture>
+            <source srcSet="/cybar-mark-dark.png" media="(prefers-color-scheme: dark)" />
+            <img src="/cybar-mark.png" alt="Cybar Coffee" className="h-7 w-auto" />
+          </picture>
+          <span className="font-marker text-xl leading-none">Cybar</span>
         </Link>
 
-        <div className="flex items-center rounded-full border border-border bg-surface p-0.5 text-xs font-medium">
+        <div className="flex items-center rounded-full border-2 border-[var(--border-strong)] bg-surface p-0.5 text-xs font-medium">
           <Link
             href="/"
             className={`flex items-center gap-1 rounded-full px-3 py-1 transition ${

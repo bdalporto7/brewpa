@@ -40,14 +40,14 @@ function CuppingNoteCard({ note, roastSessionId }: { note: CuppingNote; roastSes
 
   if (isEditing) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4">
+      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
         <CuppingNoteForm roastSessionId={roastSessionId} note={note} onDone={() => setIsEditing(false)} />
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <p className="text-sm font-medium">{format(note.cuppedAt, "MMM d, yyyy")}</p>
@@ -92,7 +92,7 @@ export default function CuppingTab({
       ))}
 
       {isAdding ? (
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
           <p className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
             <Coffee className="h-3.5 w-3.5" />
             New cupping session

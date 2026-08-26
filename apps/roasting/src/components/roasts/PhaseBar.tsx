@@ -20,7 +20,7 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Roast phases</p>
 
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-border/40">

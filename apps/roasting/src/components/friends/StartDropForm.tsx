@@ -17,7 +17,7 @@ export default function StartDropForm({
 
   if (beans.length === 0 || (lockedBeanId && !lockedBean)) {
     return (
-      <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
+      <p className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4 py-3 text-sm text-muted">
         {lockedBeanId
           ? "No green stock left for this bean."
           : "Add a green bean first — you need stock on hand to open a drop."}
@@ -26,7 +26,7 @@ export default function StartDropForm({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <p className="mb-3 text-sm font-medium">Start a drop</p>
       <ActionForm action={startDrop} onSuccess={onSuccess} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {lockedBean ? (

@@ -34,7 +34,7 @@ export default async function BrewsPage({
         <p className="text-sm text-muted">Your own brew journal — nobody else&apos;s brews show up here.</p>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-4">
+      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
         <p className="mb-3 text-sm font-medium">Log a brew</p>
         <LogBrewForm sessions={sessions} recipes={recipes} defaultRoastSessionId={roastSessionId} />
       </div>

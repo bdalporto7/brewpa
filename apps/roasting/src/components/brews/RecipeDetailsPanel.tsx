@@ -12,7 +12,7 @@ export default function RecipeDetailsPanel({ recipe }: { recipe: Recipe }) {
 
   if (isEditing) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4">
+      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
         <p className="mb-3 text-sm font-medium">Edit recipe</p>
         <RecipeForm recipe={recipe} onSuccess={() => setIsEditing(false)} onCancel={() => setIsEditing(false)} />
       </div>

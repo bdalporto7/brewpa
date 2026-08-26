@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import InventoryCard from "@/components/InventoryCard";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
+import SectionHeading from "@/components/ui/SectionHeading";
 
 export default async function DashboardPage() {
   const [
@@ -103,7 +104,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-border bg-surface p-3">
+          <div key={stat.label} className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
             <p className="font-mono text-lg font-semibold">{stat.value}</p>
             <p className="text-xs text-muted">{stat.label}</p>
           </div>
@@ -111,7 +112,9 @@ export default async function DashboardPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 font-medium">On hand</h2>
+        <div className="mb-3">
+          <SectionHeading>On hand</SectionHeading>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <InventoryCard
             icon={<Sprout className="h-3.5 w-3.5" />}
@@ -142,7 +145,7 @@ export default async function DashboardPage() {
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-medium">Drops</h2>
+          <SectionHeading>Drops</SectionHeading>
           <Link href="/friends" className="text-sm text-muted hover:text-foreground">
             Manage all →
           </Link>
@@ -161,7 +164,7 @@ export default async function DashboardPage() {
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-medium">Recent roasts</h2>
+          <SectionHeading>Recent roasts</SectionHeading>
           <Link href="/roasts" className="text-sm text-muted hover:text-foreground">
             View all →
           </Link>
@@ -184,7 +187,7 @@ export default async function DashboardPage() {
               <Link
                 key={session.id}
                 href={`/roasts/${session.id}`}
-                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-2 text-sm transition hover:border-accent"
+                className="flex items-center justify-between rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4 py-2 text-sm transition hover:border-accent"
               >
                 <span>
                   {session.bean.name}
