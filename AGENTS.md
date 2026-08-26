@@ -14,11 +14,7 @@ app being built.
 ```
 brewpa/
 ├── apps/
-│   └── roasting/        # ACTIVE — see below. Bean inventory + live roast sessions built.
-├── archive/
-│   └── coffee-journal/  # ARCHIVED — full Next.js brew-logging app, not under active
-│                         # development. Kept for reference/reuse (schema, components,
-│                         # UI patterns). Do not build on top of it without asking first.
+│   └── roasting/        # ACTIVE — see below. Roasting + brewing both live here.
 ├── docs/                 # GENERATED — static pages for published roasts, served by GitHub
 │                         # Pages once enabled (Settings → Pages → main /docs). Written by
 │                         # apps/roasting's publishRoast action; don't hand-edit.
@@ -33,11 +29,23 @@ workspaces, turborepo, etc.) is set up yet — add it only when a second active
 app actually shows up and sharing code becomes a real need. Don't build that
 abstraction speculatively.
 
-`archive/coffee-journal` is frozen. It's a working Next.js 15 + React 19 +
-Prisma + SQLite app for logging coffee *brews* (not roasts) — useful as a
-reference for Prisma/Next patterns already proven out in this repo, but not
-part of the active build. If we ever revive it, treat that as a deliberate
-decision, not an incidental side effect of touching shared code.
+There used to be an `archive/coffee-journal` directory — an early, unfinished
+attempt at logging coffee *brews* (not roasts): a flat `CoffeeEntry` model
+with bean details duplicated as free text on every entry (no link to real
+inventory), and a client-fetch-to-REST-API-routes data layer, not Server
+Actions. Checked when brewing was added to `apps/roasting` (2026-08), found
+not worth building on, and deleted at the user's request — the only thing
+salvaged was its `BREW_METHODS`/grind-size option lists (now in
+`apps/roasting/src/lib/constants.ts`). Recoverable from git history
+(`git log --diff-filter=D -- archive/coffee-journal`) if ever needed.
+
+**Future direction, explicitly requested as a TODO rather than built now:**
+renaming `apps/roasting` now that it covers brewing too, not just roasting.
+Touches the directory name, `package.json`'s `name` field, and Vercel's
+Root Directory project setting (getting that setting wrong was a real
+deployment bug before — see `apps/roasting/README.md`'s history notes) —
+cosmetic, not structural, and skipped for now specifically to avoid
+touching that setting without a clear reason.
 
 ## Active app: `apps/roasting`
 

@@ -6,9 +6,7 @@ A monorepo for coffee-related applications.
 
 ```
 apps/
-└── roasting/        Active — a local roasting app built for a Fresh Roast SR800.
-archive/
-└── coffee-journal/  Archived — a brew-logging app, frozen, kept for reference.
+└── roasting/        Active — roasting (built for a Fresh Roast SR800) and brewing.
 ```
 
 Start with [`apps/roasting`](apps/roasting/README.md) — that's where active
