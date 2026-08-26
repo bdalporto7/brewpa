@@ -1,11 +1,14 @@
 # Roasting
 
-A local coffee roasting app built for a **Fresh Roast SR800**: track green
-bean inventory, run a live timer during a roast while logging fan/heat
-changes, temperature readings, and crack markers in real time, review the
-resulting roasting curve, then track roasted coffee as you drop it to
-friends. See the repo-level [AGENTS.md](../../AGENTS.md) for full project
-context, design standards, and build-order rationale.
+A coffee app with two sides: **roasting**, built for a **Fresh Roast
+SR800** (track green bean inventory, run a live timer while logging
+fan/heat changes and crack markers in real time, review the resulting
+roasting curve, then track roasted coffee as you drop it to friends or
+brew it yourself), and **brewing**, a personal brew journal alongside it.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a diagram-first
+overview of how the pieces connect, and the repo-level
+[AGENTS.md](../../AGENTS.md) for full project context, design standards,
+and the reasoning behind specific decisions.
 
 ## Features
 
@@ -105,6 +108,19 @@ context, design standards, and build-order rationale.
   total score only appears once every category is actually filled in —
   a partial entry never gets a misleading number. A roast can be cupped
   more than once (e.g. day-2 vs. day-7 rest), each session its own row.
+- **Brewing** (`/brews`, `/recipes`) — a personal brew journal alongside the
+  roasting side, switchable from a Roasting/Brewing toggle in the nav.
+  Log a brew against either a roast this app tracked (drawing down that
+  session's `roastedRemainingGrams`, same as a roast drop) or a free-text
+  bean name for coffee it never roasted — store-bought, or someone using
+  only the brewing half. Recipes (`/recipes`) are reusable brewing targets
+  (method, dose, water, grind, temp, time) not tied to any one bean;
+  picking one when logging a brew prefills those fields, which you can
+  still adjust — a brew always records what you actually did, not just a
+  reference to the recipe. Unlike everything else in this app, brews are
+  **per-person**: each signed-in user only ever sees their own brew
+  history (recipes are shared), even though the roasted-coffee stock they
+  draw from is one common pool.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
   if a roast is currently running.
 - **Auth** — real per-user login via GitHub or Google (Auth.js /
@@ -254,7 +270,19 @@ section for the full rationale.
 - **AllowedUser** — one row per email allowed to sign in (`callbacks.signIn`
   in `src/auth.ts` checks this table); `isAdmin` controls access to
   `/admin`, where the table is managed. Replaces the old `ALLOWED_EMAILS`
-  env var.
+  env var. Also owns `Brew`s (see below).
+- **Recipe** — a reusable brewing target (method, dose, water, grind,
+  water temp, brew time), not tied to any bean. Ratio isn't stored —
+  cheap to derive from `doseGrams`/`waterGrams` wherever it's shown.
+- **Brew** — one logged brew, owned by an `AllowedUser` (private to them,
+  unlike everything else in this data model). `roastSessionId` is set when
+  it's drawn from this app's own roasted stock (decrementing
+  `roastedRemainingGrams` the same way a `Sale` does, restored on delete);
+  otherwise `beanName` is a free-text fallback for coffee this app never
+  roasted. `recipeId` is only a soft "inspired by" link — method/dose/
+  water/etc. are captured directly on the `Brew` so a log reflects what
+  actually happened, even if it deviated from the recipe or the recipe
+  later changes.
 
 ## How a roast works
 
@@ -365,10 +393,6 @@ after via "Edit details."
 - No merge action for near-duplicate friends (e.g. "Jake" vs. "Jake S.").
 - Nothing here needs serial/USB/Bluetooth hardware access — see AGENTS.md
   for why that's a deliberate choice, not a gap.
-- Drop claims aren't wired to actual fulfillment — marking one "fulfilled"
-  is a manual checkbox, it doesn't auto-create a `Sale` or touch a roast's
-  `roastedRemainingGrams`. Worth building if the two systems' bookkeeping
-  needs to actually reconcile in practice.
 - **Chat-platform integration for Drops** (Discord was the example) — click
   "Start a drop" and have a bot post it to a channel, let people
   react/reply to claim a portion, and have those responses turn into real

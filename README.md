@@ -10,9 +10,11 @@ apps/
 ```
 
 Start with [`apps/roasting`](apps/roasting/README.md) — that's where active
-development is happening. See [AGENTS.md](AGENTS.md) for full project
-context: repo layout rationale, the roasting app's data model, and the
-design standards this project holds itself to.
+development is happening. Its
+[`docs/ARCHITECTURE.md`](apps/roasting/docs/ARCHITECTURE.md) has a
+diagram-first overview (system/deployment shape, data model). See
+[AGENTS.md](AGENTS.md) for full project context: repo layout rationale, and
+the reasoning behind specific design decisions.
 
 ## Quick start
 

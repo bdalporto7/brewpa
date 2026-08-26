@@ -651,6 +651,46 @@ Next dev server. The regenerated Prisma Client on disk doesn't get picked up
 by an already-running process — you'll see `PrismaClientValidationError:
 Unknown field` or similar until you restart.
 
+## Brewing
+
+Added 2026-08 as a second side of the app alongside roasting — `Recipe` and
+`Brew` (see the Data model section in `apps/roasting/README.md` for field
+lists), with two decisions worth understanding before touching this code:
+
+**Brews are per-person, not shared household data.** Every other model in
+this schema (`Bean`, `RoastSession`, `Sale`, `Drop`, ...) is one shared pool
+— there's no concept of "whose" a bean is. `Brew` breaks that pattern
+deliberately: it has a required `userId` (`AllowedUser`), and every
+brew-related Server Action (`src/lib/brew-actions.ts`) either scopes its
+query to the calling user or calls `assertOwnsBrew` before mutating one —
+never just relying on the UI only ever offering your own, since Server
+Actions are directly callable regardless of what's rendered. Why the
+asymmetry: roasting this repo tracks is inherently a shared physical
+event (one person runs the FreshRoast, the resulting bag is shared
+household stock), but what someone personally brews and how they rate it
+is not — two people sharing a roast easily disagree on how they like it
+brewed. `Recipe`s stay shared (no `userId`) since a dialed-in brewing
+method is useful to everyone regardless of who found it.
+
+**A brew can point at real tracked stock, or just a bean name.** Not
+every user of this app's brewing side necessarily uses (or even has
+access to) its roasting side — see "Multi-device / sharing with a friend"
+below for the broader admit-without-full-access shape this anticipates.
+`Brew.roastSessionId` is nullable: set, it decrements that session's
+`roastedRemainingGrams` exactly like `Sale` does (same transaction
+pattern, same restore-on-delete); left null, `Brew.beanName` is a
+free-text fallback for coffee this app never roasted (store-bought, a
+café bag, etc.). `logBrew` requires exactly one of the two, and the
+roast-linked path re-checks stock inside a transaction the same way
+`recordSale`/`startDrop` do, rejecting a brew that would overdraw.
+
+`recipeId` is a soft link, not a source of truth — `doseGrams`/
+`waterGrams`/etc. are captured directly on the `Brew` at log time (and
+prefilled from the recipe client-side when one's picked), not read live
+off the `Recipe` relation, so a past brew's record doesn't silently change
+if its recipe gets edited or deleted later (`onDelete: SetNull` on
+`recipeId`, never cascading the brew itself).
+
 ## Design standards
 
 The single biggest risk for a Claude-built app is that it looks like every
