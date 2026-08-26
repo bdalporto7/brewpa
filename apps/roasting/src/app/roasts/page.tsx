@@ -19,7 +19,7 @@ export default async function RoastsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Roasts</h1>
+        <h1 className="text-4xl font-black tracking-tight">Roasts</h1>
         <p className="text-sm text-muted">Live roast sessions on the SR800, and your roast history.</p>
       </div>
 

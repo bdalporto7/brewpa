@@ -765,12 +765,30 @@ pass — not swept across every page's h2/h1 yet. The leading dot was cut
 after feedback that it didn't read as meaningful ("doesn't serve any
 purpose") — the squiggle underline stayed.
 
-Still open, not built: a distinctive display face for the wordmark
-specifically (Geist stays for the app's actual UI/data — this was scoped
-as a nice-to-have, not done); "quirkier" interactive chrome (buttons,
-nav) that leans into the mascot's playful character rather than just
-border/shadow treatment — raised by the user right as this was being
-implemented, not yet explored.
+**Typeface, decided after trying several live in the app rather than
+guessing from names:** Geist (body/UI everywhere) replaced with
+Bricolage Grotesque — Figtree and Schibsted Grotesk were tried first and
+rejected as "clean but not unique enough." Bricolage's character mostly
+shows at larger sizes/heavier weights, not at small UI text, so page `h1`
+titles went to `text-4xl font-black tracking-tight` (up from `text-xl
+font-semibold`) specifically to let that show — same `text-xl
+font-semibold` string was copy-pasted across ~13 files, swept the same
+way the card className was. `h2`/`SectionHeading` and body text stay at
+their existing weight; only `h1` got the bold treatment so far. The
+`Permanent_Marker` wordmark face is unrelated and unchanged.
+
+**Two "quirky" interaction pieces built, more proposed but not started:**
+buttons now "stamp" — the offset shadow collapses and the button slides
+into it on `:active`, like a rubber stamp meeting paper (`Button.tsx`,
+primary/secondary only, since ghost/danger have no shadow to collapse
+into). `src/app/loading.tsx` is a new root-level Next.js loading file — a
+spinning mascot mark (theme-aware, same `<picture>` swap as the nav)
+instead of a generic spinner, shown automatically during route
+navigation. Proposed but not yet built, waiting on the user: steam
+rising in Roasting mode / water ripples in Brewing mode, mascot
+illustrations in empty states, and real green/roasted/brewed coffee
+iconography replacing the generic Sprout/Coffee lucide icons — the first
+two need new mascot artwork poses we don't have yet, the third doesn't.
 
 ## Conventions
 

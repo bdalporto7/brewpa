@@ -133,7 +133,7 @@ export default async function RoastSessionPage({
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">{session.bean.name}</h1>
+          <h1 className="text-4xl font-black tracking-tight">{session.bean.name}</h1>
           <p className="text-sm text-muted">
             {session.startedAt
               ? format(session.startedAt, "MMM d, yyyy 'at' h:mm a")

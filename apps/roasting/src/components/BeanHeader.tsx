@@ -17,7 +17,7 @@ export default function BeanHeader({ bean }: { bean: Bean }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-xl font-semibold">{bean.name}</h1>
+        <h1 className="text-4xl font-black tracking-tight">{bean.name}</h1>
         <p className="text-sm text-muted">
           {bean.origin}
           {bean.producer ? ` · ${bean.producer}` : ""} · {bean.process}

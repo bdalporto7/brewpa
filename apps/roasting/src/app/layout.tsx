@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Permanent_Marker } from "next/font/google";
+import { Bricolage_Grotesque, Geist_Mono, Permanent_Marker } from "next/font/google";
 import Nav from "@/components/Nav";
 import "./globals.css";
 
-const geistSans = Geist({
+const geistSans = Bricolage_Grotesque({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });

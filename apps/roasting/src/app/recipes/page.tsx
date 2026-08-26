@@ -8,7 +8,7 @@ export default async function RecipesPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Recipes</h1>
+        <h1 className="text-4xl font-black tracking-tight">Recipes</h1>
         <p className="text-sm text-muted">Dial in a method once, reuse it for every brew.</p>
       </div>
 

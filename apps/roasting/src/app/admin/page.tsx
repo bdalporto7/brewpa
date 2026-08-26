@@ -18,7 +18,7 @@ export default async function AdminPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Admin</h1>
+        <h1 className="text-4xl font-black tracking-tight">Admin</h1>
         <p className="text-sm text-muted">Who&apos;s allowed to sign in, and who can manage this list.</p>
       </div>
 

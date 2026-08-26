@@ -59,7 +59,7 @@ export default async function BeansPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Beans</h1>
+        <h1 className="text-4xl font-black tracking-tight">Beans</h1>
         <p className="text-sm text-muted">
           {hasFilters
             ? `Showing ${beans.length} of ${allBeans.length} beans.`

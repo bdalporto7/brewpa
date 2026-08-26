@@ -1,10 +1,13 @@
 import type { ButtonHTMLAttributes } from "react";
 
+// primary/secondary get a "stamp": the offset shadow collapses and the
+// button slides into it on press, like a rubber stamp meeting paper —
+// ghost/danger have no shadow to collapse into, so they stay plain.
+const STAMP = "active:translate-x-[2px] active:translate-y-[2px] active:shadow-none";
+
 const VARIANTS = {
-  primary:
-    "bg-accent text-accent-foreground border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--shadow-ink)] hover:opacity-90",
-  secondary:
-    "bg-accent-soft text-foreground border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--shadow-ink)] hover:opacity-80",
+  primary: `bg-accent text-accent-foreground border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--shadow-ink)] hover:opacity-90 ${STAMP}`,
+  secondary: `bg-accent-soft text-foreground border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--shadow-ink)] hover:opacity-80 ${STAMP}`,
   ghost: "text-muted hover:text-foreground",
   danger: "text-danger/80 hover:text-danger",
 } as const;

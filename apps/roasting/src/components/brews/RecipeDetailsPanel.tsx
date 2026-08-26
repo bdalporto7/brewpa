@@ -22,7 +22,7 @@ export default function RecipeDetailsPanel({ recipe }: { recipe: Recipe }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-xl font-semibold">{recipe.name}</h1>
+        <h1 className="text-4xl font-black tracking-tight">{recipe.name}</h1>
         <p className="text-sm text-muted">
           {recipe.method}
           {recipe.grindSetting && ` · ${recipe.grindSetting}`}

@@ -47,7 +47,7 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-4xl font-black tracking-tight">
             <Link href={`/beans/${drop.bean.id}`} className="hover:text-accent">
               {drop.bean.name}
             </Link>

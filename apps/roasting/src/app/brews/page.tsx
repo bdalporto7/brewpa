@@ -30,7 +30,7 @@ export default async function BrewsPage({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Brews</h1>
+        <h1 className="text-4xl font-black tracking-tight">Brews</h1>
         <p className="text-sm text-muted">Your own brew journal — nobody else&apos;s brews show up here.</p>
       </div>
 

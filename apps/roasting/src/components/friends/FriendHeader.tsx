@@ -17,7 +17,7 @@ export default function FriendHeader({ friend }: { friend: Friend }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-xl font-semibold">{friend.name}</h1>
+        <h1 className="text-4xl font-black tracking-tight">{friend.name}</h1>
         <p className="text-sm text-muted">Every drop this friend has gotten, across every roast.</p>
         {friend.notes && <p className="mt-1 text-sm text-foreground/80">{friend.notes}</p>}
       </div>

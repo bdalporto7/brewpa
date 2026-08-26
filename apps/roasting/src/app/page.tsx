@@ -98,7 +98,7 @@ export default async function DashboardPage() {
       )}
 
       <div>
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <h1 className="text-4xl font-black tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted">Your roasting activity at a glance.</p>
       </div>
 

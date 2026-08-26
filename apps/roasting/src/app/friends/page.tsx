@@ -20,7 +20,7 @@ export default async function FriendsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Drops</h1>
+        <h1 className="text-4xl font-black tracking-tight">Drops</h1>
         <p className="text-sm text-muted">
           Open up green coffee for friends to claim, first-come-first-serve, plus everyone who&apos;s
           ever gotten a drop.
