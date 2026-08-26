@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { Flame } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
 import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
+import SteamWisp from "@/components/ui/SteamWisp";
+import WaterPour from "@/components/ui/WaterPour";
 
 const ROASTING_LINKS = [
   { href: "/", label: "Dashboard" },
@@ -45,7 +47,12 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
               mode === "roasting" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
             }`}
           >
-            <Flame className="h-3.5 w-3.5" />
+            <span className="relative inline-flex">
+              <Flame className="h-3.5 w-3.5" />
+              {mode === "roasting" && (
+                <SteamWisp className="pointer-events-none absolute -top-2.5 left-0 h-2.5 w-3.5" />
+              )}
+            </span>
             Roasting
           </Link>
           <Link
@@ -54,7 +61,12 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
               mode === "brewing" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
             }`}
           >
-            <BrewedCupIcon className="h-3.5 w-3.5" />
+            <span className="relative inline-flex">
+              <BrewedCupIcon className="h-3.5 w-3.5" />
+              {mode === "brewing" && (
+                <WaterPour className="pointer-events-none absolute -top-2.5 left-0.5 h-2.5 w-3.5" />
+              )}
+            </span>
             Brewing
           </Link>
         </div>

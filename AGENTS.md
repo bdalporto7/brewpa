@@ -799,9 +799,31 @@ banner once a roast is actually live (not during pending setup); the
 ripple sits by the "Brews" h1 unconditionally, since brewing has no
 live/pending state to gate on the way roasting does.
 
-Still not built: mascot illustrations in empty states — needs new mascot
-artwork poses that don't exist yet, unlike the icons/motifs above which
-used only existing assets and CSS.
+**Hard boundary, not a scoping choice: the mascot artwork itself is
+off-limits.** It was drawn by a friend of the user's, not generated —
+the user was explicit that they don't want it AI-modified or extended
+(new poses, expressions, tracing-then-editing it into something new),
+full stop; commissioning the artist directly is the path for anything
+beyond what already exists. This was learned the hard way mid-session:
+a real attempt was made to vectorize the mark (via `potrace`, installed
+for this) to build new derived expressions for empty states before the
+user caught it and asked to stop. Fine to keep doing: recoloring the
+existing art (already established — Cardboard Brown vs. cream vs. the
+white-on-brown badge), resizing it, animating its existing form as a
+whole (the loading spinner spins the unmodified mark inside a circular
+frame), or placing it in new containers. Not fine, ever, without the
+user separately opening the door to it again: tracing/editing its linework,
+compositing new poses from its parts, or generating new "in the style of"
+mascot art.
+
+Motion motifs stay separate from the mascot for this reason — `SteamWisp`/
+`WaterPour`/`WaterRipple` (`src/components/ui/`) are all original,
+simple SVG shapes with CSS keyframe animations (`steam-rise`, `drop-fall`,
+`ripple-out` in `globals.css`), not anything derived from the logo. Wired
+into `NavClient.tsx`'s mode-switcher pills — steam above the Flame icon
+whenever Roasting is the active mode, falling droplets above the cup icon
+whenever Brewing is — plus the existing dashboard active-roast-banner
+steam and Brews-page ripple from the same building blocks.
 
 ## Conventions
 

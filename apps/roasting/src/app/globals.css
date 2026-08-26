@@ -159,3 +159,23 @@ body {
   animation: ripple-out 2.4s ease-out infinite;
   transform-origin: center;
 }
+
+@keyframes drop-fall {
+  0% {
+    transform: translateY(-2px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(11px);
+    opacity: 0;
+  }
+}
+.drop-fall {
+  animation: drop-fall 1.3s ease-in infinite;
+}
