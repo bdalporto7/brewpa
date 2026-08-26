@@ -20,6 +20,24 @@ export const PROCESSES = [
 
 export type Process = (typeof PROCESSES)[number];
 
+// Adapted from archive/coffee-journal's BREW_METHODS list.
+export const BREW_METHODS = [
+  "Espresso",
+  "Pour Over",
+  "V60",
+  "Chemex",
+  "Kalita",
+  "AeroPress",
+  "French Press",
+  "Moka Pot",
+  "Cold Brew",
+  "Drip",
+  "Siphon",
+  "Other",
+] as const;
+
+export type BrewMethod = (typeof BREW_METHODS)[number];
+
 // The SR800 dials run roughly 1 (low) to 9 (high) for both fan and heat.
 export const SR800_LEVEL_MIN = 1;
 export const SR800_LEVEL_MAX = 9;

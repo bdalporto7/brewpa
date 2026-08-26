@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
 import { Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { deleteRoastSession } from "@/lib/actions";
+import { getCurrentAllowedUser } from "@/lib/admin";
+import BrewCard from "@/components/brews/BrewCard";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
 import { computeHistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
@@ -46,6 +49,9 @@ export default async function RoastSessionPage({
   const { id } = await params;
   const { tab } = await searchParams;
   const activeTab = tab === "cupping" ? "cupping" : "roast";
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   const [session, friends] = await Promise.all([
     prisma.roastSession.findUnique({
       where: { id },
@@ -55,6 +61,11 @@ export default async function RoastSessionPage({
         sales: { orderBy: { soldAt: "desc" }, include: { friend: true } },
         cuppingNotes: { orderBy: { cuppedAt: "desc" } },
         temperatureReadings: { orderBy: { atSeconds: "asc" } },
+        brews: {
+          where: { userId: user.id },
+          orderBy: { brewedAt: "desc" },
+          include: { roastSession: { include: { bean: true } } },
+        },
       },
     }),
     prisma.friend.findMany({ orderBy: { name: "asc" } }),
@@ -256,6 +267,23 @@ export default async function RoastSessionPage({
               friends={friends}
             />
           )}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-medium">Your brews</h2>
+              <Link href={`/brews?roastSessionId=${session.id}`} className="text-sm text-muted hover:text-foreground">
+                Log a brew from this roast →
+              </Link>
+            </div>
+            {session.brews.length === 0 ? (
+              <p className="text-sm text-muted">You haven&apos;t brewed this roast yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {session.brews.map((brew) => (
+                  <BrewCard key={brew.id} brew={brew} />
+                ))}
+              </div>
+            )}
+          </div>
           <div className="rounded-lg border border-border bg-surface p-4">
             <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Add event</p>
             <AddEventForm roastSessionId={session.id} />

@@ -41,6 +41,8 @@ model Bean {
 
   roastSessions RoastSession[] @relation("BeanRoasts")
   drops         Drop[]
+  // Brews live on RoastSession, not here, since roasted stock (what a brew
+  // actually draws down) is tracked per roast, not per bean — see Brew.
 
   @@index([origin])
   @@index([createdAt])
@@ -66,6 +68,7 @@ model RoastSession {
   sales               Sale[]
   cuppingNotes        CuppingNote[]
   temperatureReadings TemperatureReading[]
+  brews               Brew[]
 
   goldenForBean Bean? @relation("BeanGoldenRoast")
 
@@ -242,4 +245,67 @@ model AllowedUser {
   email     String   @unique
   isAdmin   Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  brews Brew[]
+}
+
+// A reusable brewing target — not tied to a bean, so the same "V60 4:6"
+// recipe can be dialed in once and reused across whatever coffee's on
+// hand. Ratio is deliberately not stored; it's cheap to derive from
+// doseGrams/waterGrams wherever it's shown.
+model Recipe {
+  id              String   @id @default(cuid())
+  name            String
+  method          String
+  doseGrams       Float
+  waterGrams      Float
+  grindSetting    String?
+  waterTempF      Float?
+  brewTimeSeconds Int?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  brews Brew[]
+
+  @@index([method])
+}
+
+// One actual brew. roastSessionId is optional — set when it's drawn from
+// this app's own tracked roasted stock (decrementing roastedRemainingGrams
+// the same way a Sale does), left null with a free-text beanName when it's
+// coffee this app never roasted (store-bought, or someone using only the
+// brewing side of the app). method/dose/water/etc. are captured directly
+// on the Brew (not just read off recipe) so a log reflects what you
+// actually did, even if you deviated from the recipe or the recipe gets
+// edited/deleted later. recipeId is only a soft "inspired by" link.
+model Brew {
+  id             String        @id @default(cuid())
+  roastSessionId String?
+  roastSession   RoastSession? @relation(fields: [roastSessionId], references: [id], onDelete: SetNull)
+  beanName       String?
+  recipeId       String?
+  recipe         Recipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  // A brew is one person's journal entry, not shared household data like
+  // Bean/RoastSession are — each signed-in user only ever sees their own.
+  // Stock (roastedRemainingGrams) is still one shared pool, though: several
+  // people can brew from the same bag, they just don't see each other's logs.
+  userId String
+  user   AllowedUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  method          String
+  doseGrams       Float
+  waterGrams      Float
+  grindSetting    String?
+  waterTempF      Float?
+  brewTimeSeconds Int?
+  rating          Int?
+  notes           String?
+  brewedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([roastSessionId])
+  @@index([recipeId])
+  @@index([userId])
 }

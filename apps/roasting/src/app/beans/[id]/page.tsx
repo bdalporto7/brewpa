@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import BeanHeader from "@/components/BeanHeader";
 import BeanStockBar from "@/components/BeanStockBar";
 import BeanMeta from "@/components/BeanMeta";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
+import BrewCard from "@/components/brews/BrewCard";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -18,21 +21,30 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const bean = await prisma.bean.findUnique({
-    where: { id },
-    include: {
-      roastSessions: {
-        include: { bean: true },
-        orderBy: { startedAt: "desc" },
+  const [bean, user] = await Promise.all([
+    prisma.bean.findUnique({
+      where: { id },
+      include: {
+        roastSessions: {
+          include: { bean: true },
+          orderBy: { startedAt: "desc" },
+        },
+        drops: {
+          include: { bean: true, claims: true },
+          orderBy: { createdAt: "desc" },
+        },
       },
-      drops: {
-        include: { bean: true, claims: true },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
+    }),
+    getCurrentAllowedUser(),
+  ]);
 
-  if (!bean) notFound();
+  if (!bean || !user) notFound();
+
+  const brews = await prisma.brew.findMany({
+    where: { userId: user.id, roastSession: { beanId: bean.id } },
+    orderBy: { brewedAt: "desc" },
+    include: { roastSession: { include: { bean: true } } },
+  });
 
   const completed = bean.roastSessions.filter((s) => s.endedAt != null);
   const roastedTotal = completed.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0);
@@ -70,6 +82,24 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           </div>
         )}
         <StartDropToggle beans={bean.remainingGrams > 0 ? [bean] : []} lockedBeanId={bean.id} />
+      </div>
+
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium">Your brews</h2>
+          <Link href="/brews" className="text-sm text-muted hover:text-foreground">
+            Log a brew →
+          </Link>
+        </div>
+        {brews.length === 0 ? (
+          <p className="text-sm text-muted">You haven&apos;t brewed this coffee yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {brews.map((brew) => (
+              <BrewCard key={brew.id} brew={brew} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
