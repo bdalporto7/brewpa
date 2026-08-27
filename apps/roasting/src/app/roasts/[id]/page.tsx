@@ -30,8 +30,10 @@ import AddEventForm from "@/components/roasts/AddEventForm";
 import CuppingTab from "@/components/roasts/CuppingTab";
 import DeleteButton from "@/components/DeleteButton";
 import BeanBurst from "@/components/ui/BeanBurst";
+import RatingBeans from "@/components/ui/RatingBeans";
+import type { ReactNode } from "react";
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
       <p className="font-mono text-lg font-semibold">{value}</p>
@@ -251,7 +253,10 @@ export default async function RoastSessionPage({
             <Stat label="Duration" value={formatMMSS(durationSeconds ?? 0)} />
             <Stat label="Roast level" value={session.roastLevel ?? "—"} />
             <Stat label="Weight loss" value={weightLoss != null ? `${weightLoss.toFixed(1)}%` : "—"} />
-            <Stat label="Rating" value={session.rating != null ? "★".repeat(session.rating) : "—"} />
+            <Stat
+              label="Rating"
+              value={session.rating != null ? <RatingBeans rating={session.rating} /> : "—"}
+            />
             <Stat
               label="Roasted on hand"
               value={

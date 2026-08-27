@@ -22,7 +22,13 @@ export default function DropCard({ drop }: { drop: Drop & { bean: Bean; claims: 
           {claimed}g / {total}g claimed · {drop.claims.length} {drop.claims.length === 1 ? "claim" : "claims"}
         </p>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+          <div
+            className="pour-fill h-full rounded-full bg-accent"
+            style={
+              // @ts-expect-error -- custom property consumed by the pour-fill keyframe
+              { "--fill-width": `${percent}%` }
+            }
+          />
         </div>
         {!isClosed && remaining > 0 && <p className="mt-1.5 text-xs text-muted">{remaining}g left</p>}
       </div>

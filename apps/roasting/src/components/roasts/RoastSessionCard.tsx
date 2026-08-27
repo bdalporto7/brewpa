@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
+import RatingBeans from "@/components/ui/RatingBeans";
 import type { Bean, RoastSession } from "@prisma/client";
 
 export default function RoastSessionCard({
@@ -40,12 +41,7 @@ export default function RoastSessionCard({
               {weightLoss != null && ` (${weightLoss.toFixed(1)}% loss)`}
             </p>
           </div>
-          {session.rating != null && (
-            <span className="shrink-0 font-mono text-sm text-accent">
-              {"★".repeat(session.rating)}
-              {"☆".repeat(5 - session.rating)}
-            </span>
-          )}
+          {session.rating != null && <RatingBeans rating={session.rating} max={5} className="shrink-0" />}
         </div>
 
         {roastedPercentLeft != null && (
@@ -56,8 +52,11 @@ export default function RoastSessionCard({
             </div>
             <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
               <div
-                className="h-full rounded-full bg-accent"
-                style={{ width: `${Math.max(0, Math.min(100, roastedPercentLeft))}%` }}
+                className="pour-fill h-full rounded-full bg-accent"
+                style={
+                  // @ts-expect-error -- custom property consumed by the pour-fill keyframe
+                  { "--fill-width": `${Math.max(0, Math.min(100, roastedPercentLeft))}%` }
+                }
               />
             </div>
           </div>

@@ -192,3 +192,19 @@ body {
     opacity: 0;
   }
 }
+
+/* Stock/progress bars "pour" in on mount instead of appearing at full width
+   — --fill-width is set per instance (see BeanStockBar.tsx and friends).
+   `both` holds the 0% start state before the animation starts and the
+   final width after, so there's no flash of the un-animated full width. */
+@keyframes pour-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: var(--fill-width);
+  }
+}
+.pour-fill {
+  animation: pour-fill 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

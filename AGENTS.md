@@ -854,6 +854,26 @@ most of the clickable list-item cards (`BeanCard`, `RoastSessionCard`,
 `DropCard.tsx` is the one exception still using the inline className
 directly instead of `<Card>`, patched separately to match.
 
+**A second pass added three more:** `RatingBeans.tsx` replaces
+`"★".repeat(n)`/`"☆".repeat(5-n)` roast-rating text with actual
+`RoastedBeanIcon`s — same n-filled(-of-max) semantics, just icons
+instead of characters. Two call sites use it (`RoastSessionCard.tsx`,
+the Rating `Stat` on `roasts/[id]/page.tsx`, which needed its `value`
+prop widened from `string` to `ReactNode`); the two remaining `★`
+usages (`RoastDetailsForm.tsx`/`LogPastRoastForm.tsx`) are inside
+`<option>` elements and can't hold rich markup, so they stay text, and
+`publish.ts`'s static-export table also stays text (a generated
+document, not live UI). Stock/progress bars (`BeanStockBar`,
+`BeanRoastedSummaryCard`, `RoastSessionCard`, `DropCard`, and
+`PhaseBar`'s segments) now "pour" in from 0% on mount via a shared
+`.pour-fill`/`pour-fill` keyframe reading a per-instance `--fill-width`
+custom property, rather than appearing at full width — `PhaseBar`'s four
+segments stagger by 0.15s each so they visibly fill left-to-right,
+echoing the phases actually happening in sequence. `BrewCard.tsx` and
+`RecipeCard.tsx` both gained a small `BrewedCupIcon` + `SteamWisp`
+next to their title, matching the nav pill's steam treatment (explicit
+`text-foreground` on the wisp, not inherited — see above).
+
 ## Conventions
 
 - TypeScript everywhere, no exceptions, no `any` without a comment explaining why.

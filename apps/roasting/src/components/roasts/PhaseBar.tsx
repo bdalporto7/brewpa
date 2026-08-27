@@ -25,9 +25,20 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
 
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-border/40">
         {SEGMENTS.map(
-          (s) =>
+          (s, i) =>
             phases[s.key] != null && (
-              <div key={s.key} className={s.className} style={{ width: `${phases[s.key]}%` }} />
+              <div
+                key={s.key}
+                className={`pour-fill ${s.className}`}
+                style={
+                  {
+                    // @ts-expect-error -- custom property consumed by the pour-fill keyframe
+                    "--fill-width": `${phases[s.key]}%`,
+                    // staggered left-to-right, echoing the phases actually happening in sequence
+                    animationDelay: `${i * 0.15}s`,
+                  }
+                }
+              />
             )
         )}
       </div>

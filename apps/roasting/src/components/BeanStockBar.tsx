@@ -22,8 +22,11 @@ export default function BeanStockBar({ bean }: { bean: Bean }) {
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
         <div
-          className={`h-full rounded-full ${isLow ? "bg-warning" : "bg-accent"}`}
-          style={{ width: `${Math.max(0, Math.min(100, percentLeft))}%` }}
+          className={`pour-fill h-full rounded-full ${isLow ? "bg-warning" : "bg-accent"}`}
+          style={
+            // @ts-expect-error -- custom property consumed by the pour-fill keyframe
+            { "--fill-width": `${Math.max(0, Math.min(100, percentLeft))}%` }
+          }
         />
       </div>
     </div>
