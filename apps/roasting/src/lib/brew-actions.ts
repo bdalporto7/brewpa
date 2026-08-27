@@ -70,6 +70,12 @@ export async function deleteRecipe(id: string) {
   redirect("/recipes");
 }
 
+export async function toggleRecipeFavorite(id: string, isFavorite: boolean) {
+  await prisma.recipe.update({ where: { id }, data: { isFavorite } });
+  revalidatePath("/recipes");
+  revalidatePath(`/recipes/${id}`);
+}
+
 function brewFields(formData: FormData) {
   const method = str(formData, "method");
   const doseGrams = num(formData, "doseGrams");

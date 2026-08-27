@@ -263,6 +263,7 @@ model Recipe {
   waterTempF      Float?
   brewTimeSeconds Int?
   notes           String?
+  isFavorite      Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

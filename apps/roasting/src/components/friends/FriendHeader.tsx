@@ -1,17 +1,59 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
-import { deleteFriend } from "@/lib/actions";
+import { Pencil, Merge } from "lucide-react";
+import { deleteFriend, mergeFriend } from "@/lib/actions";
 import DeleteButton from "@/components/DeleteButton";
 import FriendEditForm from "@/components/friends/FriendEditForm";
+import ActionForm from "@/components/ActionForm";
+import Button from "@/components/ui/Button";
+import { SelectField } from "@/components/ui/Field";
 import type { Friend } from "@prisma/client";
 
-export default function FriendHeader({ friend }: { friend: Friend }) {
+function MergeForm({ friend, otherFriends, onDone }: { friend: Friend; otherFriends: Friend[]; onDone: () => void }) {
+  return (
+    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <p className="mb-1 text-sm font-medium">Merge {friend.name} into…</p>
+      <p className="mb-3 text-xs text-muted">
+        Every drop {friend.name} has ever gotten moves to whoever you pick, then {friend.name} is deleted. Can&apos;t
+        be undone.
+      </p>
+      <ActionForm
+        action={mergeFriend.bind(null, friend.id)}
+        successMessage={null}
+        className="flex flex-wrap items-end gap-3"
+      >
+        <SelectField label="Merge into" name="targetId" required defaultValue="">
+          <option value="" disabled>
+            Select a friend
+          </option>
+          {otherFriends.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </SelectField>
+        <Button type="submit" variant="danger" size="sm">
+          Merge
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onDone}>
+          Cancel
+        </Button>
+      </ActionForm>
+    </div>
+  );
+}
+
+export default function FriendHeader({ friend, otherFriends }: { friend: Friend; otherFriends: Friend[] }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
 
   if (isEditing) {
     return <FriendEditForm friend={friend} onDone={() => setIsEditing(false)} />;
+  }
+
+  if (isMerging) {
+    return <MergeForm friend={friend} otherFriends={otherFriends} onDone={() => setIsMerging(false)} />;
   }
 
   return (
@@ -29,6 +71,15 @@ export default function FriendHeader({ friend }: { friend: Friend }) {
         >
           <Pencil className="h-3 w-3" /> Edit
         </button>
+        {otherFriends.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsMerging(true)}
+            className="flex items-center gap-1 text-xs font-medium text-muted transition hover:text-foreground"
+          >
+            <Merge className="h-3 w-3" /> Merge
+          </button>
+        )}
         <DeleteButton
           action={deleteFriend.bind(null, friend.id)}
           confirmText={`Delete ${friend.name}? Their past drops stay on each roast but will show as anonymous.`}

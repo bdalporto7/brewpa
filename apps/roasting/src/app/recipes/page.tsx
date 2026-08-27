@@ -3,7 +3,7 @@ import RecipeForm from "@/components/brews/RecipeForm";
 import RecipeCard from "@/components/brews/RecipeCard";
 
 export default async function RecipesPage() {
-  const recipes = await prisma.recipe.findMany({ orderBy: { name: "asc" } });
+  const recipes = await prisma.recipe.findMany({ orderBy: [{ isFavorite: "desc" }, { name: "asc" }] });
 
   return (
     <div className="flex flex-col gap-8">

@@ -16,19 +16,22 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export default async function FriendPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const friend = await prisma.friend.findUnique({
-    where: { id },
-    include: {
-      sales: {
-        orderBy: { soldAt: "desc" },
-        include: { roastSession: { include: { bean: true } } },
+  const [friend, otherFriends] = await Promise.all([
+    prisma.friend.findUnique({
+      where: { id },
+      include: {
+        sales: {
+          orderBy: { soldAt: "desc" },
+          include: { roastSession: { include: { bean: true } } },
+        },
+        dropClaims: {
+          orderBy: { claimedAt: "desc" },
+          include: { drop: { include: { bean: true } } },
+        },
       },
-      dropClaims: {
-        orderBy: { claimedAt: "desc" },
-        include: { drop: { include: { bean: true } } },
-      },
-    },
-  });
+    }),
+    prisma.friend.findMany({ where: { id: { not: id } }, orderBy: { name: "asc" } }),
+  ]);
 
   if (!friend) notFound();
 
@@ -37,7 +40,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="flex flex-col gap-6">
-      <FriendHeader friend={friend} />
+      <FriendHeader friend={friend} otherFriends={otherFriends} />
 
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Roast drops" value={String(friend.sales.length)} />

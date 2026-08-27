@@ -5,6 +5,7 @@ import { deleteRecipe } from "@/lib/brew-actions";
 import DeleteButton from "@/components/DeleteButton";
 import Button from "@/components/ui/Button";
 import RecipeForm from "@/components/brews/RecipeForm";
+import RecipeFavoriteToggle from "@/components/brews/RecipeFavoriteToggle";
 import type { Recipe } from "@prisma/client";
 
 export default function RecipeDetailsPanel({ recipe }: { recipe: Recipe }) {
@@ -22,7 +23,10 @@ export default function RecipeDetailsPanel({ recipe }: { recipe: Recipe }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-4xl font-black tracking-tight">{recipe.name}</h1>
+        <h1 className="flex items-center gap-2.5 text-4xl font-black tracking-tight">
+          {recipe.name}
+          <RecipeFavoriteToggle recipeId={recipe.id} isFavorite={recipe.isFavorite} className="h-7 w-7" />
+        </h1>
         <p className="text-sm text-muted">
           {recipe.method}
           {recipe.grindSetting && ` · ${recipe.grindSetting}`}

@@ -10,6 +10,10 @@ import SteamWisp from "@/components/ui/SteamWisp";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
+import LowStockBanner from "@/components/LowStockBanner";
+
+// Same threshold BeanStockBar/BeanRoastedSummaryCard already use for their own "isLow" styling.
+const LOW_STOCK_PERCENT = 15;
 
 export default async function DashboardPage() {
   // Down from 8 separate queries to 5. Measured (not assumed): Turso/the
@@ -73,6 +77,17 @@ export default async function DashboardPage() {
     .sort((a, b) => b.remainingGrams - a.remainingGrams);
   const roastedTotal = round1(roastedByBean.reduce((sum, r) => sum + r.remainingGrams, 0));
 
+  const lowGreenBeans = beansWithRoasts.filter(
+    (b) => b.remainingGrams > 0 && (b.remainingGrams / b.weightGrams) * 100 <= LOW_STOCK_PERCENT
+  );
+  const lowRoastedSessions = endedSessions.filter(
+    (s) =>
+      s.roastedWeightGrams != null &&
+      s.roastedRemainingGrams != null &&
+      s.roastedRemainingGrams > 0 &&
+      (s.roastedRemainingGrams / s.roastedWeightGrams) * 100 <= LOW_STOCK_PERCENT
+  );
+
   const stats = [
     { label: "Beans in inventory", value: String(beanCount) },
     { label: "Total roasts", value: String(endedSessions.length) },
@@ -105,6 +120,8 @@ export default async function DashboardPage() {
         <h1 className="text-4xl font-black tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted">Your roasting activity at a glance.</p>
       </div>
+
+      <LowStockBanner lowGreenBeans={lowGreenBeans} lowRoastedSessions={lowRoastedSessions} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {stats.map((stat) => (

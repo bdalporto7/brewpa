@@ -701,6 +701,32 @@ export async function deleteFriend(id: string) {
 }
 
 /**
+ * Folds one friend's history into another (e.g. "Jake" typed once as
+ * "Jake S." elsewhere) — reassigns every Sale/DropClaim from source to
+ * target, then deletes source. Target keeps its own id/notes; nothing
+ * about the target friend changes except now owning source's history too.
+ */
+export async function mergeFriend(sourceId: string, formData: FormData) {
+  const targetId = str(formData, "targetId");
+  if (!targetId) {
+    throw new Error("Pick who to merge into.");
+  }
+  if (sourceId === targetId) {
+    throw new Error("Can't merge a friend into themselves.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.sale.updateMany({ where: { friendId: sourceId }, data: { friendId: targetId } });
+    await tx.dropClaim.updateMany({ where: { friendId: sourceId }, data: { friendId: targetId } });
+    await tx.friend.delete({ where: { id: sourceId } });
+  });
+
+  revalidatePath("/friends");
+  revalidatePath(`/friends/${targetId}`);
+  redirect(`/friends/${targetId}`);
+}
+
+/**
  * A green-coffee group buy: reserve totalGrams out of a bean's stock (same
  * "decrement at commitment time" pattern as startRoast) and open it up for
  * friends to claim portions of. See the Drop model's own doc comment for

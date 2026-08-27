@@ -122,9 +122,13 @@ and the reasoning behind specific decisions.
   reference to the recipe. Unlike everything else in this app, brews are
   **per-person**: each signed-in user only ever sees their own brew
   history (recipes are shared), even though the roasted-coffee stock they
-  draw from is one common pool.
+  draw from is one common pool. Star a recipe to pin it to the top of
+  `/recipes`, ahead of everything else alphabetically.
 - **Dashboard** (`/`) — stats at a glance, or the live timer front-and-center
-  if a roast is currently running.
+  if a roast is currently running. A "Running low" banner surfaces any
+  bean or completed roast at 15% or less of its stock (the same threshold
+  the stock bars themselves use to turn amber) — no new query, just the
+  data the dashboard already fetches.
 - **Auth** — real per-user login via GitHub or Google (Auth.js /
   `next-auth`, `src/auth.ts`), gated to an allowlist of emails (the
   `AllowedUser` table) rather than open sign-up — OAuth proves who someone
@@ -250,8 +254,9 @@ section for the full rationale.
   a roast drop's or a claim's "Friend" field; `/friends/[id]` shows their
   full history across both. Editable (name/notes) and deletable — deleting
   doesn't touch their past sales/claims, it just un-links them (shown as
-  anonymous where they came from). No merge action for near-duplicate
-  friends yet — see AGENTS.md.
+  anonymous where they came from). Also mergeable — pick another friend on
+  their page to fold a near-duplicate (e.g. "Jake" typed once as "Jake S.")
+  into it: every sale/claim moves over, then the duplicate is deleted.
 - **CuppingNote** — one formal tasting of a roasted coffee, on the
   `/roasts/[id]` "Cupping" tab. A roast can have several (`cuppedAt` per
   session). Every score field is nullable; `computeCuppingTotal`
@@ -276,6 +281,7 @@ section for the full rationale.
 - **Recipe** — a reusable brewing target (method, dose, water, grind,
   water temp, brew time), not tied to any bean. Ratio isn't stored —
   cheap to derive from `doseGrams`/`waterGrams` wherever it's shown.
+  `isFavorite` pins it above the rest of `/recipes`.
 - **Brew** — one logged brew, owned by an `AllowedUser` (private to them,
   unlike everything else in this data model). `roastSessionId` is set when
   it's drawn from this app's own roasted stock (decrementing
@@ -392,7 +398,6 @@ after via "Edit details."
 
 ## Not built yet
 
-- No merge action for near-duplicate friends (e.g. "Jake" vs. "Jake S.").
 - Nothing here needs serial/USB/Bluetooth hardware access — see AGENTS.md
   for why that's a deliberate choice, not a gap.
 - **Chat-platform integration for Drops** (Discord was the example) — click

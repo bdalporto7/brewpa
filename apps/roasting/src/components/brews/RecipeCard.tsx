@@ -2,6 +2,7 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
 import SteamWisp from "@/components/ui/SteamWisp";
+import RecipeFavoriteToggle from "@/components/brews/RecipeFavoriteToggle";
 import type { Recipe } from "@prisma/client";
 
 export default function RecipeCard({ recipe }: { recipe: Recipe }) {
@@ -18,7 +19,10 @@ export default function RecipeCard({ recipe }: { recipe: Recipe }) {
             </span>
             {recipe.name}
           </h3>
-          <span className="text-xs text-muted">{recipe.method}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted">{recipe.method}</span>
+            <RecipeFavoriteToggle recipeId={recipe.id} isFavorite={recipe.isFavorite} />
+          </div>
         </div>
         <p className="mt-1 font-mono text-xs text-muted">
           {recipe.doseGrams}g : {recipe.waterGrams}g · 1:{ratio}
