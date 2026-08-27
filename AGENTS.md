@@ -498,7 +498,30 @@ slim, muted status strip and the user asked for it louder — glancing over
 from across the room while watching the physical roaster is the actual use
 case, not confirming-on-close-inspection that it's still there — so it's now
 a solid `bg-accent` band with large bold digits, closer to an alert banner
-than nav chrome. `RoastPlanCard.tsx`
+than nav chrome.
+
+The pinned bar later gained its own compact fan/heat steppers and a temp-
+reading mini-form (`MiniStepper`/`MiniTempForm`, both local to
+`LiveTimerBar.tsx`) — after moving `EventLogPanel` up next to the hero timer
+fixed one scroll-distance problem, the user pointed out a second one: scroll
+further down (chart, tips, plan) and you're right back to no reachable
+controls. The explicit constraint was "don't make the bar taller, shrink the
+new stuff instead" — met by keeping the pinned timer's own text a size step
+down from the hero's (`text-6xl sm:text-7xl` vs. the hero's `text-7xl
+sm:text-8xl`) and laying the console out in two short rows (steppers, then
+temp form) beside it in a single flex row, so the console's height stays
+under the timer's and the bar's overall height is governed by the timer
+exactly as before. Because two independent controls (this bar's and
+`EventLogPanel`'s) now write to the same fan/heat server state, each held in
+its own `useState`, they could drift — bump fan here, then find the old
+value still showing in the other one after scrolling to it. Fixed with
+`useServerSyncedState` (`src/lib/useServerSyncedState.ts`): resets local
+state to the latest server-passed prop **during render**, not in a
+`useEffect` — the render-time-adjustment pattern React's own docs recommend
+for this, and the only one that doesn't trip Turbopack's
+`react-hooks/set-state-in-effect` lint rule (a first attempt using
+`useEffect(() => setLevel(initial), [initial])` in both components hit
+exactly that error). `RoastPlanCard.tsx`
 puts `RoastSession.notes` — the same field `RoastDetailsForm` edits after a
 roast ends — in front of the roaster *before* and *during* a roast too, via
 a new standalone action (`updateRoastNotes`, no completed-roast gate, unlike

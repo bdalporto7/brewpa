@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useTransition } from "react";
 import { Fan, Flame, Thermometer, Check } from "lucide-react";
 import { logEvent } from "@/lib/actions";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
+import { useServerSyncedState } from "@/lib/useServerSyncedState";
 import { EVENT_LABELS, type EventType } from "@/lib/constants";
 import Button from "@/components/ui/Button";
 import LevelStepper from "@/components/roasts/LevelStepper";
@@ -32,8 +33,10 @@ export default function EventLogPanel({
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const [isPending, startTransition] = useTransition();
-  const [fanLevel, setFanLevel] = useState(initialFanLevel);
-  const [heatLevel, setHeatLevel] = useState(initialHeatLevel);
+  // The pinned LiveTimerBar has its own fan/heat steppers now, against the
+  // same server state — useServerSyncedState keeps the two from drifting.
+  const [fanLevel, setFanLevel] = useServerSyncedState(initialFanLevel);
+  const [heatLevel, setHeatLevel] = useServerSyncedState(initialHeatLevel);
   const tempInputRef = useRef<HTMLInputElement>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
 

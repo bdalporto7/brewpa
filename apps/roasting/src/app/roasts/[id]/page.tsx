@@ -214,7 +214,13 @@ export default async function RoastSessionPage({
 
       {isLive && (
         <>
-          <LiveTimerBar startedAt={session.startedAt!.toISOString()} beanName={session.bean.name} />
+          <LiveTimerBar
+            startedAt={session.startedAt!.toISOString()}
+            beanName={session.bean.name}
+            roastSessionId={session.id}
+            initialFanLevel={latestFan?.fanLevel ?? 5}
+            initialHeatLevel={latestHeat?.heatLevel ?? 5}
+          />
           <LiveProbePanel roastSessionId={session.id} />
           {/* Controls you touch every 10-30s (fan/heat, temp, milestones) come
               right after the timer/probe — everything below is reference
