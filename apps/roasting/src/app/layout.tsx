@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Permanent_Marker } from "next/font/google";
 import Nav from "@/components/Nav";
+import ToastProvider from "@/components/ui/ToastProvider";
 import "./globals.css";
 
 const geistSans = Bricolage_Grotesque({
@@ -36,10 +37,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${marker.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Nav />
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
-          {children}
-        </main>
+        <ToastProvider>
+          <Nav />
+          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+            {children}
+          </main>
+        </ToastProvider>
       </body>
     </html>
   );

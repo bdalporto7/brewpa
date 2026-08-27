@@ -3,19 +3,24 @@
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { X } from "lucide-react";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function DeleteButton({
   action,
   confirmText,
   label = "Delete",
   variant = "text",
+  successMessage = "Removed",
 }: {
   action: () => Promise<void>;
   confirmText: string;
   label?: string;
   /** "icon" is a compact X trigger for use inside a chip/pill, e.g. grouped event rows. */
   variant?: "text" | "icon";
+  /** Pass null to skip the toast (e.g. a redirecting delete, where the navigation is itself the feedback). */
+  successMessage?: string | null;
 }) {
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -25,6 +30,7 @@ export default function DeleteButton({
     startTransition(async () => {
       try {
         await action();
+        if (successMessage) toast(successMessage);
       } catch (e) {
         unstable_rethrow(e);
         setError(e instanceof Error ? e.message : "Something went wrong.");

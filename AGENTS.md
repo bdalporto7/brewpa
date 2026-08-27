@@ -874,6 +874,32 @@ echoing the phases actually happening in sequence. `BrewCard.tsx` and
 next to their title, matching the nav pill's steam treatment (explicit
 `text-foreground` on the wisp, not inherited — see above).
 
+**A toast system, the first real client-side infrastructure this design
+pass added** (everything before it was a component or a keyframe, no
+shared state). `ToastProvider.tsx` wraps the whole app (`layout.tsx`,
+inside `<body>`, wrapping `Nav`/`main`) with a Context exposing a
+`useToast()` hook — `toast(message, variant?)` — and renders a
+fixed-position stack, bottom-right. Visually a "stamp": one CSS
+animation (`stamp-toast`) carries the whole lifecycle — oversized and
+skewed on entry with a small settle-overshoot, holds, then fades —
+rather than coordinating a separate JS-driven exit with the removal
+timer; `ToastProvider` just removes the toast from state right as the
+animation's 3.2s finishes.
+
+Wired into the two most-reused action primitives rather than every call
+site by hand: `ActionForm.tsx` fires a success toast (default "Saved",
+overridable via `successMessage`, or `null` to skip it) when its action
+resolves without error; `DeleteButton.tsx` does the same (default
+"Removed") right after `await action()` succeeds. That's most of the
+app's create/update forms and every delete action for free. Errors
+deliberately don't also toast — both components already show the error
+inline right next to the control that failed, and duplicating it as a
+toast would be redundant, not additive. Actions that `redirect()` (some
+`ActionForm`/`DeleteButton` uses do) never reach the success branch —
+the navigation itself is the feedback, which is why the toast is skippable
+via `successMessage={null}` for exactly those cases, though most callers
+so far are fine with the default.
+
 ## Conventions
 
 - TypeScript everywhere, no exceptions, no `any` without a comment explaining why.
