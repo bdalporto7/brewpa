@@ -173,6 +173,27 @@ export async function setGoldenRoast(beanId: string, roastSessionId: string | nu
   revalidatePath("/roasts");
 }
 
+/**
+ * Picked during setup so the live view can overlay a chosen roast's curve
+ * against this one's progress in real time (see RoastComparisonChart's
+ * live variant) — deliberately separate from tips.ts's automatic golden/
+ * last-roast reference, which only ever drives text tips.
+ */
+export async function setCompareRoast(roastSessionId: string, compareToId: string | null) {
+  if (compareToId === roastSessionId) {
+    throw new Error("A roast can't compare against itself.");
+  }
+  if (compareToId) {
+    const target = await prisma.roastSession.findUniqueOrThrow({ where: { id: compareToId } });
+    if (!target.endedAt) {
+      throw new Error("Only a completed roast can be picked as a comparison.");
+    }
+  }
+
+  await prisma.roastSession.update({ where: { id: roastSessionId }, data: { compareToId } });
+  revalidatePath(`/roasts/${roastSessionId}`);
+}
+
 export async function deleteBean(id: string) {
   const sessionCount = await prisma.roastSession.count({ where: { beanId: id } });
   if (sessionCount > 0) {

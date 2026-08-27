@@ -527,10 +527,59 @@ back to the bean's most recent completed roast (labeled "Last roast"
 instead) when no golden roast is set — but **never** falls back across
 beans the way the averages-based `baseline` does, since a different bean's
 temp curve isn't a meaningful target regardless of how little history this
-bean has. No curve-overlay version of this exists yet (`RoastCurveChart`
-doesn't currently render during a live roast at all, only once completed) —
-the live tip line was the right-sized first cut; revisit if a visual
-overlay turns out to matter more than the text comparison.
+bean has. This text tip and the visual overlay described next
+("Roast comparison") are deliberately separate mechanisms rather than one
+replacing the other: this one is automatic (no picking required, always
+grounded in the bean's golden/most-recent roast) and cheap to read at a
+glance; the overlay below is opt-in and lets you pick *any* past roast, not
+just this bean's golden one.
+
+**Roast comparison:** two separate overlay mechanisms, both in
+`src/lib/curve.ts`, sharing `getCurveReadings`/`getChartLayout` but each a
+purpose-built SVG builder rather than one function with options — the two
+have different enough constraints (see below) that a shared, flag-riddled
+builder would be harder to reason about than two smaller ones.
+
+- `buildComparisonCurveSvg` — the after-the-fact "Compare" tab
+  (`?tab=compare&vs=<id>`) on a *completed* roast, any bean against any
+  other. Deliberately narrow: just the two temp lines on shared axes, no
+  milestones or fan/heat — two roasts' worth of those overlaid was tried
+  and was unreadable, and "did this one run hotter/faster" is the actual
+  question a look-back comparison answers.
+- `buildLiveComparisonSvg` — picked *before* a roast starts
+  (`RoastSession.compareToId`, a nullable self-relation via
+  `CompareRoastSelector.tsx` / `setCompareRoast`, `onDelete: SetNull` so
+  deleting the referenced roast doesn't cascade into deleting this one),
+  overlaid live as the roast progresses. Unlike the tab above, this one
+  *does* draw milestones and a fan/heat step-line — during a live roast
+  "should I be adjusting heat right now" is the real question, not just
+  "who ran hotter" — but only for the *current* roast, the one still
+  changing. The comparison roast's fan/heat and milestones are fixed,
+  already-known history, and a second step-line squeezed into a small
+  strip was tried first and read worse than plain numbers (a dashed line
+  doesn't answer "what time exactly"), so `getMilestoneEvents`/
+  `getDialChangeEvents` (also in `curve.ts`) feed small HTML tables in
+  `LiveComparisonChart.tsx` instead — Fan and Heat get their own columns,
+  not one merged list, since two roughly-half-length lists side by side
+  read faster and take less vertical room than one twice as long.
+  `setCompareRoast` rejects comparing a roast against itself and requires
+  the target be completed (comparing against another still-pending/live
+  roast has no curve to draw yet).
+
+**Live-page ordering, revisited when the comparison chart made an existing
+problem worse:** the controls you touch every 10-30s during a live
+roast — fan/heat steppers, the temp-reading input, milestone buttons, all
+inside `EventLogPanel` — used to sit *after* `RoastPlanCard`/
+`LiveTipsPanel` in `roasts/[id]/page.tsx`'s live branch, meaning reference
+content you check occasionally sat between the timer and the controls you
+use constantly. Adding `LiveComparisonChart` on top of that (chart + two/
+three tables) made the scroll-past-stuff-to-reach-the-dial problem bad
+enough that the user flagged it directly. Fixed by reordering, not by
+shrinking anything further: `EventLogPanel` now renders immediately after
+`LiveTimerBar`/`LiveProbePanel`, with the comparison chart, tips, and plan
+below it — glance-at-it-occasionally content shouldn't sit between the
+roaster and the controls they're reaching for every roughly-15-second
+interval.
 
 **Cupping notes:** `CuppingNote` (migration `add_cupping_notes`) is a
 one-to-many off `RoastSession` — a roast can be cupped more than once (e.g.

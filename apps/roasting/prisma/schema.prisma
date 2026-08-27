@@ -72,6 +72,16 @@ model RoastSession {
 
   goldenForBean Bean? @relation("BeanGoldenRoast")
 
+  // Picked during setup (before the timer starts) so the live view can
+  // overlay this roast's curve-so-far against another one in real time —
+  // separate from tips.ts's automatic golden/last-roast reference, which
+  // only drives text tips, never a chart. onDelete: SetNull so deleting
+  // the roast being compared against doesn't cascade into deleting this
+  // one too.
+  compareToId String?
+  compareTo   RoastSession?  @relation("RoastComparison", fields: [compareToId], references: [id], onDelete: SetNull)
+  comparedBy  RoastSession[] @relation("RoastComparison")
+
   @@index([beanId])
   @@index([startedAt])
 }

@@ -29,6 +29,8 @@ import SalesPanel from "@/components/roasts/SalesPanel";
 import AddEventForm from "@/components/roasts/AddEventForm";
 import CuppingTab from "@/components/roasts/CuppingTab";
 import CompareTab from "@/components/roasts/CompareTab";
+import CompareRoastSelector from "@/components/roasts/CompareRoastSelector";
+import LiveComparisonChart from "@/components/roasts/LiveComparisonChart";
 import DeleteButton from "@/components/DeleteButton";
 import BeanBurst from "@/components/ui/BeanBurst";
 import RatingBeans from "@/components/ui/RatingBeans";
@@ -56,7 +58,7 @@ export default async function RoastSessionPage({
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
-  const [session, friends] = await Promise.all([
+  const [session, friends, compareCandidates] = await Promise.all([
     prisma.roastSession.findUnique({
       where: { id },
       include: {
@@ -70,9 +72,17 @@ export default async function RoastSessionPage({
           orderBy: { brewedAt: "desc" },
           include: { roastSession: { include: { bean: true } } },
         },
+        compareTo: { include: { bean: true, events: true } },
       },
     }),
     prisma.friend.findMany({ orderBy: { name: "asc" } }),
+    // Only actually used while pending (the picker), but cheap enough (id/bean/date/level
+    // only) to just fetch alongside everything else rather than branching the query shape.
+    prisma.roastSession.findMany({
+      where: { endedAt: { not: null }, id: { not: id } },
+      include: { bean: true },
+      orderBy: { startedAt: "desc" },
+    }),
   ]);
 
   if (!session) notFound();
@@ -190,6 +200,14 @@ export default async function RoastSessionPage({
         <>
           <LiveProbePanel roastSessionId={session.id} />
           <RoastSetupPanel roastSessionId={session.id} />
+          <CompareRoastSelector
+            roastSessionId={session.id}
+            candidates={compareCandidates.map((c) => ({
+              id: c.id,
+              label: `${c.bean.name} — ${c.startedAt ? format(c.startedAt, "MMM d, yyyy") : "undated"}${c.roastLevel ? ` (${c.roastLevel})` : ""}`,
+            }))}
+            initialCompareToId={session.compareToId}
+          />
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
         </>
       )}
@@ -198,7 +216,33 @@ export default async function RoastSessionPage({
         <>
           <LiveTimerBar startedAt={session.startedAt!.toISOString()} beanName={session.bean.name} />
           <LiveProbePanel roastSessionId={session.id} />
-          <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
+          {/* Controls you touch every 10-30s (fan/heat, temp, milestones) come
+              right after the timer/probe — everything below is reference
+              material (chart, tips, plan) you check periodically, not on
+              every dial adjustment, so it shouldn't sit between you and the
+              controls. */}
+          <EventLogPanel
+            roastSessionId={session.id}
+            startedAt={session.startedAt!.toISOString()}
+            initialFanLevel={latestFan?.fanLevel ?? 5}
+            initialHeatLevel={latestHeat?.heatLevel ?? 5}
+            loggedMilestoneTypes={loggedMilestoneTypes}
+          />
+          {session.compareTo && (
+            <LiveComparisonChart
+              currentEvents={session.events}
+              currentLabel={`${session.bean.name} (live)`}
+              currentElapsedSeconds={Math.max(1, ...session.events.map((e) => e.atSeconds))}
+              comparisonEvents={session.compareTo.events}
+              comparisonLabel={`${session.compareTo.bean.name} — ${session.compareTo.startedAt ? format(session.compareTo.startedAt, "MMM d, yyyy") : "undated"}`}
+              comparisonTotalSeconds={
+                session.compareTo.startedAt && session.compareTo.endedAt
+                  ? (session.compareTo.endedAt.getTime() - session.compareTo.startedAt.getTime()) / 1000
+                  : 0
+              }
+              currentProbeReadings={session.temperatureReadings}
+            />
+          )}
           {baseline && (
             <LiveTipsPanel
               startedAt={session.startedAt!.toISOString()}
@@ -207,13 +251,7 @@ export default async function RoastSessionPage({
               referenceRoast={referenceRoast}
             />
           )}
-          <EventLogPanel
-            roastSessionId={session.id}
-            startedAt={session.startedAt!.toISOString()}
-            initialFanLevel={latestFan?.fanLevel ?? 5}
-            initialHeatLevel={latestHeat?.heatLevel ?? 5}
-            loggedMilestoneTypes={loggedMilestoneTypes}
-          />
+          <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
           <EventTimeline events={session.events} editable />
           <DropRoastButton roastSessionId={session.id} />
         </>

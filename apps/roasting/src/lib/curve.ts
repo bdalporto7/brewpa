@@ -14,7 +14,7 @@ const AXIS_HEIGHT = 24;
 const STRIP_HEIGHT = 48;
 const STRIP_GAP = 16;
 
-const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
+export const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
   { type: "DRY_END", label: "DE", color: "var(--mark-dry-end)" },
   { type: "YELLOWING_END", label: "YE", color: "var(--mark-yellowing-end)" },
   { type: "FIRST_CRACK_START", label: "1C", color: "var(--mark-first-crack)" },
@@ -432,6 +432,161 @@ export function buildComparisonCurveSvg(
     `<text x="${chartLeft + 24}" y="${legendY1}" dominant-baseline="middle" style="fill:var(--foreground)" class="mono-10">${escapeXml(truncate(labelA))}</text>`,
     `<line x1="${chartLeft}" x2="${chartLeft + 18}" y1="${legendY2}" y2="${legendY2}" style="stroke:var(--ror)" stroke-width="2.5" stroke-dasharray="6 4" />`,
     `<text x="${chartLeft + 24}" y="${legendY2}" dominant-baseline="middle" style="fill:var(--foreground)" class="mono-10">${escapeXml(truncate(labelB))}</text>`
+  );
+
+  parts.push("</svg>");
+
+  return parts.join("");
+}
+
+const LIVE_CMP_HEIGHT = 320;
+const LIVE_CMP_MARGIN_TOP = 20;
+const LIVE_CMP_TEMP_HEIGHT = 190;
+const LIVE_CMP_STRIP_HEIGHT = 32;
+
+function eventPoints(events: RoastEvent[], type: "FAN" | "HEAT") {
+  return events
+    .filter((e) => e.type === type && (type === "FAN" ? e.fanLevel : e.heatLevel) != null)
+    .map((e) => ({ atSeconds: e.atSeconds, level: (type === "FAN" ? e.fanLevel : e.heatLevel) as number }))
+    .sort((a, b) => a.atSeconds - b.atSeconds);
+}
+
+/** A roast's milestone events, sorted by time — LiveComparisonChart tables these for the comparison roast instead of drawing a second set of dashed lines on the chart. */
+export function getMilestoneEvents(
+  events: RoastEvent[]
+): { type: EventType; label: string; color: string; atSeconds: number }[] {
+  return MILESTONE_MARKERS.flatMap((m) => {
+    const event = events.find((e) => e.type === m.type);
+    return event ? [{ ...m, atSeconds: event.atSeconds }] : [];
+  }).sort((a, b) => a.atSeconds - b.atSeconds);
+}
+
+/** A roast's fan/heat dial changes, sorted by time — same reasoning as getMilestoneEvents: "at 2:15, heat -> 7" reads better as a table row than as a second step-line squeezed into a small strip. */
+export function getDialChangeEvents(events: RoastEvent[]): { type: "FAN" | "HEAT"; level: number; atSeconds: number }[] {
+  return [
+    ...eventPoints(events, "FAN").map((p) => ({ type: "FAN" as const, ...p })),
+    ...eventPoints(events, "HEAT").map((p) => ({ type: "HEAT" as const, ...p })),
+  ].sort((a, b) => a.atSeconds - b.atSeconds);
+}
+
+/**
+ * Overlays this roast's live curve against a chosen past one — picked
+ * during setup (RoastSession.compareToId) — including milestones and the
+ * *current* roast's own fan/heat dial (the one still changing, worth a
+ * live step-line). The comparison roast's fan/heat and milestones are
+ * fixed, already-known history, and read better as plain numbers than as a
+ * second step-line squeezed into a small strip (tried first, and a step
+ * chart doesn't answer "what time exactly" at a glance) — LiveComparisonChart
+ * renders those as tables from getMilestoneEvents/getDialChangeEvents
+ * instead of drawing them here.
+ */
+export function buildLiveComparisonSvg(
+  currentEvents: RoastEvent[],
+  currentLabel: string,
+  currentElapsedSeconds: number,
+  comparisonEvents: RoastEvent[],
+  comparisonLabel: string,
+  comparisonTotalSeconds: number,
+  currentProbeReadings: TemperatureReading[] = []
+): string | null {
+  const readingsA = getCurveReadings(currentEvents, currentProbeReadings);
+  const readingsB = getCurveReadings(comparisonEvents);
+  if (readingsA.length < 2 || readingsB.length < 2) return null;
+
+  const duration = Math.max(currentElapsedSeconds, comparisonTotalSeconds, 1);
+  const allTemps = [...readingsA, ...readingsB].map((p) => p.temp);
+  const rawMin = Math.min(...allTemps);
+  const rawMax = Math.max(...allTemps);
+  const minTemp = Math.floor((rawMin - 15) / 25) * 25;
+  const maxTemp = Math.ceil((rawMax + 15) / 25) * 25;
+
+  const chartLeft = CHART_MARGIN_LEFT;
+  const chartRight = CHART_WIDTH - MARGIN_RIGHT;
+  const tempChartTop = LIVE_CMP_MARGIN_TOP;
+  const tempChartBottom = tempChartTop + LIVE_CMP_TEMP_HEIGHT;
+  const axisY = tempChartBottom + 18;
+  // +22 (not the ~10 you'd expect from the strip height alone) because the
+  // strip's own "This roast — Fan / Heat" label sits at stripATop - 6, only
+  // a few px under the time-axis tick text at axisY — tighter than this and
+  // the two text rows overlap (seen live: "0:00" collided with the label).
+  const stripATop = axisY + 22;
+  const stripABottom = stripATop + LIVE_CMP_STRIP_HEIGHT;
+  const legendY1 = stripABottom + 20;
+  const legendY2 = legendY1 + 16;
+
+  const x = (seconds: number) => chartLeft + (seconds / duration) * (chartRight - chartLeft);
+  const yTemp = (temp: number) => tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * LIVE_CMP_TEMP_HEIGHT;
+  const yLevelA = (level: number) =>
+    stripATop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * LIVE_CMP_STRIP_HEIGHT;
+
+  const truncate = (s: string, max = 46) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+  const tempTicks = [minTemp, (minTemp + maxTemp) / 2, maxTemp];
+  const timeTickCount = duration > 600 ? 6 : 4;
+  const timeTicks = Array.from({ length: timeTickCount + 1 }, (_, i) => (duration / timeTickCount) * i);
+
+  const parts: string[] = [];
+  parts.push(`<svg viewBox="0 0 ${CHART_WIDTH} ${LIVE_CMP_HEIGHT}" class="roast-curve-svg" role="img" aria-label="Live roast comparison">`);
+
+  for (const t of tempTicks) {
+    parts.push(
+      `<line x1="${chartLeft}" x2="${chartRight}" y1="${yTemp(t)}" y2="${yTemp(t)}" style="stroke:var(--border)" stroke-width="1" />`,
+      `<text x="${chartLeft - 8}" y="${yTemp(t)}" text-anchor="end" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">${Math.round(t)}°</text>`
+    );
+  }
+  for (const t of timeTicks) {
+    parts.push(
+      `<text x="${x(t)}" y="${axisY}" text-anchor="middle" style="fill:var(--muted)" class="mono-10">${formatMMSS(t)}</text>`
+    );
+  }
+
+  // Comparison roast's milestones: dashed, muted — a ghost of when things happened last time.
+  for (const m of MILESTONE_MARKERS) {
+    const event = comparisonEvents.find((e) => e.type === m.type);
+    if (!event) continue;
+    parts.push(
+      `<line x1="${x(event.atSeconds)}" x2="${x(event.atSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${m.color}" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`
+    );
+  }
+  // Current roast's milestones: solid, on top, labeled — the ones that just happened.
+  for (const m of MILESTONE_MARKERS) {
+    const event = currentEvents.find((e) => e.type === m.type);
+    if (!event) continue;
+    parts.push(
+      `<line x1="${x(event.atSeconds)}" x2="${x(event.atSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${m.color}" stroke-width="1.5" stroke-dasharray="3 3" />`,
+      `<text x="${x(event.atSeconds)}" y="${tempChartTop - 6}" text-anchor="middle" style="fill:${m.color}" class="marker-label">${m.label}</text>`
+    );
+  }
+
+  const lineA = readingsA.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
+  const lineB = readingsB.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
+  parts.push(
+    `<polyline points="${lineB}" fill="none" style="stroke:var(--ror)" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />`,
+    `<polyline points="${lineA}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" />`
+  );
+  for (const p of readingsA) {
+    parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
+  }
+
+  parts.push(
+    `<text x="${chartLeft}" y="${stripATop - 6}" style="fill:var(--muted)" class="marker-label">Fan</text>`,
+    `<text x="${chartLeft + 28}" y="${stripATop - 6}" style="fill:var(--foreground);opacity:0.6" class="marker-label">Heat</text>`
+  );
+  const fanA = eventPoints(currentEvents, "FAN");
+  const heatA = eventPoints(currentEvents, "HEAT");
+  if (fanA.length > 0) {
+    parts.push(`<path d="${buildStepPath(fanA, currentElapsedSeconds, x, yLevelA)}" fill="none" style="stroke:var(--accent);opacity:0.7" stroke-width="1.5" />`);
+  }
+  if (heatA.length > 0) {
+    parts.push(`<path d="${buildStepPath(heatA, currentElapsedSeconds, x, yLevelA)}" fill="none" style="stroke:var(--foreground);opacity:0.35" stroke-width="1.5" />`);
+  }
+  parts.push(`<line x1="${chartLeft}" x2="${chartRight}" y1="${stripABottom}" y2="${stripABottom}" style="stroke:var(--border)" stroke-width="1" />`);
+
+  parts.push(
+    `<line x1="${chartLeft}" x2="${chartLeft + 18}" y1="${legendY1}" y2="${legendY1}" style="stroke:var(--accent)" stroke-width="2.5" />`,
+    `<text x="${chartLeft + 24}" y="${legendY1}" dominant-baseline="middle" style="fill:var(--foreground)" class="mono-10">${escapeXml(truncate(currentLabel))}</text>`,
+    `<line x1="${chartLeft}" x2="${chartLeft + 18}" y1="${legendY2}" y2="${legendY2}" style="stroke:var(--ror)" stroke-width="2.5" stroke-dasharray="6 4" />`,
+    `<text x="${chartLeft + 24}" y="${legendY2}" dominant-baseline="middle" style="fill:var(--foreground)" class="mono-10">${escapeXml(truncate(comparisonLabel))}</text>`
   );
 
   parts.push("</svg>");

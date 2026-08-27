@@ -58,6 +58,17 @@ and the reasoning behind specific decisions.
   the single-roast chart: no milestones, no fan/heat strip, since two of
   those overlaid would be unreadable — just the two temp lines, which is
   the actual question a comparison answers.
+- **Live roast comparison** — pick a completed roast to overlay before
+  starting a live one (a select on the setup/pending screen, saved
+  immediately via `RoastSession.compareToId`) and the live page shows both
+  roasts' temperature curves on shared axes, updating as you log events.
+  Unlike the after-the-fact Compare tab above, this one *does* draw
+  milestones and a fan/heat step-line — during a live roast "should I be
+  adjusting heat right now" is the actual question, not just "who ran
+  hotter" — but only the current roast's own fan/heat strip is drawn on the
+  chart; the comparison roast's fan/heat changes and milestones are already-
+  known history, so they're listed as small tables underneath instead of a
+  second, harder-to-read set of lines.
 - **Roast drops** — log roasted coffee given or sold to a friend, drawn
   from that roast's roasted-coffee stock, right on the roast page. For
   unplanned "I roasted extra, want some?" gifting. Over-drawing is
