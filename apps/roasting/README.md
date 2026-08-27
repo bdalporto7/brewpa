@@ -49,6 +49,15 @@ and the reasoning behind specific decisions.
   °F/min between consecutive readings, on its own right-side axis — off by
   default, on when you want to watch how fast the roast is climbing rather
   than just where the temp sits.
+- **Roast comparison** — a completed roast's "Compare" tab overlays its
+  temperature curve against any other completed roast (any bean, not just
+  the same one) on shared axes, plus a side-by-side duration/weight-loss/
+  rating/roast-level readout. Picking a roast to compare against is a
+  query param (`?tab=compare&vs=<id>`), so it's a real link, not just
+  client state — sharable, back-button-able. Deliberately narrower than
+  the single-roast chart: no milestones, no fan/heat strip, since two of
+  those overlaid would be unreadable — just the two temp lines, which is
+  the actual question a comparison answers.
 - **Roast drops** — log roasted coffee given or sold to a friend, drawn
   from that roast's roasted-coffee stock, right on the roast page. For
   unplanned "I roasted extra, want some?" gifting. Over-drawing is

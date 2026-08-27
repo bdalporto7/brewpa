@@ -28,6 +28,7 @@ import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
 import SalesPanel from "@/components/roasts/SalesPanel";
 import AddEventForm from "@/components/roasts/AddEventForm";
 import CuppingTab from "@/components/roasts/CuppingTab";
+import CompareTab from "@/components/roasts/CompareTab";
 import DeleteButton from "@/components/DeleteButton";
 import BeanBurst from "@/components/ui/BeanBurst";
 import RatingBeans from "@/components/ui/RatingBeans";
@@ -47,11 +48,11 @@ export default async function RoastSessionPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; vs?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
-  const activeTab = tab === "cupping" ? "cupping" : "roast";
+  const { tab, vs } = await searchParams;
+  const activeTab = tab === "cupping" ? "cupping" : tab === "compare" ? "compare" : "roast";
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
@@ -240,12 +241,24 @@ export default async function RoastSessionPage({
           >
             Cupping{session.cuppingNotes.length > 0 ? ` (${session.cuppingNotes.length})` : ""}
           </a>
+          <a
+            href={`/roasts/${session.id}?tab=compare`}
+            className={`-mb-px border-b-2 px-1 pb-2 transition ${
+              activeTab === "compare"
+                ? "border-accent text-foreground"
+                : "border-transparent text-muted hover:text-foreground"
+            }`}
+          >
+            Compare
+          </a>
         </div>
       )}
 
       {isCompleted && activeTab === "cupping" && (
         <CuppingTab roastSessionId={session.id} cuppingNotes={session.cuppingNotes} />
       )}
+
+      {isCompleted && activeTab === "compare" && <CompareTab currentSession={session} selectedId={vs ?? null} />}
 
       {isCompleted && activeTab === "roast" && (
         <>

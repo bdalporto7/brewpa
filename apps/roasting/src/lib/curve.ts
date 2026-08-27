@@ -365,3 +365,76 @@ export function buildRoastCurveSvg(
 
   return parts.join("");
 }
+
+/** Bean names/labels are user text embedded straight into an SVG string rendered via dangerouslySetInnerHTML — the one place in this file that needed it, since every other label here is a fixed string or a formatted number. */
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Two roasts' temp curves on one shared axis — reuses getChartLayout by
+ * feeding it both readings arrays concatenated (only used there for
+ * min/max, so this naturally spans whichever roast ran hotter/longer) and
+ * the longer of the two durations. Deliberately narrower than
+ * buildRoastCurveSvg: no milestones, no fan/heat strip — two of those
+ * overlaid would be unreadable, and "did this one run hotter/faster than
+ * that one" is the actual question a comparison is for.
+ */
+export function buildComparisonCurveSvg(
+  readingsA: CurveReading[],
+  labelA: string,
+  readingsB: CurveReading[],
+  labelB: string
+): string | null {
+  if (readingsA.length < 2 || readingsB.length < 2) return null;
+
+  const totalSeconds = Math.max(readingsA[readingsA.length - 1].atSeconds, readingsB[readingsB.length - 1].atSeconds);
+  const layout = getChartLayout([...readingsA, ...readingsB], totalSeconds);
+  const { chartLeft, chartRight, tempChartBottom, minTemp, maxTemp, duration, x, yTemp } = layout;
+
+  const lineA = readingsA.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
+  const lineB = readingsB.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
+
+  const tempTicks = [minTemp, (minTemp + maxTemp) / 2, maxTemp];
+  const timeTickCount = duration > 600 ? 6 : 4;
+  const timeTicks = Array.from({ length: timeTickCount + 1 }, (_, i) => (duration / timeTickCount) * i);
+  const axisY = tempChartBottom + 20;
+  const legendY1 = tempChartBottom + 40;
+  const legendY2 = tempChartBottom + 56;
+  // Two full roast labels (bean + date, sometimes identical bean names for
+  // both sides of a same-bean comparison) reliably don't fit side by side —
+  // stacked rows plus a hard truncation are both needed, not either alone.
+  const truncate = (s: string, max = 50) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+  const parts: string[] = [];
+  parts.push(`<svg viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" class="roast-curve-svg" role="img" aria-label="Roast comparison">`);
+
+  for (const t of tempTicks) {
+    parts.push(
+      `<line x1="${chartLeft}" x2="${chartRight}" y1="${yTemp(t)}" y2="${yTemp(t)}" style="stroke:var(--border)" stroke-width="1" />`,
+      `<text x="${chartLeft - 8}" y="${yTemp(t)}" text-anchor="end" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">${Math.round(t)}°</text>`
+    );
+  }
+  for (const t of timeTicks) {
+    parts.push(
+      `<text x="${x(t)}" y="${axisY}" text-anchor="middle" style="fill:var(--muted)" class="mono-10">${formatMMSS(t)}</text>`
+    );
+  }
+
+  // B drawn first, dashed and cooler-toned, so A (the roast being viewed) reads as the primary line on top.
+  parts.push(
+    `<polyline points="${lineB}" fill="none" style="stroke:var(--ror)" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />`,
+    `<polyline points="${lineA}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" />`
+  );
+
+  parts.push(
+    `<line x1="${chartLeft}" x2="${chartLeft + 18}" y1="${legendY1}" y2="${legendY1}" style="stroke:var(--accent)" stroke-width="2.5" />`,
+    `<text x="${chartLeft + 24}" y="${legendY1}" dominant-baseline="middle" style="fill:var(--foreground)" class="mono-10">${escapeXml(truncate(labelA))}</text>`,
+    `<line x1="${chartLeft}" x2="${chartLeft + 18}" y1="${legendY2}" y2="${legendY2}" style="stroke:var(--ror)" stroke-width="2.5" stroke-dasharray="6 4" />`,
+    `<text x="${chartLeft + 24}" y="${legendY2}" dominant-baseline="middle" style="fill:var(--foreground)" class="mono-10">${escapeXml(truncate(labelB))}</text>`
+  );
+
+  parts.push("</svg>");
+
+  return parts.join("");
+}
