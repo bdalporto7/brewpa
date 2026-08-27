@@ -911,6 +911,50 @@ so far are fine with the default.
 - Keep each app's README up to date with its own setup/run instructions —
   don't rely on this file for per-app specifics once an app exists.
 
+## Performance
+
+**`Promise.all([...several Prisma queries])` does not run those queries
+concurrently against Turso in this app.** Measured directly (not assumed):
+temporarily logged each query's resolve time in the dashboard's 8-query
+`Promise.all` and got a clean staircase — each one resolving ~50-140ms
+after the last, not clustered together the way genuine parallel requests
+would be. Whatever's serializing them (the libSQL HTTP client, Turso's
+connection handling, or both — not root-caused further than "it's not
+happening at the application code level, `Promise.all` is correct as
+written") means the real lever for a slow page isn't "await these
+together," it's "ask fewer separate questions." The dashboard went from
+8 queries to 5 by deriving `beanCount` and `greenBeans` from
+`beansWithRoasts` (an unfiltered `bean.findMany` that already has every
+scalar field for every bean) and `recentSessions` from the first 5 of
+`endedSessions` once that query's `select` was widened to a full
+`include: { bean: true }` — cut measured application-code time from a
+531-1780ms range down to a consistent 575-775ms. Same technique applies
+anywhere else a page fires several independent Prisma calls: look for
+ones that are strict subsets of a broader one already being fetched.
+
+**`getCurrentAllowedUser()` is wrapped in React's `cache()`** (`src/lib/
+admin.ts`) for the same reason — `Nav.tsx` calls it on every single page
+(rendered from the root layout) and six page components independently
+call it again for their own ownership checks, so without the wrapper
+that was two full Turso round trips for the identical row on those six
+pages. `cache()` dedupes within one request/render pass only — it's not
+a cross-request or cross-user cache, see Next.js's own docs on
+deduplicating requests. Distinct from `prisma.ts`'s global singleton,
+which persists across requests but only reuses the DB *connection*, not
+query *results* — don't confuse the two patterns.
+
+**What turned out not to be the problem**, checked and ruled out rather
+than assumed: Next.js dev-mode's on-demand per-route compilation (real,
+but one-time per route per dev-server run — `next.js: 1352ms` on a
+route's first hit that session, `next.js: 4-28ms` on every hit after);
+the app's actual data volume (36 roasts, 19 beans at investigation
+time — nowhere near enough rows for query time to be about volume
+rather than round-trip count); and no findMany() in the app has a `take`
+limit except the dashboard's `recentSessions` — that's the app's
+original design throughout, not a regression from anything built this
+session, and still fine at current row counts. Worth real pagination
+once any list gets into the hundreds, not before.
+
 ## Multi-device / sharing with a friend
 
 The app was local-only by design (see the "Runtime target" note above) until

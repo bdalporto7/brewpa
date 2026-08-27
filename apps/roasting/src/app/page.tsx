@@ -12,30 +12,23 @@ import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
 
 export default async function DashboardPage() {
-  const [
-    activeSession,
-    beanCount,
-    endedSessions,
-    roastsThisMonth,
-    recentSessions,
-    greenBeans,
-    beansWithRoasts,
-    activeDrops,
-  ] = await Promise.all([
+  // Down from 8 separate queries to 5. Measured (not assumed): Turso/the
+  // libSQL adapter doesn't actually run Promise.all's queries concurrently
+  // here — logging each query's resolve time showed a clean staircase
+  // (~50-140ms apart), i.e. queued, not parallel. So the real lever isn't
+  // "await these together," it's "ask fewer separate questions." beanCount
+  // and greenBeans are both fully derivable from beansWithRoasts (an
+  // unfiltered bean.findMany already fetching every scalar field), and
+  // recentSessions is just the first 5 of endedSessions once that query
+  // also selects bean/startedAt instead of a narrower stats-only shape.
+  const [activeSession, endedSessions, roastsThisMonth, beansWithRoasts, activeDrops] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),
-    prisma.bean.count(),
-    prisma.roastSession.findMany({
-      where: { endedAt: { not: null } },
-      select: { rating: true, roastLevel: true, roastedRemainingGrams: true },
-    }),
-    prisma.roastSession.count({ where: { startedAt: { gte: startOfMonth(new Date()) } } }),
     prisma.roastSession.findMany({
       where: { endedAt: { not: null } },
       include: { bean: true },
       orderBy: { startedAt: "desc" },
-      take: 5,
     }),
-    prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { remainingGrams: "desc" } }),
+    prisma.roastSession.count({ where: { startedAt: { gte: startOfMonth(new Date()) } } }),
     prisma.bean.findMany({
       include: {
         roastSessions: {
@@ -51,6 +44,9 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const beanCount = beansWithRoasts.length;
+  const recentSessions = endedSessions.slice(0, 5);
+
   const rated = endedSessions.filter((r) => r.rating != null);
   const avgRating =
     rated.length > 0 ? rated.reduce((sum, r) => sum + (r.rating ?? 0), 0) / rated.length : null;
@@ -63,6 +59,9 @@ export default async function DashboardPage() {
   const favoriteLevel = [...levelCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
   const round1 = (n: number) => Math.round(n * 10) / 10;
+  const greenBeans = beansWithRoasts
+    .filter((b) => b.remainingGrams > 0)
+    .sort((a, b) => b.remainingGrams - a.remainingGrams);
   const greenTotal = round1(greenBeans.reduce((sum, b) => sum + b.remainingGrams, 0));
 
   const roastedByBean = beansWithRoasts
