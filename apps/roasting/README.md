@@ -110,16 +110,16 @@ and the reasoning behind specific decisions.
   automatically (falling back to the bean's most recent roast if none is
   set — never to a different bean's data). No LLM call — deliberately
   deterministic, see AGENTS.md for why.
-- **Temperature probe (backbone only, no hardware yet)** — a bean-temp
-  probe can post readings to `/api/probe/temperature` (bearer-token authed,
-  see AGENTS.md) and they'll show up automatically: `LiveProbePanel` polls
-  and shows "Connected" the moment readings start arriving, no manual
-  toggle, and a completed roast's curve chart draws from those readings
-  instead of hand-logged temp events once there are at least two of them.
-  What's *not* here yet is the other half — a script that actually reads
-  physical hardware and forwards it to that endpoint — since the probe
-  itself doesn't exist yet; see AGENTS.md's "Temperature probe" section for
-  the full design (why a local bridge script, not the Web Serial API).
+- **Temperature probe** — a bean-temp probe posts readings to
+  `/api/probe/temperature` (bearer-token authed, see AGENTS.md) and they
+  show up automatically: `LiveProbePanel` polls and shows "Connected" the
+  moment readings start arriving, no manual toggle, and a completed roast's
+  curve chart draws from those readings instead of hand-logged temp events
+  once there are at least two of them. The other half — reading the
+  physical probe (a **Mastech MS6514** thermocouple meter) and forwarding
+  it to that endpoint — is `scripts/probe_bridge.py`, run manually before a
+  roast; see AGENTS.md's "Temperature probe" section for the full protocol
+  writeup and why it's a local script rather than the Web Serial API.
 - **Cupping notes** — a completed roast gets its own "Cupping" tab
   (separate from the roast/curve view) for logging one or more formal
   tastings, based on the real SCA/Q-grading cupping form. Every field is
