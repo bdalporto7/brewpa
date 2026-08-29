@@ -108,6 +108,11 @@ export default async function RoastSessionPage({
   const loggedMilestoneTypes = Array.from(new Set(session.events.map((e) => e.type))).filter(
     (t): t is EventType => (MILESTONE_EVENT_TYPES as string[]).includes(t)
   );
+  const liveElapsedSeconds = Math.max(
+    1,
+    ...session.events.map((e) => e.atSeconds),
+    ...session.temperatureReadings.map((r) => r.atSeconds ?? 0)
+  );
 
   const weightLoss =
     session.roastedWeightGrams != null
@@ -234,11 +239,14 @@ export default async function RoastSessionPage({
             initialHeatLevel={latestHeat?.heatLevel ?? 5}
             loggedMilestoneTypes={loggedMilestoneTypes}
           />
-          {session.compareTo && (
+          {/* Probe readings can arrive on their own, ahead of the latest
+              hand-logged event, so the chart's time axis has to account for
+              both rather than just the latest RoastEvent. */}
+          {session.compareTo ? (
             <LiveComparisonChart
               currentEvents={session.events}
               currentLabel={`${session.bean.name} (live)`}
-              currentElapsedSeconds={Math.max(1, ...session.events.map((e) => e.atSeconds))}
+              currentElapsedSeconds={liveElapsedSeconds}
               comparisonEvents={session.compareTo.events}
               comparisonLabel={`${session.compareTo.bean.name} — ${session.compareTo.startedAt ? format(session.compareTo.startedAt, "MMM d, yyyy") : "undated"}`}
               comparisonTotalSeconds={
@@ -247,6 +255,12 @@ export default async function RoastSessionPage({
                   : 0
               }
               currentProbeReadings={session.temperatureReadings}
+            />
+          ) : (
+            <RoastCurveChart
+              events={session.events}
+              totalSeconds={liveElapsedSeconds}
+              probeReadings={session.temperatureReadings}
             />
           )}
           {baseline && (
