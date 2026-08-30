@@ -53,8 +53,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Nav />
           {/* Extra bottom padding on mobile only — clears the fixed bottom
               tab bar NavClient renders below sm:, so the last bit of page
-              content isn't hidden behind it. */}
-          <main className="mx-auto w-full max-w-4xl flex-1 px-4 pt-8 pb-24 sm:px-6 sm:pb-8">
+              content isn't hidden behind it. min-w-0 overrides the flex
+              default of min-width: auto — without it, a deeply nested
+              min-width (e.g. EventTimeline's table, or any of the curve
+              charts' min-width fallback) forces this whole flex item wider
+              than the viewport instead of just scrolling internally,
+              taking the entire page sideways with it on mobile. */}
+          <main className="mx-auto w-full min-w-0 max-w-4xl flex-1 px-4 pt-8 pb-24 sm:px-6 sm:pb-8">
             {children}
           </main>
         </ToastProvider>
