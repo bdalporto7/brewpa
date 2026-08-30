@@ -17,7 +17,15 @@ const MARGIN_RIGHT = 38;
 // 10px more headroom is a negligible, safe change everywhere else too.
 const MARGIN_TOP = 30;
 const AXIS_HEIGHT = 24;
-const STRIP_HEIGHT = 48;
+// Total height for the fan+heat area — buildRoastCurveSvg splits this into
+// two separate mini-strips (one per dial) rather than overlaying both step
+// lines in one band. Overlaid, same-scale lines distinguished only by
+// color/opacity were hard to read at a glance, especially since heat was
+// intentionally low-opacity to not fight with fan — the two often
+// coincide or cross, and there was no visible scale for what a given line
+// height actually meant in dial units. Barely bigger than the old single
+// 48px band (56 vs 48) since each mini-strip only needs ~22px.
+const STRIP_HEIGHT = 56;
 const STRIP_GAP = 16;
 
 export const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
@@ -281,7 +289,6 @@ export function buildRoastCurveSvg(
     tempChartTop,
     tempChartBottom,
     stripTop,
-    stripBottom,
     minTemp,
     maxTemp,
     minRor,
@@ -289,7 +296,6 @@ export function buildRoastCurveSvg(
     duration,
     x,
     yTemp,
-    yLevel,
     yRor,
   } = layout;
 
@@ -416,23 +422,46 @@ export function buildRoastCurveSvg(
     );
   }
 
-  parts.push(
-    `<text x="${chartLeft}" y="${stripTop - 6}" style="fill:var(--muted)" class="marker-label">Fan</text>`,
-    `<text x="${chartLeft + 28}" y="${stripTop - 6}" style="fill:var(--foreground);opacity:0.6" class="marker-label">Heat</text>`
-  );
+  // Two separate mini-strips (one per dial) rather than overlaying both
+  // step lines in one shared band — see STRIP_HEIGHT's comment for why.
+  // Each gets its own tick gridlines (min/max dial level) so the actual
+  // number is readable without hovering, not just relative line height.
+  const miniStripGap = 10;
+  const miniStripHeight = (STRIP_HEIGHT - miniStripGap) / 2;
+  const fanStripTop = stripTop;
+  const fanStripBottom = fanStripTop + miniStripHeight;
+  const heatStripTop = fanStripBottom + miniStripGap;
+  const heatStripBottom = heatStripTop + miniStripHeight;
+  const yFan = (level: number) =>
+    fanStripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * miniStripHeight;
+  const yHeat = (level: number) =>
+    heatStripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * miniStripHeight;
+
+  for (const [stripTopY, stripBottomY, label, color] of [
+    [fanStripTop, fanStripBottom, "Fan", "var(--accent)"],
+    [heatStripTop, heatStripBottom, "Heat", "var(--foreground)"],
+  ] as const) {
+    parts.push(
+      `<text x="${chartLeft}" y="${stripTopY - 2}" text-anchor="start" dominant-baseline="text-after-edge" style="fill:${color}" class="marker-label">${label}</text>`,
+      // Ticks sit in the right margin (same spot the RoR axis uses when
+      // toggled on), not inside the plot area, so they never collide with
+      // the step line itself as it approaches the end of the roast.
+      `<text x="${chartRight + 8}" y="${stripTopY}" text-anchor="start" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">${SR800_LEVEL_MAX}</text>`,
+      `<text x="${chartRight + 8}" y="${stripBottomY}" text-anchor="start" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">${SR800_LEVEL_MIN}</text>`,
+      `<line x1="${chartLeft}" x2="${chartRight}" y1="${stripBottomY}" y2="${stripBottomY}" style="stroke:var(--border)" stroke-width="1" />`
+    );
+  }
+
   if (fanPoints.length > 0) {
     parts.push(
-      `<path d="${buildStepPath(fanPoints, duration, x, yLevel)}" fill="none" style="stroke:var(--accent);opacity:0.7" stroke-width="1.5" />`
+      `<path d="${buildStepPath(fanPoints, duration, x, yFan)}" fill="none" style="stroke:var(--accent)" stroke-width="1.75" />`
     );
   }
   if (heatPoints.length > 0) {
     parts.push(
-      `<path d="${buildStepPath(heatPoints, duration, x, yLevel)}" fill="none" style="stroke:var(--foreground);opacity:0.35" stroke-width="1.5" />`
+      `<path d="${buildStepPath(heatPoints, duration, x, yHeat)}" fill="none" style="stroke:var(--foreground);opacity:0.7" stroke-width="1.75" stroke-dasharray="4 2" />`
     );
   }
-  parts.push(
-    `<line x1="${chartLeft}" x2="${chartRight}" y1="${stripBottom}" y2="${stripBottom}" style="stroke:var(--border)" stroke-width="1" />`
-  );
 
   parts.push("</svg>");
 
