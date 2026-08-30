@@ -47,6 +47,24 @@ export default function BeanForm() {
           placeholder="Optional"
           mono
         />
+        <TextField
+          label="Moisture (%)"
+          name="moisturePercent"
+          type="number"
+          step="0.1"
+          min="0"
+          placeholder="Optional — for AI roast suggestions"
+          mono
+        />
+        <TextField
+          label="Density (g/L)"
+          name="densityGramsPerLiter"
+          type="number"
+          step="1"
+          min="0"
+          placeholder="Optional — for AI roast suggestions"
+          mono
+        />
         <div className="sm:col-span-2">
           <TextareaField label="Notes" name="notes" rows={2} />
         </div>

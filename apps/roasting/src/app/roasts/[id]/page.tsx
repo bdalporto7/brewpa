@@ -15,6 +15,7 @@ import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import LiveTimerBar from "@/components/roasts/LiveTimerBar";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
+import AiSuggestionPanel from "@/components/roasts/AiSuggestionPanel";
 import RoastPlanCard from "@/components/roasts/RoastPlanCard";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
@@ -208,7 +209,20 @@ export default async function RoastSessionPage({
       {isPending && (
         <>
           <LiveProbePanel roastSessionId={session.id} />
-          <RoastSetupPanel roastSessionId={session.id} />
+          <AiSuggestionPanel
+            roastSessionId={session.id}
+            initialAmbientTempF={session.ambientTempF}
+            initialRoastGoal={session.roastGoal}
+            suggestedFanLevel={session.suggestedFanLevel}
+            suggestedHeatLevel={session.suggestedHeatLevel}
+            aiSuggestionNotes={session.aiSuggestionNotes}
+            aiSuggestionFeedback={session.aiSuggestionFeedback}
+          />
+          <RoastSetupPanel
+            roastSessionId={session.id}
+            initialFanLevel={session.suggestedFanLevel ?? undefined}
+            initialHeatLevel={session.suggestedHeatLevel ?? undefined}
+          />
           <CompareRoastSelector
             roastSessionId={session.id}
             candidates={compareCandidates.map((c) => ({

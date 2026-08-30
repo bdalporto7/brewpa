@@ -35,6 +35,26 @@ export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () 
         mono
       />
       <TextField
+        label="Moisture (%)"
+        name="moisturePercent"
+        type="number"
+        step="0.1"
+        min="0"
+        defaultValue={bean.moisturePercent ?? ""}
+        placeholder="Optional — for AI roast suggestions"
+        mono
+      />
+      <TextField
+        label="Density (g/L)"
+        name="densityGramsPerLiter"
+        type="number"
+        step="1"
+        min="0"
+        defaultValue={bean.densityGramsPerLiter ?? ""}
+        placeholder="Optional — for AI roast suggestions"
+        mono
+      />
+      <TextField
         label={`Total purchased (g) — min ${Math.round(bean.remainingGrams * 10) / 10}g (currently remaining)`}
         name="weightGrams"
         type="number"

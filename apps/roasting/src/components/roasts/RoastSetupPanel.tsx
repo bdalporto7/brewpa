@@ -3,12 +3,25 @@
 import { useState, useTransition } from "react";
 import { Fan, Flame, Play } from "lucide-react";
 import { beginRoast } from "@/lib/actions";
+import { useServerSyncedState } from "@/lib/useServerSyncedState";
 import LevelStepper from "@/components/roasts/LevelStepper";
 import Button from "@/components/ui/Button";
 
-export default function RoastSetupPanel({ roastSessionId }: { roastSessionId: string }) {
-  const [fanLevel, setFanLevel] = useState(5);
-  const [heatLevel, setHeatLevel] = useState(5);
+export default function RoastSetupPanel({
+  roastSessionId,
+  initialFanLevel = 5,
+  initialHeatLevel = 5,
+}: {
+  roastSessionId: string;
+  /** Pre-filled from an AI suggestion (AiSuggestionPanel) once one exists —
+   * useServerSyncedState (not plain useState) so dialing this in still
+   * updates correctly if a suggestion is generated after this panel already
+   * mounted, same drift problem useServerSyncedState was built for. */
+  initialFanLevel?: number;
+  initialHeatLevel?: number;
+}) {
+  const [fanLevel, setFanLevel] = useServerSyncedState(initialFanLevel);
+  const [heatLevel, setHeatLevel] = useServerSyncedState(initialHeatLevel);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 

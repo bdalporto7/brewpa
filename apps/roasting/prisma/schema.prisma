@@ -29,6 +29,11 @@ model Bean {
   weightGrams    Float
   remainingGrams Float
   notes          String?
+  // Optional physical attributes an AI roast suggestion can factor in
+  // (src/lib/roastAdvisor.ts) — left null when the roaster hasn't measured
+  // them; the suggestion prompt just says so rather than guessing.
+  moisturePercent       Float?
+  densityGramsPerLiter  Float?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -61,6 +66,23 @@ model RoastSession {
   roastLevel            String?
   rating                Int?
   notes                 String?
+  // AI roast suggestion (src/lib/roastAdvisor.ts), generated pre-roast from
+  // this bean's own roast+cupping history plus these inputs. Kept on the
+  // session (not thrown away after use) so future suggestions for the same
+  // bean can see what was asked for and tried last time — the whole point
+  // of the feedback loop is not re-deriving this from scratch every roast.
+  ambientTempF      Float?
+  roastGoal         String?
+  suggestedFanLevel  Int?
+  suggestedHeatLevel Int?
+  aiSuggestionNotes String?
+  // Free-text correction the roaster leaves after trying a suggestion (e.g.
+  // "fan 8/heat 8 roasted way faster than predicted, done in 5 min") — a
+  // plain DB write via recordSuggestionFeedback (no LLM call, so recording
+  // it is free), fed into future generateRoastAdvice calls for ANY bean via
+  // summarizeMachineCalibration since a dial-timing correction is a fact
+  // about the machine, not this one bean.
+  aiSuggestionFeedback String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -319,4 +341,18 @@ model Brew {
   @@index([roastSessionId])
   @@index([recipeId])
   @@index([userId])
+}
+
+// One row per generateRoastSuggestion call (src/lib/actions.ts) — exists
+// purely to enforce AI_SUGGESTION_DAILY_LIMIT, a global (not per-user) rate
+// limit on the Anthropic API key: roasting data in this app is shared
+// across everyone allowlisted, not per-user like Brew, so a global cap is
+// the natural fit and needs no user-tracking of its own. This bounds
+// worst-case spend independently of (not instead of) the spend limit set
+// directly in the Anthropic Console.
+model AiSuggestionCall {
+  id       String   @id @default(cuid())
+  calledAt DateTime @default(now())
+
+  @@index([calledAt])
 }

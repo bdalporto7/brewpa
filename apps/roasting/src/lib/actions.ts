@@ -8,6 +8,7 @@ import type { EventType } from "@/lib/constants";
 import { writeRoastPage, removeRoastPage, writeIndexPage, type PublishableSession } from "@/lib/publish";
 import { syncGeneratedDocs } from "@/lib/git";
 import { parseMMSS } from "@/lib/format";
+import { generateRoastAdvice } from "@/lib/roastAdvisor";
 
 const PUBLISHABLE_SESSION_INCLUDE = {
   bean: true,
@@ -59,6 +60,8 @@ export async function createBean(formData: FormData) {
       supplier: str(formData, "supplier"),
       supplierUrl: str(formData, "supplierUrl"),
       purchasePrice: num(formData, "purchasePrice"),
+      moisturePercent: num(formData, "moisturePercent"),
+      densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
       notes: str(formData, "notes"),
     },
   });
@@ -99,6 +102,8 @@ export async function updateBean(id: string, formData: FormData) {
       supplier: str(formData, "supplier"),
       supplierUrl: str(formData, "supplierUrl"),
       purchasePrice: num(formData, "purchasePrice"),
+      moisturePercent: num(formData, "moisturePercent"),
+      densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
       notes: str(formData, "notes"),
     },
   });
@@ -267,6 +272,143 @@ export async function beginRoast(roastSessionId: string, fanLevel: number, heatL
   revalidatePath(`/roasts/${roastSessionId}`);
   revalidatePath("/roasts");
   revalidatePath("/");
+}
+
+/**
+ * Generates and persists an AI roast suggestion (src/lib/roastAdvisor.ts)
+ * for a pending roast — factors in the bean's own attributes plus its past
+ * roasts and their cupping scores, so asking for e.g. "more acidity" reasons
+ * from what was actually tried before, not generic advice. Persisted on the
+ * session (not thrown away after use) so the next roast of this bean has
+ * this one's inputs and result to build on too.
+ */
+// Global (not per-user — see AiSuggestionCall's schema comment) daily cap on
+// Anthropic API calls from this feature. Defense in depth alongside the
+// spend limit set directly in the Anthropic Console, not a replacement for
+// it — this bounds app-level abuse (e.g. a compromised session looping the
+// action); the Console limit bounds everything else.
+const AI_SUGGESTION_DAILY_LIMIT = 20;
+
+export async function generateRoastSuggestion(
+  roastSessionId: string,
+  ambientTempF: number,
+  roastGoal: string
+) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentCalls = await prisma.aiSuggestionCall.count({ where: { calledAt: { gte: since } } });
+  if (recentCalls >= AI_SUGGESTION_DAILY_LIMIT) {
+    throw new Error(
+      `Hit today's limit of ${AI_SUGGESTION_DAILY_LIMIT} AI suggestions across the app — try again tomorrow.`
+    );
+  }
+  await prisma.aiSuggestionCall.create({ data: {} });
+
+  const session = await prisma.roastSession.findUniqueOrThrow({
+    where: { id: roastSessionId },
+    include: { bean: true },
+  });
+
+  const history = await prisma.roastSession.findMany({
+    where: { beanId: session.beanId, endedAt: { not: null } },
+    include: { events: true, cuppingNotes: true },
+    orderBy: { startedAt: "desc" },
+    take: 5,
+  });
+
+  // Machine-calibration data (src/lib/roastAdvisor.ts): every completed
+  // roast of ANY bean, but trimmed to just the handful of fields actually
+  // used — the charge-time FAN/HEAT events, the two milestone events, and
+  // one probe reading — rather than every event and every probe reading
+  // (which alone can be 80-100+ rows per roast) across 40+ roasts.
+  const calibration = await prisma.roastSession.findMany({
+    where: { endedAt: { not: null } },
+    select: {
+      id: true,
+      startedAt: true,
+      endedAt: true,
+      ambientTempF: true,
+      roastedWeightGrams: true,
+      greenWeightGrams: true,
+      aiSuggestionFeedback: true,
+      bean: { select: { process: true } },
+      events: {
+        where: {
+          OR: [
+            { type: "FAN", atSeconds: 0 },
+            { type: "HEAT", atSeconds: 0 },
+            { type: "DRY_END" },
+            { type: "FIRST_CRACK_START" },
+          ],
+        },
+        select: { type: true, atSeconds: true, fanLevel: true, heatLevel: true },
+      },
+      temperatureReadings: {
+        orderBy: { atSeconds: "desc" },
+        take: 1,
+        select: { tempFahrenheit: true },
+      },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+
+  // Fallback drop-temp source for roasts with no probe reading at all —
+  // one lightweight query for the last hand-logged TEMP event per roast
+  // (via `distinct`), instead of fetching every TEMP event per roast just
+  // to find the last one.
+  const needsHandLoggedTemp = calibration
+    .filter((r) => r.temperatureReadings.length === 0)
+    .map((r) => r.id);
+  const lastTempEvents =
+    needsHandLoggedTemp.length > 0
+      ? await prisma.roastEvent.findMany({
+          where: { roastSessionId: { in: needsHandLoggedTemp }, type: "TEMP" },
+          orderBy: [{ roastSessionId: "asc" }, { atSeconds: "desc" }],
+          distinct: ["roastSessionId"],
+          select: { roastSessionId: true, tempFahrenheit: true },
+        })
+      : [];
+  const calibrationLastTemp = new Map(
+    lastTempEvents
+      .filter((e) => e.tempFahrenheit != null)
+      .map((e) => [e.roastSessionId, e.tempFahrenheit as number])
+  );
+
+  const advice = await generateRoastAdvice(
+    session.bean,
+    history,
+    calibration,
+    calibrationLastTemp,
+    ambientTempF,
+    roastGoal
+  );
+
+  await prisma.roastSession.update({
+    where: { id: roastSessionId },
+    data: {
+      ambientTempF,
+      roastGoal,
+      suggestedFanLevel: advice.suggestedFanLevel,
+      suggestedHeatLevel: advice.suggestedHeatLevel,
+      aiSuggestionNotes: advice.notes,
+    },
+  });
+
+  revalidatePath(`/roasts/${roastSessionId}`);
+}
+
+/**
+ * Records a correction on a past AI suggestion (e.g. "fan 8/heat 8 roasted
+ * way faster than predicted") — plain DB write, no LLM call, so recording
+ * feedback is free. Read back into every future generateRoastSuggestion
+ * call for ANY bean via the calibration query, since a dial-timing
+ * correction is a fact about the machine, not the one bean it happened on.
+ */
+export async function recordSuggestionFeedback(roastSessionId: string, feedback: string) {
+  await prisma.roastSession.update({
+    where: { id: roastSessionId },
+    data: { aiSuggestionFeedback: feedback },
+  });
+  revalidatePath(`/roasts/${roastSessionId}`);
 }
 
 /**

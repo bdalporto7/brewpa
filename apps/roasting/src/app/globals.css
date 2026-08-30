@@ -249,3 +249,28 @@ body {
 .stamp-toast {
   animation: stamp-toast 3.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+
+/* The mascot mark bouncing/wiggling in place — AiSuggestionPanel's "Get
+   suggestion" button while a real Anthropic call is in flight (isPending),
+   so waiting on a several-second API round-trip reads as the mascot
+   working on it rather than a frozen button. Loops (infinite) only while
+   pending; removing the class mid-bounce just stops it, no exit state
+   needed the way stamp-toast needs one. */
+@keyframes mascot-dance {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(8deg);
+  }
+}
+.mascot-dance {
+  animation: mascot-dance 0.6s ease-in-out infinite;
+}
