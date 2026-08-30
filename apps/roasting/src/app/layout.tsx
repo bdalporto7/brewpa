@@ -39,7 +39,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <ToastProvider>
           <Nav />
-          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+          {/* Extra bottom padding on mobile only — clears the fixed bottom
+              tab bar NavClient renders below sm:, so the last bit of page
+              content isn't hidden behind it. */}
+          <main className="mx-auto w-full max-w-4xl flex-1 px-4 pt-8 pb-24 sm:px-6 sm:pb-8">
             {children}
           </main>
         </ToastProvider>

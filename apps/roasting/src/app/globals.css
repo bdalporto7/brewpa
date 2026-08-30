@@ -115,6 +115,16 @@ body {
   width: 100%;
   min-width: 560px;
 }
+/* Below this, 560px no longer fits most phones even with zero padding,
+   forcing the horizontal-scroll fallback the min-width exists to avoid
+   in the first place — better to let the chart actually shrink to fit
+   (the SVG's viewBox scales everything, text included, proportionally)
+   than force a sideways scroll that fights the page's own scroll. */
+@media (max-width: 640px) {
+  .roast-curve-svg {
+    min-width: 0;
+  }
+}
 .mono-10 {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;

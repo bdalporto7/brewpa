@@ -30,7 +30,9 @@ export default function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={fire}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4 sm:items-end sm:pr-6">
+      {/* bottom-20 on mobile clears NavClient's fixed bottom tab bar
+          (sm:hidden, so bottom-4 is right again once that bar is gone). */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 sm:bottom-4 sm:items-end sm:pr-6">
         {toasts.map((t) => (
           <div
             key={t.id}
