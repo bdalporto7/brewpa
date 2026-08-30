@@ -22,9 +22,19 @@
  * local script, not a signed-in browser, and authenticates with a bearer
  * token instead of a session cookie — `authorized` would reject it outright
  * for having no session at all.
+ *
+ * Anything with a file extension (the trailing `.*\..*` alternative) is
+ * excluded too — public/'s brand assets (cybar-mark.png, cybar-stamp.png,
+ * etc.) aren't sensitive and were never meant to require a session, but
+ * without this they matched the catch-all like any other route: an
+ * unauthenticated request got 307'd to /login instead of the image, so
+ * `<img src="/cybar-stamp.png">` on /login itself — the one page that by
+ * definition never has a session — silently rendered as a broken image
+ * for every signed-out visitor. Found by actually looking at the
+ * rendered login screen in the iOS build, not by inspection.
  */
 export { auth as proxy } from "@/auth";
 
 export const config = {
-  matcher: ["/((?!api/auth|api/probe|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|api/probe|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
