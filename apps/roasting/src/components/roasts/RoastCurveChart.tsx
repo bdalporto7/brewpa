@@ -9,6 +9,7 @@ import {
   CHART_WIDTH,
   CHART_HEIGHT,
   type CurveReading,
+  type RoastCurveTargets,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
@@ -17,18 +18,23 @@ export default function RoastCurveChart({
   events,
   totalSeconds,
   probeReadings = [],
+  targets,
 }: {
   events: RoastEvent[];
   totalSeconds: number;
   probeReadings?: TemperatureReading[];
+  /** Accepted AI-plan targets (AiSuggestionPanel) — rendered as ghosted
+   * dashed reference lines alongside the actual curve. Only meaningful for
+   * the live view; a completed roast doesn't pass this. */
+  targets?: RoastCurveTargets;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<CurveReading | null>(null);
   const [showRor, setShowRor] = useState(false);
 
   const svg = useMemo(
-    () => buildRoastCurveSvg(events, totalSeconds, { showRor, probeReadings }),
-    [events, totalSeconds, showRor, probeReadings]
+    () => buildRoastCurveSvg(events, totalSeconds, { showRor, probeReadings, targets }),
+    [events, totalSeconds, showRor, probeReadings, targets]
   );
   const readings = useMemo(() => getCurveReadings(events, probeReadings), [events, probeReadings]);
   const layout = useMemo(

@@ -146,7 +146,8 @@ function buildPrompt(
   calibration: CalibrationRoast[],
   calibrationLastTemp: Map<string, number>,
   ambientTempF: number,
-  roastGoal: string
+  roastGoal: string,
+  brewTarget: string | null
 ): string {
   const beanLines = [
     `Origin: ${bean.origin}`,
@@ -169,6 +170,8 @@ function buildPrompt(
     ``,
     `Today's ambient temperature: ${ambientTempF}°F`,
     `Roaster's goal for this roast: ${roastGoal}`,
+    brewTarget ? `Intended brew method: ${brewTarget} — see the roaster's own weight-loss` : "",
+    brewTarget ? `targets and flavor priorities per brew method in the system prompt.` : "",
     ``,
     `This exact SR800 unit's actual measured behavior across past roasts of`,
     `OTHER beans (process, dial settings, and real observed timing — use this`,
@@ -180,7 +183,9 @@ function buildPrompt(
     `Past roasts of this same bean specifically, most recent first (for`,
     `flavor-outcome correlation via cupping scores):`,
     historyText,
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 const SYSTEM_PROMPT = `You are an expert coffee roaster advising on a Fresh Roast SR800 — a
@@ -197,34 +202,172 @@ fluid-bed timing — if it conflicts with what "should" happen on a fluid-bed
 roaster in general, the calibration data wins, because it's measurements
 of this exact unit, not a textbook.
 
-Established roasting science to apply, not just recite: natural-process
-beans carry more fruit sugar/mucilage on the parchment than washed beans
-and scorch or taste ashy/smoky if pushed too hard on heat before enough
-moisture and chaff have cleared — favor a more moderate starting heat with
-adequate (not necessarily maximal) fan for naturals early on, then build
-heat once past the drying phase, rather than defaulting to the highest
-settings just because more airflow generally helps with chaff. Also apply
-real bean-density/moisture reasoning: denser, lower-moisture beans absorb
-heat more slowly and can tolerate a hotter charge; less dense, higher-
-moisture beans scorch more easily at a hot charge and want a gentler start.
+Ground every recommendation in BOTH sources together, not either alone:
+this machine's own measured behavior (timing/temps are unit-specific, not
+something a textbook or this bean's own history can tell you), AND
+established, real roasting science — cite the actual mechanism, not just
+"experience shows": the drying phase is bulk water evaporation from the
+bean (endothermic — heat goes into vaporizing water, not raising bean
+temp, so RoR often dips here); Maillard reactions (browning, non-enzymatic
+sugar-amino acid reactions) dominate from yellowing through first crack and
+build body/sweetness; first crack is an exothermic pressure-rupture event
+(steam and CO2 breaking down cell structure) after which the development
+phase (Maillard continuing plus the start of caramelization) sets acidity-
+vs-sweetness balance — shorter development after 1C generally preserves
+more brightness/acidity, longer development trades acidity for body and
+sweetness and risks tipping into roast-forward/baked flavors if pushed too
+far. Natural-process beans carry more fruit sugar/mucilage on the
+parchment than washed beans and scorch or taste ashy/smoky if pushed too
+hard on heat before enough moisture and chaff have cleared — favor a more
+moderate starting heat with adequate (not necessarily maximal) fan for
+naturals early on, then build heat once past drying, rather than
+defaulting to the highest settings just because more airflow generally
+helps with chaff. Denser, lower-moisture beans absorb heat more slowly and
+can tolerate a hotter charge; less dense, higher-moisture beans scorch more
+easily at a hot charge and want a gentler start.
 
-Given the bean's attributes, ambient temperature, the roaster's stated goal,
-this machine's calibration data, and (when available) a history of past
-roasts of this exact bean with their cupping scores, recommend a starting
-fan/heat setting and a short profile (when and how to adjust from there).
-When history is available and the roaster states a goal that implies a
-change from last time (e.g. "more acidity", "less smoky", "sweeter"),
-reason explicitly from what was tried before and its cupping result to what
-should change this time — don't just restate generic roasting advice.
+Given the bean's attributes, ambient temperature, the roaster's stated goal
+and intended brew method (if given), this machine's calibration data, and
+(when available) a history of past roasts of this exact bean with their
+cupping scores, produce a starting fan/heat setting and a concrete plan:
+a short sequence of dial changes over time, plus target times for each
+roast-phase milestone and a target drop temperature. When history is
+available and the roaster states a goal that implies a change from last
+time (e.g. "more acidity", "less smoky", "sweeter"), reason explicitly from
+what was tried before and its cupping result to what should change this
+time — don't just restate generic roasting advice.
+
+If an intended brew method is given, it maps to a specific weight-loss
+target and flavor priority — these are the roaster's own calibrated
+preferences, not a generic guideline, so treat them as a hard target to
+hit via the development time and drop point, verified against this
+machine's weight-loss calibration data above for beans roasted to a
+similar target before:
+- "Filter only": weight loss below 11%. Prioritize nuance, complexity, and
+  a pronounced, clean acidity — the lightest, shortest-development end of
+  the spectrum.
+- "Light roast espresso": also weight loss below 11%, similar to filter
+  only, but shift the balance toward more body while staying light —
+  slightly more heat/less fan-driven cooling late, or a touch more
+  development, without pushing weight loss up.
+- "Filter + Espresso": weight loss 11.5-12.5%. Slightly darker and a
+  broader window than filter only; more body than light roast espresso.
+- "Espresso only": weight loss 12.5-16%. Body-focused — aim for sweetness
+  and chocolate/cocoa notes over bright acidity; this is the longest
+  development, darkest end of the spectrum.
+If no brew method is given, use the roaster's stated goal and the bean's
+attributes alone to judge the right weight-loss range.
 
 Reply with ONLY a JSON object, no markdown fences, no other text, matching
 exactly this shape:
-{"suggestedFanLevel": <integer 1-9>, "suggestedHeatLevel": <integer 1-9>, "notes": "<string>"}
+{
+  "suggestedFanLevel": <integer 1-9>,
+  "suggestedHeatLevel": <integer 1-9>,
+  "summary": "<one sentence, the terse takeaway — shown by default>",
+  "rationale": "<a few sentences, the full science- and history-grounded explanation — shown behind an expand toggle>",
+  "settingChanges": [{"atSeconds": <integer>, "fanLevel": <integer 1-9, omit if unchanged>, "heatLevel": <integer 1-9, omit if unchanged>}, ...],
+  "targets": {
+    "dryEndSeconds": <integer>,
+    "yellowingEndSeconds": <integer, omit if not meaningfully distinct from dry end>,
+    "firstCrackSeconds": <integer>,
+    "developmentSeconds": <integer, time from first crack to drop>,
+    "dropTempF": <integer>,
+    "targetWeightLossPercent": <number, one decimal, within the intended brew method's range above>
+  }
+}
 
-"notes" should be a few sentences: the starting point, how to adjust over
-the course of the roast, and — when history was used — a brief rationale
-tying the recommendation back to the past result or to this machine's
-calibration data.`;
+"settingChanges" must include an entry at atSeconds 0 with the starting
+fan/heat (matching suggestedFanLevel/suggestedHeatLevel), then one entry
+per subsequent change — this is the actual instructions the roaster will
+follow, so be concrete with times, not vague ("partway through drying").
+All target times are seconds from charge (atSeconds 0), consistent with
+the calibration data above.`;
+
+export interface RoastPlanSettingChange {
+  atSeconds: number;
+  fanLevel?: number;
+  heatLevel?: number;
+}
+
+export interface RoastPlanTargets {
+  dryEndSeconds?: number;
+  yellowingEndSeconds?: number;
+  firstCrackSeconds?: number;
+  developmentSeconds?: number;
+  dropTempF?: number;
+  targetWeightLossPercent?: number;
+}
+
+export interface RoastPlan {
+  settingChanges: RoastPlanSettingChange[];
+  targets: RoastPlanTargets;
+}
+
+export interface RoastAdvice {
+  suggestedFanLevel: number;
+  suggestedHeatLevel: number;
+  summary: string;
+  rationale: string;
+  plan: RoastPlan;
+}
+
+function clampLevel(n: number): number {
+  return Math.round(Math.min(SR800_LEVEL_MAX, Math.max(SR800_LEVEL_MIN, n)));
+}
+
+/** Loose but real validation — rejects garbage shapes with a clear error
+ * (surfaced to the UI, "try again" is cheap) rather than silently
+ * defaulting missing fields, which would hide a real model-output problem. */
+function parseRoastAdvice(raw: unknown): RoastAdvice {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Claude's response wasn't a JSON object — try again.");
+  }
+  const r = raw as Record<string, unknown>;
+
+  if (
+    typeof r.suggestedFanLevel !== "number" ||
+    typeof r.suggestedHeatLevel !== "number" ||
+    typeof r.summary !== "string" ||
+    typeof r.rationale !== "string" ||
+    !Array.isArray(r.settingChanges) ||
+    typeof r.targets !== "object" ||
+    r.targets === null
+  ) {
+    throw new Error("Claude's response was missing expected fields — try again.");
+  }
+
+  const settingChanges: RoastPlanSettingChange[] = r.settingChanges.map((raw, i) => {
+    if (typeof raw !== "object" || raw === null || typeof (raw as Record<string, unknown>).atSeconds !== "number") {
+      throw new Error(`Claude's response had a malformed setting change at index ${i} — try again.`);
+    }
+    const c = raw as Record<string, unknown>;
+    return {
+      atSeconds: Math.round(c.atSeconds as number),
+      fanLevel: typeof c.fanLevel === "number" ? clampLevel(c.fanLevel) : undefined,
+      heatLevel: typeof c.heatLevel === "number" ? clampLevel(c.heatLevel) : undefined,
+    };
+  });
+
+  const t = r.targets as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === "number" ? Math.round(v) : undefined);
+  const percent = (v: unknown) => (typeof v === "number" ? Math.round(v * 10) / 10 : undefined);
+  const targets: RoastPlanTargets = {
+    dryEndSeconds: num(t.dryEndSeconds),
+    yellowingEndSeconds: num(t.yellowingEndSeconds),
+    firstCrackSeconds: num(t.firstCrackSeconds),
+    developmentSeconds: num(t.developmentSeconds),
+    dropTempF: num(t.dropTempF),
+    targetWeightLossPercent: percent(t.targetWeightLossPercent),
+  };
+
+  return {
+    suggestedFanLevel: clampLevel(r.suggestedFanLevel),
+    suggestedHeatLevel: clampLevel(r.suggestedHeatLevel),
+    summary: r.summary,
+    rationale: r.rationale,
+    plan: { settingChanges, targets },
+  };
+}
 
 export async function generateRoastAdvice(
   bean: Bean,
@@ -232,8 +375,9 @@ export async function generateRoastAdvice(
   calibration: CalibrationRoast[],
   calibrationLastTemp: Map<string, number>,
   ambientTempF: number,
-  roastGoal: string
-): Promise<{ suggestedFanLevel: number; suggestedHeatLevel: number; notes: string }> {
+  roastGoal: string,
+  brewTarget: string | null
+): Promise<RoastAdvice> {
   // This project's Anthropic API key is identity-linked to a specific
   // Workspace — such keys 400 without an explicit anthropic-workspace-id
   // header declaring which workspace the request acts in (found live,
@@ -244,14 +388,19 @@ export async function generateRoastAdvice(
 
   const response = await client.messages.create({
     model: "claude-opus-5",
-    max_tokens: 2000,
+    // 2000 was fine for the original {fan, heat, notes} shape but silently
+    // truncated the richer plan (long rationale + settingChanges array +
+    // targets) mid-JSON — caught live via the raw-text debug log on a parse
+    // failure. 16000 matches the claude-api skill's own non-streaming
+    // default (keeps well under the SDK's HTTP timeout).
+    max_tokens: 16000,
     thinking: { type: "adaptive" },
     output_config: { effort: "high" },
     system: SYSTEM_PROMPT,
     messages: [
       {
         role: "user",
-        content: buildPrompt(bean, history, calibration, calibrationLastTemp, ambientTempF, roastGoal),
+        content: buildPrompt(bean, history, calibration, calibrationLastTemp, ambientTempF, roastGoal, brewTarget),
       },
     ],
   });
@@ -261,39 +410,23 @@ export async function generateRoastAdvice(
     throw new Error("Claude didn't return a text response.");
   }
 
+  // Defensive strip of markdown code fences — the system prompt says not
+  // to use them, but that's an instruction, not a guarantee.
+  const rawText = textBlock.text
+    .trim()
+    .replace(/^```(?:json)?\n?/, "")
+    .replace(/\n?```$/, "");
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(textBlock.text.trim());
-  } catch {
+    parsed = JSON.parse(rawText);
+  } catch (e) {
+    console.error("generateRoastAdvice: failed to parse Claude's response as JSON.", {
+      error: e,
+      rawText,
+    });
     throw new Error("Claude's response wasn't valid JSON — try again.");
   }
 
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !("suggestedFanLevel" in parsed) ||
-    !("suggestedHeatLevel" in parsed) ||
-    !("notes" in parsed)
-  ) {
-    throw new Error("Claude's response was missing expected fields — try again.");
-  }
-
-  const { suggestedFanLevel, suggestedHeatLevel, notes } = parsed as Record<string, unknown>;
-  if (
-    typeof suggestedFanLevel !== "number" ||
-    typeof suggestedHeatLevel !== "number" ||
-    typeof notes !== "string"
-  ) {
-    throw new Error("Claude's response had the wrong field types — try again.");
-  }
-
-  return {
-    suggestedFanLevel: Math.round(
-      Math.min(SR800_LEVEL_MAX, Math.max(SR800_LEVEL_MIN, suggestedFanLevel))
-    ),
-    suggestedHeatLevel: Math.round(
-      Math.min(SR800_LEVEL_MAX, Math.max(SR800_LEVEL_MIN, suggestedHeatLevel))
-    ),
-    notes,
-  };
+  return parseRoastAdvice(parsed);
 }

@@ -20,6 +20,24 @@ export const PROCESSES = [
 
 export type Process = (typeof PROCESSES)[number];
 
+// For AI roast suggestions (RoastSession.brewTarget, AiSuggestionPanel) —
+// deliberately just this filter-vs-espresso spectrum, not the full
+// BREW_METHODS list below. Which specific device (V60 vs Chemex vs
+// AeroPress) mostly affects grind/dose/water — the roast-level decision
+// (development time, weight loss, how much acidity to preserve vs. how
+// much body to build) depends on where on this spectrum you're aiming,
+// and each option's target weight-loss range/flavor priority (the
+// roaster's own preferences, not a generic guideline) is baked into
+// roastAdvisor.ts's system prompt keyed off these exact labels.
+export const ROAST_BREW_TARGETS = [
+  "Filter only",
+  "Light roast espresso",
+  "Filter + Espresso",
+  "Espresso only",
+] as const;
+
+export type RoastBrewTarget = (typeof ROAST_BREW_TARGETS)[number];
+
 // Adapted from archive/coffee-journal's BREW_METHODS list.
 export const BREW_METHODS = [
   "Espresso",

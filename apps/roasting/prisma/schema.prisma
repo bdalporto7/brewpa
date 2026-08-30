@@ -71,11 +71,25 @@ model RoastSession {
   // session (not thrown away after use) so future suggestions for the same
   // bean can see what was asked for and tried last time — the whole point
   // of the feedback loop is not re-deriving this from scratch every roast.
-  ambientTempF      Float?
-  roastGoal         String?
+  ambientTempF       Float?
+  roastGoal          String?
+  brewTarget         String?
   suggestedFanLevel  Int?
   suggestedHeatLevel Int?
-  aiSuggestionNotes String?
+  // Terse one-line takeaway (shown by default) vs. the full science+history
+  // rationale (behind an expand toggle) — see AiSuggestionPanel.
+  aiSuggestionSummary   String?
+  aiSuggestionNotes     String?
+  // JSON-stringified { settingChanges: [...], targets: {...} } — see
+  // RoastPlan in roastAdvisor.ts. A plain String column (not Prisma's Json
+  // type) to match this schema's existing plain-scalar style; parsed with
+  // JSON.parse where read.
+  aiSuggestionPlan      String?
+  // Set by acceptRoastSuggestion (a plain DB write, no LLM call) — gates
+  // whether this plan's target milestones/drop temp actually render as
+  // dashed reference lines on the live chart (src/lib/curve.ts), so a
+  // suggestion the roaster never acted on doesn't clutter the chart.
+  aiSuggestionAcceptedAt DateTime?
   // Free-text correction the roaster leaves after trying a suggestion (e.g.
   // "fan 8/heat 8 roasted way faster than predicted, done in 5 min") — a
   // plain DB write via recordSuggestionFeedback (no LLM call, so recording

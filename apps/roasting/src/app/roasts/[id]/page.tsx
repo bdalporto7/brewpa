@@ -9,7 +9,7 @@ import BrewCard from "@/components/brews/BrewCard";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
 import { computeHistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
-import { getCurveReadings } from "@/lib/curve";
+import { getCurveReadings, type RoastCurveTargets } from "@/lib/curve";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import LiveTimerBar from "@/components/roasts/LiveTimerBar";
@@ -114,6 +114,13 @@ export default async function RoastSessionPage({
     ...session.events.map((e) => e.atSeconds),
     ...session.temperatureReadings.map((r) => r.atSeconds ?? 0)
   );
+  // Only once the roaster has explicitly accepted a suggestion
+  // (AiSuggestionPanel) — a generated-but-unused plan shouldn't clutter
+  // the live chart with reference lines nobody asked to follow.
+  const acceptedPlanTargets =
+    session.aiSuggestionAcceptedAt && session.aiSuggestionPlan
+      ? (JSON.parse(session.aiSuggestionPlan) as { targets: RoastCurveTargets }).targets
+      : undefined;
 
   const weightLoss =
     session.roastedWeightGrams != null
@@ -213,9 +220,13 @@ export default async function RoastSessionPage({
             roastSessionId={session.id}
             initialAmbientTempF={session.ambientTempF}
             initialRoastGoal={session.roastGoal}
+            initialBrewTarget={session.brewTarget}
             suggestedFanLevel={session.suggestedFanLevel}
             suggestedHeatLevel={session.suggestedHeatLevel}
+            aiSuggestionSummary={session.aiSuggestionSummary}
             aiSuggestionNotes={session.aiSuggestionNotes}
+            aiSuggestionPlan={session.aiSuggestionPlan}
+            aiSuggestionAcceptedAt={session.aiSuggestionAcceptedAt}
             aiSuggestionFeedback={session.aiSuggestionFeedback}
           />
           <RoastSetupPanel
@@ -279,6 +290,7 @@ export default async function RoastSessionPage({
               events={session.events}
               totalSeconds={liveElapsedSeconds}
               probeReadings={session.temperatureReadings}
+              targets={acceptedPlanTargets}
             />
           )}
           {baseline && (

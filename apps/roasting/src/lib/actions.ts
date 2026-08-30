@@ -292,7 +292,8 @@ const AI_SUGGESTION_DAILY_LIMIT = 20;
 export async function generateRoastSuggestion(
   roastSessionId: string,
   ambientTempF: number,
-  roastGoal: string
+  roastGoal: string,
+  brewTarget: string | null
 ) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const recentCalls = await prisma.aiSuggestionCall.count({ where: { calledAt: { gte: since } } });
@@ -379,7 +380,8 @@ export async function generateRoastSuggestion(
     calibration,
     calibrationLastTemp,
     ambientTempF,
-    roastGoal
+    roastGoal,
+    brewTarget
   );
 
   await prisma.roastSession.update({
@@ -387,12 +389,31 @@ export async function generateRoastSuggestion(
     data: {
       ambientTempF,
       roastGoal,
+      brewTarget,
       suggestedFanLevel: advice.suggestedFanLevel,
       suggestedHeatLevel: advice.suggestedHeatLevel,
-      aiSuggestionNotes: advice.notes,
+      aiSuggestionSummary: advice.summary,
+      aiSuggestionPlan: JSON.stringify(advice.plan),
+      aiSuggestionAcceptedAt: null,
+      aiSuggestionNotes: advice.rationale,
     },
   });
 
+  revalidatePath(`/roasts/${roastSessionId}`);
+}
+
+/**
+ * Marks the current AI suggestion as accepted — a plain DB write, no LLM
+ * call — which is what makes its target milestones/drop temp actually
+ * render as dashed reference lines on the live chart (src/lib/curve.ts).
+ * A suggestion the roaster never acted on shouldn't clutter the chart, so
+ * generateRoastSuggestion resets this to null on every regeneration.
+ */
+export async function acceptRoastSuggestion(roastSessionId: string) {
+  await prisma.roastSession.update({
+    where: { id: roastSessionId },
+    data: { aiSuggestionAcceptedAt: new Date() },
+  });
   revalidatePath(`/roasts/${roastSessionId}`);
 }
 

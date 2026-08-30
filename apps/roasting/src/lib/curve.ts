@@ -9,7 +9,13 @@ export const CHART_MARGIN_LEFT = 44;
 // or not RoR is currently toggled on so showing/hiding it never reflows the
 // chart.
 const MARGIN_RIGHT = 38;
-const MARGIN_TOP = 20;
+// 20 was enough room for one row of milestone labels above the chart; a
+// live roast with an accepted AI plan can now stack a second "target" row
+// above the actual-milestone row at the same x position (see
+// buildRoastCurveSvg's targets handling) when the two land close in time —
+// bumped for all charts rather than adding a second margin constant, since
+// 10px more headroom is a negligible, safe change everywhere else too.
+const MARGIN_TOP = 30;
 const AXIS_HEIGHT = 24;
 const STRIP_HEIGHT = 48;
 const STRIP_GAP = 16;
@@ -233,15 +239,42 @@ function buildStepPath(
  * properties by name; the caller must define them (globals.css does this in
  * the app, the static page inlines its own copy).
  */
+/** Accepted-plan target milestones (src/lib/roastAdvisor.ts's RoastPlan,
+ * via AiSuggestionPanel's "Accept plan") — same shape as RoastPlanTargets,
+ * duplicated here rather than imported to keep curve.ts (used by the
+ * static published-page build too) independent of the AI module. */
+export interface RoastCurveTargets {
+  dryEndSeconds?: number;
+  yellowingEndSeconds?: number;
+  firstCrackSeconds?: number;
+  developmentSeconds?: number;
+  dropTempF?: number;
+}
+
 export function buildRoastCurveSvg(
   events: RoastEvent[],
   totalSeconds: number,
-  options: { showRor?: boolean; probeReadings?: TemperatureReading[] } = {}
+  options: { showRor?: boolean; probeReadings?: TemperatureReading[]; targets?: RoastCurveTargets } = {}
 ): string | null {
   const readings = getCurveReadings(events, options.probeReadings);
   if (readings.length < 2) return null;
 
-  const layout = getChartLayout(readings, totalSeconds);
+  // Extend the axis to cover the furthest target time too — otherwise a
+  // live chart's x-axis only spans elapsed-time-so-far, and every upcoming
+  // target milestone (which is the whole point of showing them) sits
+  // off-screen to the right until the actual roast catches up to it.
+  const t = options.targets;
+  const latestTarget = t
+    ? Math.max(
+        t.dryEndSeconds ?? 0,
+        t.yellowingEndSeconds ?? 0,
+        t.firstCrackSeconds ?? 0,
+        t.firstCrackSeconds != null && t.developmentSeconds != null
+          ? t.firstCrackSeconds + t.developmentSeconds
+          : 0
+      )
+    : 0;
+  const layout = getChartLayout(readings, Math.max(totalSeconds, latestTarget));
   const {
     chartLeft,
     chartRight,
@@ -312,6 +345,46 @@ export function buildRoastCurveSvg(
     parts.push(
       `<line x1="${x(dropEvent.atSeconds)}" x2="${x(dropEvent.atSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:var(--mark-drop)" stroke-width="1.5" />`
     );
+  }
+
+  // Accepted AI-plan targets — ghosted (low opacity, finer dash) so they
+  // read as "aim for here" reference lines rather than competing with the
+  // actual, solid-dashed milestones once they're actually logged. Same
+  // color per milestone type as the real thing, labeled with a trailing
+  // "→" to keep them visually distinct even where a color repeats.
+  if (options.targets) {
+    const t = options.targets;
+    const targetLines: { atSeconds: number | undefined; label: string; color: string }[] = [
+      { atSeconds: t.dryEndSeconds, label: "DE→", color: "var(--mark-dry-end)" },
+      { atSeconds: t.yellowingEndSeconds, label: "YE→", color: "var(--mark-yellowing-end)" },
+      { atSeconds: t.firstCrackSeconds, label: "1C→", color: "var(--mark-first-crack)" },
+    ];
+    // A one-time legend rather than lengthening every individual label
+    // (which at this chart's 9px marker-label size would start colliding
+    // with its neighbors) — anchored top-left, a spot no target is ever
+    // placed at since none of them land at t=0.
+    parts.push(
+      `<line x1="${chartLeft}" x2="${chartLeft + 12}" y1="${tempChartTop - 16}" y2="${tempChartTop - 16}" style="stroke:var(--muted)" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.7" />`,
+      `<text x="${chartLeft + 16}" y="${tempChartTop - 16}" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">= AI plan target</text>`
+    );
+    for (const target of targetLines) {
+      if (target.atSeconds == null) continue;
+      parts.push(
+        `<line x1="${x(target.atSeconds)}" x2="${x(target.atSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${target.color}" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`,
+        // -16 rather than the actual-milestone labels' -6: stacks the
+        // "target" label above the "actual" one instead of colliding when
+        // the two times land close together, which is exactly the common
+        // case early in a roast that's tracking its plan well.
+        `<text x="${x(target.atSeconds)}" y="${tempChartTop - 16}" text-anchor="middle" style="fill:${target.color}" class="marker-label" opacity="0.7">${target.label}</text>`
+      );
+    }
+    if (t.firstCrackSeconds != null && t.developmentSeconds != null) {
+      const targetDrop = t.firstCrackSeconds + t.developmentSeconds;
+      parts.push(
+        `<line x1="${x(targetDrop)}" x2="${x(targetDrop)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:var(--mark-drop)" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`,
+        `<text x="${x(targetDrop)}" y="${tempChartTop - 16}" text-anchor="middle" style="fill:var(--mark-drop)" class="marker-label" opacity="0.7">Drop→${t.dropTempF != null ? ` ${t.dropTempF}°` : ""}</text>`
+      );
+    }
   }
 
   parts.push(
