@@ -158,7 +158,7 @@ export default async function RoastSessionPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         {justCompleted && <BeanBurst />}
         <div>
           <h1 className="text-4xl font-black tracking-tight">{session.bean.name}</h1>
@@ -169,7 +169,11 @@ export default async function RoastSessionPage({
             · {session.greenWeightGrams}g green
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        {/* flex-wrap: four text-labeled actions (Export CSV, golden-roast
+            toggle, Publish, Delete) next to a real bean name genuinely
+            don't fit in one row on a phone — wrapping beats the row
+            silently overflowing the page sideways. */}
+        <div className="flex flex-wrap items-center gap-4">
           {isCompleted && (
             <>
               <a
