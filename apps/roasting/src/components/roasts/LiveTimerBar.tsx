@@ -110,7 +110,10 @@ function CompactBar({
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 z-30 bg-accent shadow-lg">
+    <div
+      className="fixed inset-x-0 top-0 z-30 bg-accent shadow-lg"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-3 py-1.5 sm:px-4">
         <div className="flex min-w-0 flex-col items-start">
           <span className="flex items-center gap-1.5 text-accent-foreground/80">

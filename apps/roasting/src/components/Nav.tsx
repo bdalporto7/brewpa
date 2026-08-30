@@ -9,7 +9,7 @@ export default async function Nav() {
   const currentUser = await getCurrentAllowedUser();
 
   return (
-    <header className="border-b border-border">
+    <header className="border-b border-border" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <NavClient isAdmin={!!currentUser?.isAdmin} />
     </header>
   );

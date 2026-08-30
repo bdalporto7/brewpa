@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Permanent_Marker } from "next/font/google";
 import Nav from "@/components/Nav";
 import ToastProvider from "@/components/ui/ToastProvider";
@@ -28,6 +28,18 @@ const marker = Permanent_Marker({
 export const metadata: Metadata = {
   title: "Cybar Coffee",
   description: "Roasting and brewing, tracked end to end.",
+};
+
+// viewportFit: "cover" lets the WebView draw edge-to-edge under the
+// notch/Dynamic Island and home indicator — required before any
+// env(safe-area-inset-*) CSS (used by Nav's header and its fixed bottom
+// tab bar) resolves to anything but 0. Doesn't matter in regular mobile
+// Safari (the browser chrome already reserves that space), only shows up
+// once the app runs edge-to-edge as its own native shell via Capacitor.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
