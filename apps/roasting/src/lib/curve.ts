@@ -17,16 +17,6 @@ const MARGIN_RIGHT = 38;
 // 10px more headroom is a negligible, safe change everywhere else too.
 const MARGIN_TOP = 30;
 const AXIS_HEIGHT = 24;
-// Total height for the fan+heat area — buildRoastCurveSvg splits this into
-// two separate mini-strips (one per dial) rather than overlaying both step
-// lines in one band. Overlaid, same-scale lines distinguished only by
-// color/opacity were hard to read at a glance, especially since heat was
-// intentionally low-opacity to not fight with fan — the two often
-// coincide or cross, and there was no visible scale for what a given line
-// height actually meant in dial units. Barely bigger than the old single
-// 48px band (56 vs 48) since each mini-strip only needs ~22px.
-const STRIP_HEIGHT = 56;
-const STRIP_GAP = 16;
 
 export const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
   { type: "DRY_END", label: "DE", color: "var(--mark-dry-end)" },
@@ -70,9 +60,12 @@ function levelAt(points: { atSeconds: number; level: number }[], atSeconds: numb
  * produce a jagged, doubled-up line. Fan/heat/milestones stay event-
  * sourced regardless, since a bean-temp probe doesn't know about those.
  */
-export function getCurveReadings(events: RoastEvent[], probeReadings: TemperatureReading[] = []): CurveReading[] {
+export function getCurveReadings(
+  events: RoastEvent[],
+  probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = []
+): CurveReading[] {
   const probePoints = probeReadings
-    .filter((r): r is TemperatureReading & { atSeconds: number } => r.atSeconds != null)
+    .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null)
     .map((r) => ({ atSeconds: r.atSeconds, temp: r.tempFahrenheit }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
 
@@ -135,8 +128,6 @@ export interface ChartLayout {
   chartRight: number;
   tempChartTop: number;
   tempChartBottom: number;
-  stripTop: number;
-  stripBottom: number;
   minTemp: number;
   maxTemp: number;
   minRor: number;
@@ -144,7 +135,6 @@ export interface ChartLayout {
   duration: number;
   x: (seconds: number) => number;
   yTemp: (temp: number) => number;
-  yLevel: (level: number) => number;
   yRor: (rorPerMin: number) => number;
 }
 
@@ -193,16 +183,12 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
   const chartRight = CHART_WIDTH - MARGIN_RIGHT;
   const chartWidth = chartRight - chartLeft;
   const tempChartTop = MARGIN_TOP;
-  const tempChartHeight = CHART_HEIGHT - MARGIN_TOP - AXIS_HEIGHT - STRIP_HEIGHT - STRIP_GAP;
+  const tempChartHeight = CHART_HEIGHT - MARGIN_TOP - AXIS_HEIGHT;
   const tempChartBottom = tempChartTop + tempChartHeight;
-  const stripTop = tempChartBottom + STRIP_GAP;
-  const stripBottom = stripTop + STRIP_HEIGHT;
 
   const x = (seconds: number) => chartLeft + (seconds / duration) * chartWidth;
   const yTemp = (temp: number) =>
     tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight;
-  const yLevel = (level: number) =>
-    stripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * STRIP_HEIGHT;
   const yRor = (rorPerMin: number) =>
     tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * tempChartHeight;
 
@@ -211,8 +197,6 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
     chartRight,
     tempChartTop,
     tempChartBottom,
-    stripTop,
-    stripBottom,
     minTemp,
     maxTemp,
     minRor,
@@ -220,7 +204,6 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
     duration,
     x,
     yTemp,
-    yLevel,
     yRor,
   };
 }
@@ -288,7 +271,6 @@ export function buildRoastCurveSvg(
     chartRight,
     tempChartTop,
     tempChartBottom,
-    stripTop,
     minTemp,
     maxTemp,
     minRor,
@@ -335,7 +317,7 @@ export function buildRoastCurveSvg(
 
   for (const t of timeTicks) {
     parts.push(
-      `<text x="${x(t)}" y="${tempChartBottom + AXIS_HEIGHT + STRIP_HEIGHT + STRIP_GAP - 6}" text-anchor="middle" style="fill:var(--muted)" class="mono-10">${formatMMSS(t)}</text>`
+      `<text x="${x(t)}" y="${tempChartBottom + AXIS_HEIGHT - 6}" text-anchor="middle" style="fill:var(--muted)" class="mono-10">${formatMMSS(t)}</text>`
     );
   }
 
@@ -422,46 +404,42 @@ export function buildRoastCurveSvg(
     );
   }
 
-  // Two separate mini-strips (one per dial) rather than overlaying both
-  // step lines in one shared band — see STRIP_HEIGHT's comment for why.
-  // Each gets its own tick gridlines (min/max dial level) so the actual
-  // number is readable without hovering, not just relative line height.
-  const miniStripGap = 10;
-  const miniStripHeight = (STRIP_HEIGHT - miniStripGap) / 2;
-  const fanStripTop = stripTop;
-  const fanStripBottom = fanStripTop + miniStripHeight;
-  const heatStripTop = fanStripBottom + miniStripGap;
-  const heatStripBottom = heatStripTop + miniStripHeight;
-  const yFan = (level: number) =>
-    fanStripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * miniStripHeight;
-  const yHeat = (level: number) =>
-    heatStripTop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * miniStripHeight;
-
-  for (const [stripTopY, stripBottomY, label, color] of [
-    [fanStripTop, fanStripBottom, "Fan", "var(--accent)"],
-    [heatStripTop, heatStripBottom, "Heat", "var(--foreground)"],
-  ] as const) {
-    parts.push(
-      `<text x="${chartLeft}" y="${stripTopY - 2}" text-anchor="start" dominant-baseline="text-after-edge" style="fill:${color}" class="marker-label">${label}</text>`,
-      // Ticks sit in the right margin (same spot the RoR axis uses when
-      // toggled on), not inside the plot area, so they never collide with
-      // the step line itself as it approaches the end of the roast.
-      `<text x="${chartRight + 8}" y="${stripTopY}" text-anchor="start" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">${SR800_LEVEL_MAX}</text>`,
-      `<text x="${chartRight + 8}" y="${stripBottomY}" text-anchor="start" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">${SR800_LEVEL_MIN}</text>`,
-      `<line x1="${chartLeft}" x2="${chartRight}" y1="${stripBottomY}" y2="${stripBottomY}" style="stroke:var(--border)" stroke-width="1" />`
-    );
+  // Fan/heat changes plotted directly on the temp curve, not as a separate
+  // strip below it: a small triangle at the exact time of each change,
+  // pointing up for an increase and down for a decrease, colored per dial
+  // (fan = accent, heat = muted foreground, matching their old strip
+  // colors). Reading the exact dial value at any moment is already covered
+  // by the hover tooltip (RoastCurveChart.tsx shows fan/heat for whatever
+  // point you're hovering) and by EventTimeline's precise table below the
+  // chart — this only needs to answer "when did something change and which
+  // way," at a glance, without a whole second scaled axis competing with
+  // the temp curve for attention. Fan and heat stack at different offsets
+  // (10px vs 18px above the curve) so a simultaneous change on both dials
+  // shows as two distinct marks instead of one hiding the other.
+  function dialChangeMarkers(
+    points: { atSeconds: number; level: number }[],
+    color: string,
+    opacity: number,
+    offset: number,
+    label: string
+  ): void {
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const cur = points[i];
+      if (cur.level === prev.level) continue;
+      const cx = x(cur.atSeconds);
+      const cy = yTemp(nearestCurveReading(readings, cur.atSeconds).temp) - offset;
+      const up = cur.level > prev.level;
+      const trianglePoints = up
+        ? `${cx},${cy - 4} ${cx - 4},${cy + 4} ${cx + 4},${cy + 4}`
+        : `${cx - 4},${cy - 4} ${cx + 4},${cy - 4} ${cx},${cy + 4}`;
+      parts.push(
+        `<polygon points="${trianglePoints}" style="fill:${color}" opacity="${opacity}"><title>${label} ${prev.level}→${cur.level} at ${formatMMSS(cur.atSeconds)}</title></polygon>`
+      );
+    }
   }
-
-  if (fanPoints.length > 0) {
-    parts.push(
-      `<path d="${buildStepPath(fanPoints, duration, x, yFan)}" fill="none" style="stroke:var(--accent)" stroke-width="1.75" />`
-    );
-  }
-  if (heatPoints.length > 0) {
-    parts.push(
-      `<path d="${buildStepPath(heatPoints, duration, x, yHeat)}" fill="none" style="stroke:var(--foreground);opacity:0.7" stroke-width="1.75" stroke-dasharray="4 2" />`
-    );
-  }
+  dialChangeMarkers(fanPoints, "var(--accent)", 1, 10, "Fan");
+  dialChangeMarkers(heatPoints, "var(--foreground)", 0.7, 18, "Heat");
 
   parts.push("</svg>");
 

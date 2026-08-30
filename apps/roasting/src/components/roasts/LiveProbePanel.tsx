@@ -2,52 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { Thermometer } from "lucide-react";
+import { useProbeReadings } from "@/lib/useProbeReadings";
 
-interface Reading {
-  id: string;
-  tempFahrenheit: number;
-  recordedAt: string;
-}
-
-const POLL_MS = 5000;
 const STALE_AFTER_SECONDS = 30;
+const NOW_TICK_MS = 5000;
 
 /**
  * No manual "connect a probe" step — connection is inferred entirely from
- * whether readings are actually arriving, polled from
- * /api/roasts/[id]/temperature. Works during setup (before startedAt is
- * set) and while live, since the ingest endpoint accepts readings either
- * way. If nothing ever shows up, this quietly stays in its empty state —
- * logging temps by hand in the panel below still works exactly as before.
+ * whether readings are actually arriving, polled (via useProbeReadings)
+ * from /api/roasts/[id]/temperature. Works during setup (before startedAt
+ * is set) and while live, since the ingest endpoint accepts readings
+ * either way. If nothing ever shows up, this quietly stays in its empty
+ * state — logging temps by hand in the panel below still works exactly as
+ * before.
  */
 export default function LiveProbePanel({ roastSessionId }: { roastSessionId: string }) {
-  const [readings, setReadings] = useState<Reading[] | null>(null);
+  const readings = useProbeReadings(roastSessionId);
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      try {
-        const res = await fetch(`/api/roasts/${roastSessionId}/temperature`, { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) {
-          setReadings(data.readings);
-          setNow(Date.now());
-        }
-      } catch {
-        // Network hiccup — next poll will retry.
-      }
-    }
-
-    poll();
-    const id = setInterval(poll, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [roastSessionId]);
+    const id = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
 
   if (!readings || readings.length === 0) {
     return (

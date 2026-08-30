@@ -12,15 +12,15 @@ import { computeHistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
 import { getCurveReadings, type RoastCurveTargets } from "@/lib/curve";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
-import LiveTimerBar from "@/components/roasts/LiveTimerBar";
+import LiveRoastBars from "@/components/roasts/LiveRoastBars";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import AiSuggestionPanel from "@/components/roasts/AiSuggestionPanel";
 import RoastPlanCard from "@/components/roasts/RoastPlanCard";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
-import DropRoastButton from "@/components/roasts/DropRoastButton";
 import RoastDetailsForm from "@/components/roasts/RoastDetailsForm";
+import AiFeedbackForm from "@/components/roasts/AiFeedbackForm";
 import PublishControl from "@/components/roasts/PublishControl";
 import GoldenRoastToggle from "@/components/roasts/GoldenRoastToggle";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
@@ -92,8 +92,8 @@ export default async function RoastSessionPage({
   const isLive = session.startedAt != null && session.endedAt == null;
   const isCompleted = session.endedAt != null;
   // Gated server-side on "ended a few seconds ago," not a client flag passed
-  // from DropRoastButton — simpler, and it doesn't care whether the roast
-  // was just dropped live or the page was refreshed right after. A fresh
+  // from wherever Drop was tapped — simpler, and it doesn't care whether the
+  // roast was just dropped live or the page was refreshed right after. A fresh
   // request-time check like this in a Server Component isn't the kind of
   // impurity the purity rule is guarding against (nothing here is memoized
   // across renders the way a Client Component would be).
@@ -165,7 +165,7 @@ export default async function RoastSessionPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={`flex flex-col gap-6 ${isLive ? "pt-20 sm:pt-24" : ""}`}>
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         {justCompleted && <BeanBurst />}
         <div>
@@ -248,25 +248,22 @@ export default async function RoastSessionPage({
 
       {isLive && (
         <>
-          <LiveTimerBar
+          {/* Two permanent fixed bars (top: timer/hint/drop, bottom:
+              fan/heat/temp/milestones) — see LiveRoastBars for why they're
+              split. Everything below them is reference material (chart,
+              tips, plan) you check periodically, not controls you touch
+              every 10-30s, so the chart comes first as the actual focus
+              while roasting and the rest follows by how often it's needed. */}
+          <LiveRoastBars
             startedAt={session.startedAt!.toISOString()}
             beanName={session.bean.name}
             roastSessionId={session.id}
             initialFanLevel={latestFan?.fanLevel ?? 5}
             initialHeatLevel={latestHeat?.heatLevel ?? 5}
-          />
-          <LiveProbePanel roastSessionId={session.id} />
-          {/* Controls you touch every 10-30s (fan/heat, temp, milestones) come
-              right after the timer/probe — everything below is reference
-              material (chart, tips, plan) you check periodically, not on
-              every dial adjustment, so it shouldn't sit between you and the
-              controls. */}
-          <EventLogPanel
-            roastSessionId={session.id}
-            startedAt={session.startedAt!.toISOString()}
-            initialFanLevel={latestFan?.fanLevel ?? 5}
-            initialHeatLevel={latestHeat?.heatLevel ?? 5}
             loggedMilestoneTypes={loggedMilestoneTypes}
+            events={session.events}
+            baseline={baseline}
+            referenceRoast={referenceRoast}
           />
           {/* Probe readings can arrive on their own, ahead of the latest
               hand-logged event, so the chart's time axis has to account for
@@ -295,15 +292,17 @@ export default async function RoastSessionPage({
           )}
           {baseline && (
             <LiveTipsPanel
+              roastSessionId={session.id}
               startedAt={session.startedAt!.toISOString()}
               events={session.events}
               baseline={baseline}
               referenceRoast={referenceRoast}
             />
           )}
-          <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
+          <EventLogPanel roastSessionId={session.id} startedAt={session.startedAt!.toISOString()} />
+          <RoastPlanCard roastSessionId={session.id} notes={session.notes} collapsedByDefault />
           <EventTimeline events={session.events} editable />
-          <DropRoastButton roastSessionId={session.id} />
+          <div className="pb-24 sm:pb-28" />
         </>
       )}
 
@@ -368,6 +367,9 @@ export default async function RoastSessionPage({
             />
           </div>
           <RoastDetailsForm session={session} />
+          {session.aiSuggestionSummary && (
+            <AiFeedbackForm roastSessionId={session.id} initialFeedback={session.aiSuggestionFeedback} />
+          )}
           <RoastCurveChart
             events={session.events}
             totalSeconds={durationSeconds ?? 0}

@@ -107,6 +107,16 @@ export const MILESTONE_EVENT_TYPES: EventType[] = [
   "SECOND_CRACK_END",
 ];
 
+/** Short labels for milestone buttons in the sticky live-roast action bar, where a full "1st crack start" doesn't fit a thumb-sized button. */
+export const MILESTONE_ABBREVIATIONS: Partial<Record<EventType, string>> = {
+  DRY_END: "DE",
+  YELLOWING_END: "YE",
+  FIRST_CRACK_START: "1C",
+  FIRST_CRACK_END: "1CE",
+  SECOND_CRACK_START: "2C",
+  SECOND_CRACK_END: "2CE",
+};
+
 /** Shared by the live event timeline and the static published page. */
 export function describeEvent(event: {
   type: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { NotebookPen, Pencil } from "lucide-react";
+import { NotebookPen, Pencil, ChevronDown } from "lucide-react";
 import { updateRoastNotes } from "@/lib/actions";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
@@ -11,24 +11,39 @@ import Button from "@/components/ui/Button";
  * ends — this just gives it somewhere to live before and during one too, so
  * "what's the plan for this bean" doesn't have to wait until the roast is
  * already over to write down.
+ *
+ * collapsedByDefault (used on the live view, where the chart/sticky bars
+ * are the priority and a plan you set once before starting is reference
+ * material, not something being actively edited) only takes effect when
+ * there's already something written — an empty plan always opens straight
+ * to the editor, since collapsing "nothing" just hides the one way to add
+ * it.
  */
 export default function RoastPlanCard({
   roastSessionId,
   notes,
+  collapsedByDefault = false,
 }: {
   roastSessionId: string;
   notes: string | null;
+  collapsedByDefault?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(!notes);
+  const [collapsed, setCollapsed] = useState(collapsedByDefault && Boolean(notes));
 
   return (
     <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <div className="mb-2 flex items-center justify-between">
-        <p className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
+        <button
+          type="button"
+          onClick={() => collapsed && setCollapsed(false)}
+          className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase"
+        >
           <NotebookPen className="h-3.5 w-3.5" />
           Plan
-        </p>
-        {!isEditing && (
+          {collapsed && <ChevronDown className="h-3 w-3" />}
+        </button>
+        {!isEditing && !collapsed && (
           <button
             type="button"
             onClick={() => setIsEditing(true)}
@@ -40,7 +55,7 @@ export default function RoastPlanCard({
         )}
       </div>
 
-      {isEditing ? (
+      {collapsed ? null : isEditing ? (
         <ActionForm
           action={updateRoastNotes.bind(null, roastSessionId)}
           onSuccess={() => setIsEditing(false)}

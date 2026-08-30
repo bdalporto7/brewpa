@@ -107,7 +107,7 @@ export default function RoastCurveChart({
                   x1={crosshairX}
                   x2={crosshairX}
                   y1={layout.tempChartTop}
-                  y2={layout.stripBottom}
+                  y2={layout.tempChartBottom}
                   style={{ stroke: "var(--foreground)" }}
                   strokeOpacity={0.35}
                   strokeWidth={1}

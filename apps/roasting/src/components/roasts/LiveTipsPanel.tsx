@@ -1,18 +1,23 @@
 "use client";
 
+import { useMemo } from "react";
 import { Sparkles } from "lucide-react";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
+import { useProbeReadings } from "@/lib/useProbeReadings";
 import { computeRoastPhases } from "@/lib/phases";
+import { getCurveReadings } from "@/lib/curve";
 import { generateLiveTips, type HistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import type { RoastEvent } from "@prisma/client";
 
 export default function LiveTipsPanel({
+  roastSessionId,
   startedAt,
   events,
   baseline,
   referenceRoast,
 }: {
+  roastSessionId: string;
   startedAt: string;
   events: RoastEvent[];
   baseline: HistoricalBaseline;
@@ -20,7 +25,12 @@ export default function LiveTipsPanel({
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const phases = computeRoastPhases(events, elapsed);
-  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast });
+  const probeReadings = useProbeReadings(roastSessionId);
+  const curveReadings = useMemo(
+    () => getCurveReadings(events, probeReadings ?? []),
+    [events, probeReadings]
+  );
+  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings });
 
   return (
     <div className="flex flex-col gap-3">
