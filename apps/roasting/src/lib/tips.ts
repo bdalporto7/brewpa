@@ -42,6 +42,91 @@ export type Tip = { id: string; message: string };
 /** A specific past roast to compare live progress against — either the bean's explicitly-marked golden roast, or (falling back) its most recent completed roast. */
 export type ReferenceRoast = { label: string; readings: CurveReading[] };
 
+const STALL_WINDOW_SECONDS = 90;
+const STALL_MIN_READINGS = 3;
+// Below this, RoR reads as flat rather than just naturally decelerating —
+// real light-roast Maillard RoR is typically well above this per the
+// external research folded into roastAdvisor.ts's system prompt.
+const STALL_FLOOR_ROR = 8;
+const STALL_DROP_RATIO = 0.5;
+const CRASH_WINDOW_SECONDS = 90;
+const CRASH_FLOOR_ROR = 3;
+
+function avgRoR(readings: CurveReading[]): number | null {
+  const withRoR = readings.map((r) => r.rorPerMin).filter((v): v is number => v != null);
+  if (withRoR.length === 0) return null;
+  return withRoR.reduce((a, b) => a + b, 0) / withRoR.length;
+}
+
+/**
+ * Flags a stalling RoR during the browning/Maillard phase, or a crash right
+ * after first crack — both are how acidity and origin character get muted
+ * even in a roast that finishes light-colored (see roastAdvisor.ts's system
+ * prompt for the mechanism, and this SR800 unit's own fan/heat-vs-RoR
+ * analysis behind the "lower fan" suggestion). Only fires with enough
+ * recent readings to trust — a probe streaming every 5s or dense
+ * hand-logged points — and only compares like-for-like windows (this
+ * roast's own earlier pace, or a chosen reference roast at the same
+ * elapsed time), never a single noisy point against an invented threshold.
+ */
+function detectStall(
+  curveReadings: CurveReading[],
+  elapsedSeconds: number,
+  dryEndAt: number | null,
+  firstCrackAt: number | null,
+  referenceRoast?: ReferenceRoast | null
+): Tip | null {
+  if (dryEndAt == null || elapsedSeconds <= dryEndAt) return null; // still drying — RoR swings here by design
+
+  // Crash window: readings strictly since first crack, never blended with
+  // pre-1C readings — a blanket "last 90s" lookback here would average a
+  // real crash together with the healthy declining RoR just before 1C and
+  // mask it.
+  if (firstCrackAt != null && elapsedSeconds > firstCrackAt) {
+    if (elapsedSeconds - firstCrackAt > CRASH_WINDOW_SECONDS) return null; // past the crash/flick window
+    const postCrackWindow = curveReadings.filter((r) => r.atSeconds >= firstCrackAt && r.atSeconds <= elapsedSeconds);
+    if (postCrackWindow.length < STALL_MIN_READINGS) return null;
+    const postCrackRoR = avgRoR(postCrackWindow);
+    if (postCrackRoR == null || postCrackRoR > CRASH_FLOOR_ROR) return null;
+    return {
+      id: "ror-crash",
+      message: `RoR has flattened to ~${postCrackRoR.toFixed(0)}°F/min right after first crack — watch for a "flick" (RoR rebounding too fast), which can add harsh notes. A small fan reduction tends to smooth this transition better than a heat bump.`,
+    };
+  }
+  if (firstCrackAt != null) return null; // through 1C, outside the crash window — not the stall zone anymore
+
+  const recentWindow = curveReadings.filter(
+    (r) => r.atSeconds > elapsedSeconds - STALL_WINDOW_SECONDS && r.atSeconds <= elapsedSeconds
+  );
+  if (recentWindow.length < STALL_MIN_READINGS) return null;
+  const recentRoR = avgRoR(recentWindow);
+  if (recentRoR == null) return null;
+
+  let priorRoR: number | null = null;
+  let comparedTo: string;
+  if (referenceRoast && referenceRoast.readings.length > 0) {
+    priorRoR = nearestCurveReading(referenceRoast.readings, elapsedSeconds).rorPerMin;
+    comparedTo = `${referenceRoast.label}'s pace`;
+  } else {
+    const priorWindow = curveReadings.filter(
+      (r) =>
+        r.atSeconds > elapsedSeconds - STALL_WINDOW_SECONDS * 2 &&
+        r.atSeconds <= elapsedSeconds - STALL_WINDOW_SECONDS
+    );
+    priorRoR = priorWindow.length >= 2 ? avgRoR(priorWindow) : null;
+    comparedTo = "its own pace a bit earlier";
+  }
+  if (priorRoR == null || priorRoR <= 0) return null;
+
+  if (recentRoR < priorRoR * STALL_DROP_RATIO && recentRoR < STALL_FLOOR_ROR) {
+    return {
+      id: "ror-stall",
+      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. This machine's own data shows lowering fan is the more reliable way to rebuild momentum here than adding heat.`,
+    };
+  }
+  return null;
+}
+
 /**
  * A small, deliberately conservative rule set — general, widely-cited
  * roasting heuristics (never precise/authoritative claims) plus comparisons
@@ -53,9 +138,19 @@ export function generateLiveTips(input: {
   events: Pick<RoastEvent, "type" | "atSeconds" | "tempFahrenheit">[];
   baseline: HistoricalBaseline;
   referenceRoast?: ReferenceRoast | null;
+  curveReadings?: CurveReading[];
 }): Tip[] {
-  const { elapsedSeconds, events, baseline, referenceRoast } = input;
+  const { elapsedSeconds, events, baseline, referenceRoast, curveReadings = [] } = input;
   const tips: Tip[] = [];
+
+  const stallTip = detectStall(
+    curveReadings,
+    elapsedSeconds,
+    events.find((e) => e.type === "DRY_END")?.atSeconds ?? null,
+    events.find((e) => e.type === "FIRST_CRACK_START")?.atSeconds ?? null,
+    referenceRoast
+  );
+  if (stallTip) tips.unshift(stallTip);
 
   if (referenceRoast && referenceRoast.readings.length > 0) {
     const ref = nearestCurveReading(referenceRoast.readings, elapsedSeconds);
