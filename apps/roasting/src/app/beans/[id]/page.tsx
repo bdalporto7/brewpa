@@ -5,6 +5,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import BeanHeader from "@/components/BeanHeader";
 import BeanStockBar from "@/components/BeanStockBar";
 import BeanMeta from "@/components/BeanMeta";
+import SupplierTastingNotes from "@/components/SupplierTastingNotes";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
@@ -63,6 +64,8 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           <BeanMeta bean={bean} />
         </div>
       </div>
+
+      <SupplierTastingNotes bean={bean} />
 
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Roasted on hand" value={`${Math.round(roastedTotal * 10) / 10}g`} />

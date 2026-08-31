@@ -34,6 +34,17 @@ model Bean {
   // them; the suggestion prompt just says so rather than guessing.
   moisturePercent       Float?
   densityGramsPerLiter  Float?
+  // Pulled from supplierUrl via fetchSupplierInfo/supplierExtractor.ts
+  // (an LLM extraction, not a guaranteed-accurate scrape) — also fed into
+  // the AI roast-suggestion prompt. Always hand-editable regardless of
+  // whether the fetch worked, since scraping an arbitrary supplier site is
+  // inherently unreliable (bot detection, JS-rendered pages a plain
+  // server fetch can't see). tastingNotesFetchedAt is provenance so the
+  // UI can show how stale/verified the text is, not just display it as
+  // fact.
+  tastingNotes          String?
+  qGrade                Float?
+  tastingNotesFetchedAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -401,6 +412,16 @@ model Brew {
 // worst-case spend independently of (not instead of) the spend limit set
 // directly in the Anthropic Console.
 model AiSuggestionCall {
+  id       String   @id @default(cuid())
+  calledAt DateTime @default(now())
+
+  @@index([calledAt])
+}
+
+// Same global daily-limit pattern as AiSuggestionCall, kept as its own
+// table (not sharing AiSuggestionCall's) since fetchSupplierInfo is a
+// separate, lighter-weight feature with its own rate budget.
+model SupplierExtractionCall {
   id       String   @id @default(cuid())
   calledAt DateTime @default(now())
 

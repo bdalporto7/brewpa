@@ -24,6 +24,7 @@ export default function EditableTextCard({
   deleteConfirmText,
   collapsible = false,
   defaultCollapsed = false,
+  hideWhenEmpty = false,
 }: {
   icon: ReactNode;
   label: string;
@@ -33,16 +34,31 @@ export default function EditableTextCard({
   /** Omit to hide the Delete affordance entirely (not every use of this needs one). */
   deleteConfirmText?: string;
   /** Only takes effect when there's already a saved value — an empty card
-   * always opens straight to the editor, same reasoning as
-   * RoastPlanCard's collapsedByDefault. */
+   * always opens straight to the editor (unless hideWhenEmpty below),
+   * since collapsing "nothing" just hides the one way to add it. */
   collapsible?: boolean;
   defaultCollapsed?: boolean;
+  /** Swaps "always open when empty" for a minimal "+ Add {label}" trigger
+   * instead — for places where most instances are blank and an unprompted
+   * open textarea everywhere would be the clutter this exists to avoid. */
+  hideWhenEmpty?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(value);
   const [draft, setDraft] = useState(value);
-  const [isEditing, setIsEditing] = useState(!value);
+  const [isEditing, setIsEditing] = useState(!value && !hideWhenEmpty);
   const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed && Boolean(value));
+
+  // Resyncs the read-only display when something OTHER than this card's own
+  // onSave changes the underlying value — e.g. a sibling "fetch from
+  // supplier" button — while it stays mounted. React's documented
+  // adjust-state-during-render pattern (not an effect): only `saved` (not
+  // `draft`) so a value change never clobbers text the user is typing.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setSaved(value);
+  }
 
   function handleSave() {
     const trimmed = draft.trim();
@@ -58,7 +74,19 @@ export default function EditableTextCard({
     await onSave("");
     setSaved("");
     setDraft("");
-    setIsEditing(true);
+    setIsEditing(!hideWhenEmpty);
+  }
+
+  if (!saved && hideWhenEmpty && !isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsEditing(true)}
+        className="flex items-center gap-1 text-xs font-medium text-muted transition hover:text-foreground"
+      >
+        <Pencil className="h-3 w-3" /> Add {label.toLowerCase()}
+      </button>
+    );
   }
 
   const canCollapse = collapsible && Boolean(saved);
@@ -121,7 +149,7 @@ export default function EditableTextCard({
           <Button size="sm" disabled={isPending} onClick={handleSave}>
             {isPending ? "Saving…" : "Save"}
           </Button>
-          {saved && (
+          {(saved || hideWhenEmpty) && (
             <Button
               size="sm"
               variant="ghost"

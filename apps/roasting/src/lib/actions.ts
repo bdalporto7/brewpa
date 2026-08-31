@@ -9,6 +9,7 @@ import { writeRoastPage, removeRoastPage, writeIndexPage, type PublishableSessio
 import { syncGeneratedDocs } from "@/lib/git";
 import { parseMMSS } from "@/lib/format";
 import { generateRoastAdvice } from "@/lib/roastAdvisor";
+import { extractSupplierInfo } from "@/lib/supplierExtractor";
 
 const PUBLISHABLE_SESSION_INCLUDE = {
   bean: true,
@@ -288,6 +289,61 @@ export async function beginRoast(roastSessionId: string, fanLevel: number, heatL
 // it — this bounds app-level abuse (e.g. a compromised session looping the
 // action); the Console limit bounds everything else.
 const AI_SUGGESTION_DAILY_LIMIT = 20;
+
+// Same defense-in-depth reasoning as AI_SUGGESTION_DAILY_LIMIT, its own
+// table/constant since supplier extraction is a separate, lighter-weight
+// feature with its own rate budget.
+const SUPPLIER_EXTRACTION_DAILY_LIMIT = 20;
+
+export async function fetchSupplierInfo(beanId: string) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentCalls = await prisma.supplierExtractionCall.count({ where: { calledAt: { gte: since } } });
+  if (recentCalls >= SUPPLIER_EXTRACTION_DAILY_LIMIT) {
+    throw new Error(
+      `Hit today's limit of ${SUPPLIER_EXTRACTION_DAILY_LIMIT} supplier lookups across the app — try again tomorrow.`
+    );
+  }
+  await prisma.supplierExtractionCall.create({ data: {} });
+
+  const bean = await prisma.bean.findUniqueOrThrow({ where: { id: beanId } });
+  if (!bean.supplierUrl) {
+    throw new Error("This bean has no seller link set.");
+  }
+
+  const info = await extractSupplierInfo(bean.supplierUrl, bean.name);
+  await prisma.bean.update({
+    where: { id: beanId },
+    data: {
+      tastingNotes: info.tastingNotes,
+      qGrade: info.qGrade,
+      tastingNotesFetchedAt: new Date(),
+    },
+  });
+  revalidatePath(`/beans/${beanId}`);
+}
+
+/**
+ * Hand-editing/clearing tasting notes — the fallback this feature always
+ * needs since fetchSupplierInfo can fail or come back empty. Clears
+ * tastingNotesFetchedAt: once a human has rewritten or erased the text,
+ * the "fetched from supplier, unverified" provenance caption no longer
+ * describes what's actually stored.
+ */
+export async function updateBeanTastingNotes(beanId: string, tastingNotes: string) {
+  await prisma.bean.update({
+    where: { id: beanId },
+    data: { tastingNotes: tastingNotes || null, tastingNotesFetchedAt: null },
+  });
+  revalidatePath(`/beans/${beanId}`);
+}
+
+export async function updateBeanQGrade(beanId: string, qGrade: number | null) {
+  await prisma.bean.update({
+    where: { id: beanId },
+    data: { qGrade },
+  });
+  revalidatePath(`/beans/${beanId}`);
+}
 
 export async function generateRoastSuggestion(
   roastSessionId: string,

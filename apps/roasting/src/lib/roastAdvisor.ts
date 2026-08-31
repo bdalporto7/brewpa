@@ -157,6 +157,8 @@ function buildPrompt(
     bean.densityGramsPerLiter != null
       ? `Density: ${bean.densityGramsPerLiter} g/L`
       : "Density: unknown",
+    bean.tastingNotes ? `Supplier tasting notes: ${bean.tastingNotes}` : null,
+    bean.qGrade != null ? `Q-grade: ${bean.qGrade}` : null,
   ].filter(Boolean);
 
   const historyText =
