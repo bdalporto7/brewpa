@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Download } from "lucide-react";
+import { Download, PlusCircle, History } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { deleteRoastSession } from "@/lib/actions";
 import { getCurrentAllowedUser } from "@/lib/admin";
@@ -9,13 +9,16 @@ import BrewCard from "@/components/brews/BrewCard";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
 import { computeHistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
-import { getCurveReadings, type RoastCurveTargets } from "@/lib/curve";
+import { getCurveReadings, computeAdjustedPlan, type PlanSettingChange, type PlanTargets } from "@/lib/curve";
+import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import LiveRoastBars from "@/components/roasts/LiveRoastBars";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import AiSuggestionPanel from "@/components/roasts/AiSuggestionPanel";
+import RoastProfilePicker from "@/components/roasts/RoastProfilePicker";
+import SaveProfileForm from "@/components/roasts/SaveProfileForm";
 import RoastPlanCard from "@/components/roasts/RoastPlanCard";
 import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
@@ -35,6 +38,8 @@ import LiveComparisonChart from "@/components/roasts/LiveComparisonChart";
 import DeleteButton from "@/components/DeleteButton";
 import BeanBurst from "@/components/ui/BeanBurst";
 import RatingBeans from "@/components/ui/RatingBeans";
+import SectionCard from "@/components/ui/SectionCard";
+import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
 import type { ReactNode } from "react";
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
@@ -59,7 +64,7 @@ export default async function RoastSessionPage({
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
-  const [session, friends, compareCandidates] = await Promise.all([
+  const [session, friends, compareCandidates, profiles] = await Promise.all([
     prisma.roastSession.findUnique({
       where: { id },
       include: {
@@ -74,6 +79,7 @@ export default async function RoastSessionPage({
           include: { roastSession: { include: { bean: true } } },
         },
         compareTo: { include: { bean: true, events: true } },
+        profile: true,
       },
     }),
     prisma.friend.findMany({ orderBy: { name: "asc" } }),
@@ -83,6 +89,11 @@ export default async function RoastSessionPage({
       where: { endedAt: { not: null }, id: { not: id } },
       include: { bean: true },
       orderBy: { startedAt: "desc" },
+    }),
+    // Same treatment — only used by RoastProfilePicker while pending, cheap enough to just always fetch.
+    prisma.roastProfile.findMany({
+      orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
+      select: { id: true, name: true, process: true, brewTarget: true },
     }),
   ]);
 
@@ -114,13 +125,19 @@ export default async function RoastSessionPage({
     ...session.events.map((e) => e.atSeconds),
     ...session.temperatureReadings.map((r) => r.atSeconds ?? 0)
   );
-  // Only once the roaster has explicitly accepted a suggestion
-  // (AiSuggestionPanel) — a generated-but-unused plan shouldn't clutter
-  // the live chart with reference lines nobody asked to follow.
-  const acceptedPlanTargets =
+  // Only once the roaster has explicitly accepted a suggestion (or applied
+  // a profile, which auto-accepts) — a generated-but-unused plan shouldn't
+  // clutter the live chart with reference lines nobody asked to follow.
+  // computeAdjustedPlan recomputes fresh from the stored plan + actual
+  // events on every render, so the overlay stays live-rebased as dial
+  // changes land (see curve.ts for the timing-drift/divergence logic).
+  const acceptedPlan =
     session.aiSuggestionAcceptedAt && session.aiSuggestionPlan
-      ? (JSON.parse(session.aiSuggestionPlan) as { targets: RoastCurveTargets }).targets
+      ? (JSON.parse(session.aiSuggestionPlan) as { settingChanges: PlanSettingChange[]; targets: PlanTargets })
       : undefined;
+  const adjustedPlan = acceptedPlan ? computeAdjustedPlan(acceptedPlan, session.events) : undefined;
+  const acceptedPlanTargets = adjustedPlan?.targets;
+  const planDivergedAtSeconds = adjustedPlan?.diverged ? adjustedPlan.divergedAtSeconds : undefined;
 
   const weightLoss =
     session.roastedWeightGrams != null
@@ -197,6 +214,12 @@ export default async function RoastSessionPage({
                 isGolden={session.bean.goldenRoastId === session.id}
               />
               <PublishControl roastSessionId={session.id} publishedAt={session.publishedAt} />
+              <SaveProfileForm
+                action={saveProfileFromCompletedRoast.bind(null, session.id)}
+                defaultName={`${session.bean.name}${session.roastLevel ? ` — ${session.roastLevel}` : ""}`}
+                defaultProcess={session.bean.process}
+                defaultBrewTarget={session.brewTarget}
+              />
             </>
           )}
           <DeleteButton
@@ -228,7 +251,9 @@ export default async function RoastSessionPage({
             aiSuggestionPlan={session.aiSuggestionPlan}
             aiSuggestionAcceptedAt={session.aiSuggestionAcceptedAt}
             aiSuggestionFeedback={session.aiSuggestionFeedback}
+            profileName={session.profile?.name ?? null}
           />
+          <RoastProfilePicker profiles={profiles} roastSessionId={session.id} beanProcess={session.bean.process} />
           <RoastSetupPanel
             roastSessionId={session.id}
             initialFanLevel={session.suggestedFanLevel ?? undefined}
@@ -264,6 +289,7 @@ export default async function RoastSessionPage({
             events={session.events}
             baseline={baseline}
             referenceRoast={referenceRoast}
+            planDivergedAtSeconds={planDivergedAtSeconds}
           />
           {/* Probe readings can arrive on their own, ahead of the latest
               hand-logged event, so the chart's time axis has to account for
@@ -297,6 +323,7 @@ export default async function RoastSessionPage({
               events={session.events}
               baseline={baseline}
               referenceRoast={referenceRoast}
+              planDivergedAtSeconds={planDivergedAtSeconds}
             />
           )}
           <EventLogPanel roastSessionId={session.id} startedAt={session.startedAt!.toISOString()} />
@@ -370,13 +397,14 @@ export default async function RoastSessionPage({
           {session.aiSuggestionSummary && (
             <AiFeedbackForm roastSessionId={session.id} initialFeedback={session.aiSuggestionFeedback} />
           )}
+          <RoastPlanCard roastSessionId={session.id} notes={session.notes} hideWhenEmpty collapsedByDefault />
           <RoastCurveChart
             events={session.events}
             totalSeconds={durationSeconds ?? 0}
             probeReadings={session.temperatureReadings}
+            title="Roast curve"
           />
           <PhaseBar phases={phases} />
-          {session.notes && <p className="text-sm text-foreground/80">{session.notes}</p>}
           {session.roastedWeightGrams != null && (
             <SalesPanel
               roastSessionId={session.id}
@@ -385,13 +413,17 @@ export default async function RoastSessionPage({
               friends={friends}
             />
           )}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-medium">Your brews</h2>
-              <Link href={`/brews?roastSessionId=${session.id}`} className="text-sm text-muted hover:text-foreground">
+          <SectionCard
+            icon={<BrewedCupIcon className="h-3.5 w-3.5" />}
+            label="Your brews"
+            collapsible
+            defaultCollapsed
+            headerExtra={
+              <Link href={`/brews?roastSessionId=${session.id}`} className="text-xs text-muted hover:text-foreground">
                 Log a brew from this roast →
               </Link>
-            </div>
+            }
+          >
             {session.brews.length === 0 ? (
               <p className="text-sm text-muted">You haven&apos;t brewed this roast yet.</p>
             ) : (
@@ -401,12 +433,13 @@ export default async function RoastSessionPage({
                 ))}
               </div>
             )}
-          </div>
-          <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-            <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Add event</p>
+          </SectionCard>
+          <SectionCard icon={<PlusCircle className="h-3.5 w-3.5" />} label="Add event" collapsible defaultCollapsed>
             <AddEventForm roastSessionId={session.id} />
-          </div>
-          <EventTimeline events={session.events} editable />
+          </SectionCard>
+          <SectionCard icon={<History className="h-3.5 w-3.5" />} label="Event timeline" collapsible defaultCollapsed>
+            <EventTimeline events={session.events} editable bare />
+          </SectionCard>
         </>
       )}
     </div>

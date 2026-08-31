@@ -6,6 +6,7 @@ import ActionForm from "@/components/ActionForm";
 import DeleteButton from "@/components/DeleteButton";
 import StockAdjuster from "@/components/StockAdjuster";
 import Button from "@/components/ui/Button";
+import SectionCard from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/Field";
 import type { Friend, Sale } from "@prisma/client";
 
@@ -21,12 +22,12 @@ export default function SalesPanel({
   friends: Friend[];
 }) {
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-          <Coffee className="h-3.5 w-3.5" />
-          Drops
-        </span>
+    <SectionCard
+      icon={<Coffee className="h-3.5 w-3.5" />}
+      label="Drops"
+      collapsible
+      defaultCollapsed
+      headerExtra={
         <StockAdjuster
           currentGrams={roastedRemainingGrams}
           unitLabel="left"
@@ -34,8 +35,8 @@ export default function SalesPanel({
           onRemove={adjustRoastedStock.bind(null, roastSessionId, "remove")}
           onSet={setRoastedStock.bind(null, roastSessionId)}
         />
-      </div>
-
+      }
+    >
       {roastedRemainingGrams > 0 ? (
         <ActionForm
           key={roastedRemainingGrams}
@@ -99,6 +100,6 @@ export default function SalesPanel({
           ))}
         </ul>
       )}
-    </div>
+    </SectionCard>
   );
 }

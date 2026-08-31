@@ -134,9 +134,14 @@ function EventRow({
 export default function EventTimeline({
   events,
   editable = false,
+  bare = false,
 }: {
   events: RoastEvent[];
   editable?: boolean;
+  /** Skips this component's own bordered/shadowed box — for callers (the
+   * completed view's SectionCard) that already provide one, so it doesn't
+   * end up double-boxed. */
+  bare?: boolean;
 }) {
   const [showReadings, setShowReadings] = useState(false);
 
@@ -153,7 +158,9 @@ export default function EventTimeline({
   const visibleGroups = showReadings ? groups : defaultGroups;
 
   return (
-    <div className="overflow-x-auto rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]">
+    <div
+      className={`overflow-x-auto ${bare ? "" : "rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]"}`}
+    >
       <table className="w-full min-w-[420px] text-sm">
         <thead>
           <tr className="border-b border-border text-xs text-muted">

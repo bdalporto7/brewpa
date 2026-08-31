@@ -3,25 +3,13 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { Fan, Flame, ChevronDown, Check } from "lucide-react";
 import { generateRoastSuggestion, recordSuggestionFeedback, acceptRoastSuggestion } from "@/lib/actions";
+import { saveProfileFromSuggestion } from "@/lib/profile-actions";
 import { ROAST_BREW_TARGETS } from "@/lib/constants";
 import { formatMMSS } from "@/lib/format";
 import type { RoastPlan } from "@/lib/roastAdvisor";
 import Button from "@/components/ui/Button";
-
-/** Same light/dark mascot-mark pair NavClient uses — dances (mascot-dance,
- * globals.css) while a suggestion is being generated. */
-function MascotMark({ dancing, className }: { dancing: boolean; className: string }) {
-  return (
-    <picture>
-      <source srcSet="/cybar-mark-dark.png" media="(prefers-color-scheme: dark)" />
-      <img
-        src="/cybar-mark.png"
-        alt=""
-        className={`${className} ${dancing ? "mascot-dance" : ""}`}
-      />
-    </picture>
-  );
-}
+import SaveProfileForm from "@/components/roasts/SaveProfileForm";
+import CybarMark from "@/components/ui/CybarMark";
 
 function parsePlan(raw: string | null): RoastPlan | null {
   if (!raw) return null;
@@ -53,6 +41,7 @@ export default function AiSuggestionPanel({
   aiSuggestionPlan,
   aiSuggestionAcceptedAt,
   aiSuggestionFeedback,
+  profileName,
 }: {
   roastSessionId: string;
   initialAmbientTempF: number | null;
@@ -65,6 +54,11 @@ export default function AiSuggestionPanel({
   aiSuggestionPlan: string | null;
   aiSuggestionAcceptedAt: Date | null;
   aiSuggestionFeedback: string | null;
+  /** Set when this session's current plan came from RoastProfilePicker's
+   * applyRoastProfile rather than a fresh AI call — same underlying fields
+   * (aiSuggestionPlan etc.), just a different origin worth being honest
+   * about in the header. */
+  profileName?: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -118,8 +112,8 @@ export default function AiSuggestionPanel({
   return (
     <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
       <span className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        <MascotMark dancing={false} className="h-4 w-auto" />
-        AI roast suggestion
+        <CybarMark dancing={false} className="h-4 w-auto" />
+        {profileName ? `From saved profile — ${profileName}` : "AI roast suggestion"}
       </span>
 
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -173,7 +167,7 @@ export default function AiSuggestionPanel({
       </div>
 
       <Button onClick={handleGenerate} disabled={isPending} variant="secondary" className="mt-3">
-        <MascotMark dancing={isPending} className="h-4 w-auto" />
+        <CybarMark dancing={isPending} className="h-4 w-auto" />
         {isPending ? "Thinking…" : aiSuggestionSummary ? "Regenerate" : "Get suggestion"}
       </Button>
 
@@ -254,6 +248,10 @@ export default function AiSuggestionPanel({
                 {isAccepting ? "Accepting…" : "Accept plan — show targets on chart"}
               </Button>
             )
+          )}
+
+          {plan && !profileName && (
+            <SaveProfileForm action={saveProfileFromSuggestion.bind(null, roastSessionId)} />
           )}
 
           <div className="mt-2 flex flex-col gap-1.5">

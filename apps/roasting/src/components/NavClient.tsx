@@ -12,6 +12,7 @@ const ROASTING_LINKS = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/beans", label: "Beans", icon: Bean },
   { href: "/roasts", label: "Roasts", icon: Flame },
+  { href: "/profiles", label: "Profiles", icon: BookOpen },
   { href: "/friends", label: "Drops", icon: Gift },
 ] as const;
 
@@ -127,7 +128,7 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--border-strong)] bg-surface sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className={`grid ${links.length === 2 ? "grid-cols-2" : "grid-cols-4"}`}>
+        <div className={`grid ${links.length === 2 ? "grid-cols-2" : links.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
           {links.map((link) => {
             const active = pathname === link.href;
             const Icon = link.icon;
