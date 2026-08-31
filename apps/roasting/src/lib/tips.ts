@@ -139,9 +139,22 @@ export function generateLiveTips(input: {
   baseline: HistoricalBaseline;
   referenceRoast?: ReferenceRoast | null;
   curveReadings?: CurveReading[];
+  /** Set (via computeAdjustedPlan, src/lib/curve.ts) when an accepted plan's
+   * dial schedule has been contradicted by an actual fan/heat move — surfaced
+   * here rather than silently adjusting the rest of the plan, since a real
+   * divergence means the plan's remaining targets are no longer trustworthy,
+   * not just off by a fixed offset. */
+  planDivergedAtSeconds?: number;
 }): Tip[] {
-  const { elapsedSeconds, events, baseline, referenceRoast, curveReadings = [] } = input;
+  const { elapsedSeconds, events, baseline, referenceRoast, curveReadings = [], planDivergedAtSeconds } = input;
   const tips: Tip[] = [];
+
+  if (planDivergedAtSeconds != null) {
+    tips.unshift({
+      id: "plan-diverged",
+      message: `Plan diverged around ${formatMMSS(planDivergedAtSeconds)} — remaining targets are the original suggestion, unadjusted from here on.`,
+    });
+  }
 
   const stallTip = detectStall(
     curveReadings,
@@ -152,9 +165,18 @@ export function generateLiveTips(input: {
   );
   if (stallTip) tips.unshift(stallTip);
 
+  // Prefer curveReadings (probe-aware, per getCurveReadings) over the raw
+  // event's own TEMP entries — a probe streaming every 5s shouldn't get
+  // flagged as "stale" just because nothing was hand-logged recently, and
+  // the reference-roast comparison should use the same live number the
+  // chart itself is showing right now.
+  const lastCurveReading = curveReadings.length > 0 ? curveReadings[curveReadings.length - 1] : null;
+  const lastHandLoggedTemp = [...events].reverse().find((e) => e.type === "TEMP");
+  const currentTemp = lastCurveReading?.temp ?? lastHandLoggedTemp?.tempFahrenheit;
+  const lastTempAt = lastCurveReading?.atSeconds ?? lastHandLoggedTemp?.atSeconds;
+
   if (referenceRoast && referenceRoast.readings.length > 0) {
     const ref = nearestCurveReading(referenceRoast.readings, elapsedSeconds);
-    const currentTemp = [...events].reverse().find((e) => e.type === "TEMP")?.tempFahrenheit;
     const diff = currentTemp != null ? Math.round(currentTemp - ref.temp) : null;
     const comparison =
       diff != null ? ` — you're at ${Math.round(currentTemp!)}°F (${diff > 0 ? "+" : ""}${diff}°)` : "";
@@ -165,9 +187,8 @@ export function generateLiveTips(input: {
   }
 
   const hasType = (t: string) => events.some((e) => e.type === t);
-  const lastTemp = [...events].reverse().find((e) => e.type === "TEMP");
 
-  if (elapsedSeconds > 30 && (!lastTemp || elapsedSeconds - lastTemp.atSeconds > 60)) {
+  if (elapsedSeconds > 30 && (lastTempAt == null || elapsedSeconds - lastTempAt > 60)) {
     tips.push({
       id: "temp-stale",
       message: "No temp reading in the last minute — log one to keep the curve accurate.",

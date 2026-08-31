@@ -396,6 +396,10 @@ export async function generateRoastSuggestion(
       aiSuggestionPlan: JSON.stringify(advice.plan),
       aiSuggestionAcceptedAt: null,
       aiSuggestionNotes: advice.rationale,
+      // A fresh AI suggestion replaces whatever this session's plan used to
+      // be — if it came from an applied profile, that provenance is no
+      // longer accurate once it's been overwritten here.
+      profileId: null,
     },
   });
 

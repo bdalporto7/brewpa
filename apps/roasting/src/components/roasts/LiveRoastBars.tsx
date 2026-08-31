@@ -294,6 +294,7 @@ export default function LiveRoastBars({
   events,
   baseline,
   referenceRoast,
+  planDivergedAtSeconds,
 }: {
   startedAt: string;
   beanName: string;
@@ -304,6 +305,7 @@ export default function LiveRoastBars({
   events: RoastEvent[];
   baseline: HistoricalBaseline | null;
   referenceRoast?: ReferenceRoast | null;
+  planDivergedAtSeconds?: number;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   // Shared by both bars so the fan/heat shown here never drifts from
@@ -316,9 +318,9 @@ export default function LiveRoastBars({
   const curveReadings = useMemo(() => getCurveReadings(events, probeReadings ?? []), [events, probeReadings]);
   const hint = useMemo(() => {
     if (!baseline) return null;
-    const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings });
+    const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings, planDivergedAtSeconds });
     return tips[0]?.message ?? null;
-  }, [baseline, elapsed, events, referenceRoast, curveReadings]);
+  }, [baseline, elapsed, events, referenceRoast, curveReadings, planDivergedAtSeconds]);
 
   return (
     <>

@@ -16,12 +16,14 @@ export default function LiveTipsPanel({
   events,
   baseline,
   referenceRoast,
+  planDivergedAtSeconds,
 }: {
   roastSessionId: string;
   startedAt: string;
   events: RoastEvent[];
   baseline: HistoricalBaseline;
   referenceRoast?: ReferenceRoast | null;
+  planDivergedAtSeconds?: number;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const phases = computeRoastPhases(events, elapsed);
@@ -30,7 +32,7 @@ export default function LiveTipsPanel({
     () => getCurveReadings(events, probeReadings ?? []),
     [events, probeReadings]
   );
-  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings });
+  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings, planDivergedAtSeconds });
 
   return (
     <div className="flex flex-col gap-3">

@@ -31,7 +31,7 @@ type CalibrationRoast = Pick<
  * pulling every TEMP event just to find the last one is the same
  * over-fetching problem the events/temperatureReadings trims above solve.
  */
-function findDropTemp(
+export function findDropTemp(
   roast: CalibrationRoast,
   lastTemp: Map<string, number>
 ): { tempF: number; fromProbe: boolean } | null {

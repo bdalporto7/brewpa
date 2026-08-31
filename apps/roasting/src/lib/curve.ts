@@ -673,3 +673,183 @@ export function buildLiveComparisonSvg(
 
   return parts.join("");
 }
+
+/** One dial-schedule entry, merging a fan and/or heat change that happened
+ * at the same instant into a single row — the shape a RoastProfile's saved
+ * plan needs (see profile-actions.ts's saveProfileFromCompletedRoast).
+ * Deliberately its own literal type here, not imported from
+ * RoastPlanSettingChange (roastAdvisor.ts) — same independence reasoning as
+ * RoastCurveTargets above. */
+export interface PlanSettingChange {
+  atSeconds: number;
+  fanLevel?: number;
+  heatLevel?: number;
+}
+
+/** Same duplication reasoning, extending RoastCurveTargets with the one
+ * field that isn't a chart axis (weight loss is a plan target, not
+ * something buildRoastCurveSvg draws a line for). */
+export interface PlanTargets extends RoastCurveTargets {
+  targetWeightLossPercent?: number;
+}
+
+/**
+ * getDialChangeEvents returns one row per dial per change — right for a
+ * display table, wrong for a plan, where a fan+heat change made together
+ * (e.g. the charge settings at atSeconds 0) needs to be one entry. Merges
+ * by exact matching atSeconds.
+ */
+export function buildSettingChangesFromEvents(events: RoastEvent[]): PlanSettingChange[] {
+  const fanPoints = eventPoints(events, "FAN");
+  const heatPoints = eventPoints(events, "HEAT");
+  const allTimes = [...new Set([...fanPoints.map((p) => p.atSeconds), ...heatPoints.map((p) => p.atSeconds)])].sort(
+    (a, b) => a - b
+  );
+
+  return allTimes.map((atSeconds) => {
+    const fan = fanPoints.find((p) => p.atSeconds === atSeconds);
+    const heat = heatPoints.find((p) => p.atSeconds === atSeconds);
+    const entry: PlanSettingChange = { atSeconds };
+    if (fan) entry.fanLevel = fan.level;
+    if (heat) entry.heatLevel = heat.level;
+    return entry;
+  });
+}
+
+/**
+ * Per-dial matching between a plan's schedule and what actually happened,
+ * used by computeAdjustedPlan below. Two things it deliberately does NOT
+ * do: it doesn't require the roaster's actual steps to land on the same
+ * index as the plan's (a forward search for the planned *value*, not a
+ * positional comparison, so taking smaller/extra intermediate steps than
+ * the plan doesn't itself look like a divergence) — and past that, it only
+ * flags real divergence when the roast's most recent move on this dial
+ * went the opposite direction from where the plan still wants it to go,
+ * not merely "hasn't gotten there yet."
+ */
+function matchDialTrack(
+  plannedTrack: { atSeconds: number; level: number }[],
+  actualTrack: { atSeconds: number; level: number }[]
+): { drift: number | null; driftAtSeconds: number | null; divergedAtSeconds: number | null } {
+  if (plannedTrack.length === 0 || actualTrack.length === 0) {
+    return { drift: null, driftAtSeconds: null, divergedAtSeconds: null };
+  }
+
+  let drift: number | null = null;
+  let driftAtSeconds: number | null = null;
+  let matchedLevel: number | null = null;
+  let searchFrom = 0;
+  let nextPlannedIdx = 0;
+  let divergedAtSeconds: number | null = null;
+
+  matching: for (; nextPlannedIdx < plannedTrack.length; nextPlannedIdx++) {
+    const planned = plannedTrack[nextPlannedIdx];
+    const foundIdx = actualTrack.findIndex((a, idx) => idx >= searchFrom && a.level === planned.level);
+    if (foundIdx === -1) break; // hasn't reached this planned value yet (or ever) — stop matching further ahead
+
+    // A forward search for the exact planned value (rather than a strict
+    // positional comparison) tolerates the roaster taking smaller or extra
+    // intermediate steps than the plan — but on its own it can miss a real
+    // divergence that later "circles back" to the expected value. This
+    // walks whatever actual events got skipped over to land on this match
+    // and checks each one didn't move the wrong way first.
+    if (matchedLevel != null) {
+      const plannedDirection = Math.sign(planned.level - matchedLevel);
+      for (let idx = searchFrom; idx < foundIdx; idx++) {
+        const actualDirection = Math.sign(actualTrack[idx].level - matchedLevel);
+        if (plannedDirection !== 0 && actualDirection !== 0 && actualDirection !== plannedDirection) {
+          divergedAtSeconds = actualTrack[idx].atSeconds;
+          break matching; // freeze — don't keep matching past a real divergence
+        }
+      }
+    }
+
+    drift = actualTrack[foundIdx].atSeconds - planned.atSeconds;
+    driftAtSeconds = actualTrack[foundIdx].atSeconds;
+    matchedLevel = planned.level;
+    searchFrom = foundIdx + 1;
+  }
+
+  // Fallback: no divergence caught above, but the plan's next (never
+  // reached) step calls for a direction the most recent actual move
+  // already contradicts.
+  if (divergedAtSeconds == null) {
+    const nextPlanned = plannedTrack[nextPlannedIdx];
+    const latestActual = actualTrack[actualTrack.length - 1];
+    if (matchedLevel != null && nextPlanned && latestActual.level !== matchedLevel) {
+      const plannedDirection = Math.sign(nextPlanned.level - matchedLevel);
+      const actualDirection = Math.sign(latestActual.level - matchedLevel);
+      if (plannedDirection !== 0 && actualDirection !== 0 && plannedDirection !== actualDirection) {
+        divergedAtSeconds = latestActual.atSeconds;
+      }
+    }
+  }
+
+  return { drift, driftAtSeconds, divergedAtSeconds };
+}
+
+/**
+ * A live-adjusted view of a plan's targets for the chart overlay — the
+ * stored plan (RoastSession.aiSuggestionPlan) never changes; this
+ * recomputes fresh from it plus the actual events on every call, so it
+ * naturally stays current as the live page re-renders after each logged
+ * event. Only the two time-based tracks (fan, heat) are compared; a plan's
+ * settingChanges list itself is left untouched as the original reference
+ * instructions (shown as-is in AiSuggestionPanel) — only the *targets* used
+ * for the chart's dashed reference lines get shifted, since that's the
+ * thing that actually goes stale.
+ *
+ * "diverged" means the roaster's most recent move on a dial went the
+ * opposite way from what the plan still calls for — timing drift alone
+ * (the same move, just earlier/later) never sets it. Once diverged, the
+ * drift value simply stops updating rather than resetting to zero — the
+ * last known-good adjustment keeps being applied to whatever targets are
+ * still ahead, which is a deliberately conservative simplification, not a
+ * claim that the rest of the plan is still valid.
+ */
+export function computeAdjustedPlan(
+  plan: { settingChanges: PlanSettingChange[]; targets: PlanTargets },
+  actualEvents: RoastEvent[]
+): { targets: PlanTargets; diverged: boolean; divergedAtSeconds?: number } {
+  const plannedFan = plan.settingChanges
+    .filter((c): c is PlanSettingChange & { fanLevel: number } => c.fanLevel != null)
+    .map((c) => ({ atSeconds: c.atSeconds, level: c.fanLevel }));
+  const plannedHeat = plan.settingChanges
+    .filter((c): c is PlanSettingChange & { heatLevel: number } => c.heatLevel != null)
+    .map((c) => ({ atSeconds: c.atSeconds, level: c.heatLevel }));
+
+  const fanResult = matchDialTrack(plannedFan, eventPoints(actualEvents, "FAN"));
+  const heatResult = matchDialTrack(plannedHeat, eventPoints(actualEvents, "HEAT"));
+
+  // Whichever track's last confirmed match happened more recently (by real
+  // elapsed time) wins as the current drift — not just "prefer heat over
+  // fan" or vice versa.
+  const matches = [
+    fanResult.drift != null ? { drift: fanResult.drift, at: fanResult.driftAtSeconds! } : null,
+    heatResult.drift != null ? { drift: heatResult.drift, at: heatResult.driftAtSeconds! } : null,
+  ].filter((m): m is { drift: number; at: number } => m != null);
+  // No confirmed matches yet (e.g. still before the first dial change) —
+  // nothing to adjust for, show the plan exactly as suggested.
+  const currentDrift = matches.length > 0 ? matches.reduce((a, b) => (b.at > a.at ? b : a)).drift : 0;
+
+  const divergences = [fanResult.divergedAtSeconds, heatResult.divergedAtSeconds].filter(
+    (d): d is number => d != null
+  );
+  const diverged = divergences.length > 0;
+  const divergedAtSeconds = diverged ? Math.min(...divergences) : undefined;
+
+  const shift = (seconds: number | undefined) => (seconds != null ? seconds + currentDrift : undefined);
+
+  return {
+    targets: {
+      dryEndSeconds: shift(plan.targets.dryEndSeconds),
+      yellowingEndSeconds: shift(plan.targets.yellowingEndSeconds),
+      firstCrackSeconds: shift(plan.targets.firstCrackSeconds),
+      developmentSeconds: plan.targets.developmentSeconds, // a duration, not a point in time — unaffected by drift
+      dropTempF: plan.targets.dropTempF, // a temperature, not a time
+      targetWeightLossPercent: plan.targets.targetWeightLossPercent,
+    },
+    diverged,
+    divergedAtSeconds,
+  };
+}

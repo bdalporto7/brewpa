@@ -97,6 +97,15 @@ model RoastSession {
   // summarizeMachineCalibration since a dial-timing correction is a fact
   // about the machine, not this one bean.
   aiSuggestionFeedback String?
+  // Soft "started from this profile" link (mirrors Brew.recipeId) — set by
+  // applyRoastProfile, which copies the profile's plan onto this session's
+  // own aiSuggestion* columns above rather than referencing it live, so
+  // deleting a profile never touches past roasts. Cleared back to null by
+  // generateRoastSuggestion if the roaster asks for a fresh AI suggestion
+  // afterward, since the session no longer actually reflects this profile
+  // once that happens.
+  profileId String?
+  profile   RoastProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -120,6 +129,33 @@ model RoastSession {
 
   @@index([beanId])
   @@index([startedAt])
+  @@index([profileId])
+}
+
+// A reusable fan/heat dial schedule + phase targets — the roasting-side
+// analogue of Recipe (brewing). Saved from an AI suggestion, a completed
+// roast's actual executed events (the most valuable case — "repeat that
+// roast"), or built by hand. planJson is the exact RoastPlan shape from
+// roastAdvisor.ts ({ settingChanges, targets }), JSON.stringify'd like
+// RoastSession.aiSuggestionPlan already is. Applying one copies its values
+// onto a RoastSession's own aiSuggestion* columns (see applyRoastProfile in
+// profile-actions.ts) rather than referencing it live — not bean-specific,
+// since the whole point is reuse across different beans; process/brewTarget
+// are optional tags to help find the right one later, not a hard scope.
+model RoastProfile {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  process     String?
+  brewTarget  String?
+  planJson    String
+  isFavorite  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roastSessions RoastSession[]
+
+  @@index([process])
 }
 
 model RoastEvent {
