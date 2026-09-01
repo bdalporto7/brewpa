@@ -5,8 +5,8 @@ import { Fan, Flame, Thermometer, Minus, Plus, Check, Square } from "lucide-reac
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import { useServerSyncedState } from "@/lib/useServerSyncedState";
 import { useProbeReadings, type ProbeReading } from "@/lib/useProbeReadings";
-import { getCurveReadings } from "@/lib/curve";
-import { generateLiveTips, type HistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
+import { getCurveReadings, type PlanTargets } from "@/lib/curve";
+import { generateLiveTips, type HistoricalBaseline, type MilestoneTempBaseline, type ReferenceRoast } from "@/lib/tips";
 import { formatMMSS } from "@/lib/format";
 import { logEvent, dropRoast } from "@/lib/actions";
 import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, MILESTONE_ABBREVIATIONS, type EventType } from "@/lib/constants";
@@ -261,7 +261,7 @@ function TopStatusBar({
       </div>
       {(dropError || hint) && (
         <p
-          className={`mx-auto max-w-4xl truncate px-3 pb-1.5 text-xs sm:px-4 ${dropError ? "text-danger" : "text-accent-foreground/90"}`}
+          className={`mx-auto line-clamp-2 max-w-4xl px-3 pb-1.5 text-xs sm:px-4 ${dropError ? "text-danger" : "text-accent-foreground/90"}`}
         >
           {dropError ?? hint}
         </p>
@@ -274,7 +274,7 @@ function TopStatusBar({
  * Two permanently fixed bars for the whole time a roast is live — not
  * gated behind scrolling past a hero timer, per the roaster's own framing:
  * "the permanent timer glued to the top... user will always be looking at
- * chart." Top bar: bean, timer, a one-line stage-aware hint (reusing
+ * chart." Top bar: bean, timer, a stage-aware hint up to 2 lines (reusing
  * tips.ts's stall/crash detection), and Drop — always reachable, rarely
  * tapped. Bottom bar: fan/heat/temp/milestones — the controls actually
  * touched every 10-30s. Splitting into two bars rather than one bigger one
@@ -295,6 +295,8 @@ export default function LiveRoastBars({
   baseline,
   referenceRoast,
   planDivergedAtSeconds,
+  milestoneTempBaseline,
+  originalPlanTargets,
 }: {
   startedAt: string;
   beanName: string;
@@ -306,6 +308,8 @@ export default function LiveRoastBars({
   baseline: HistoricalBaseline | null;
   referenceRoast?: ReferenceRoast | null;
   planDivergedAtSeconds?: number;
+  milestoneTempBaseline?: MilestoneTempBaseline | null;
+  originalPlanTargets?: PlanTargets;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   // Shared by both bars so the fan/heat shown here never drifts from
@@ -318,9 +322,18 @@ export default function LiveRoastBars({
   const curveReadings = useMemo(() => getCurveReadings(events, probeReadings ?? []), [events, probeReadings]);
   const hint = useMemo(() => {
     if (!baseline) return null;
-    const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings, planDivergedAtSeconds });
+    const tips = generateLiveTips({
+      elapsedSeconds: elapsed,
+      events,
+      baseline,
+      referenceRoast,
+      curveReadings,
+      planDivergedAtSeconds,
+      milestoneTempBaseline,
+      originalPlanTargets,
+    });
     return tips[0]?.message ?? null;
-  }, [baseline, elapsed, events, referenceRoast, curveReadings, planDivergedAtSeconds]);
+  }, [baseline, elapsed, events, referenceRoast, curveReadings, planDivergedAtSeconds, milestoneTempBaseline, originalPlanTargets]);
 
   return (
     <>

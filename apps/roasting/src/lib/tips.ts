@@ -1,6 +1,7 @@
 import { formatMMSS } from "@/lib/format";
-import { nearestCurveReading, type CurveReading } from "@/lib/curve";
-import type { RoastEvent, RoastSession } from "@prisma/client";
+import { getCurveReadings, nearestCurveReading, type CurveReading, type PlanTargets } from "@/lib/curve";
+import { EVENT_LABELS } from "@/lib/constants";
+import type { RoastEvent, RoastSession, TemperatureReading } from "@prisma/client";
 
 /**
  * Averages pulled from the roaster's own past completed roasts (same bean if
@@ -37,6 +38,53 @@ export function computeHistoricalBaseline(
   };
 }
 
+/**
+ * Typical bean temp at each milestone, reconstructed from two separate data
+ * streams rather than stored directly — milestone events (DRY_END etc.) only
+ * record a timestamp, never a temperature (AddEventForm doesn't collect one
+ * for these types). For each past roast, looks up the nearest real
+ * temperature reading to that milestone's timestamp and averages across
+ * roasts — same bean-then-global fallback scoping as computeHistoricalBaseline,
+ * via the same `sessions` array the caller already builds for that.
+ */
+export type MilestoneTempBaseline = {
+  dryEndTempF: number | null;
+  yellowingEndTempF: number | null;
+  firstCrackTempF: number | null;
+};
+
+export function computeMilestoneTempBaseline(
+  sessions: (RoastSession & {
+    events: RoastEvent[];
+    temperatureReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[];
+  })[]
+): MilestoneTempBaseline {
+  const avg = (arr: number[]) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+  const dryEndTemps: number[] = [];
+  const yellowingEndTemps: number[] = [];
+  const firstCrackTemps: number[] = [];
+
+  for (const session of sessions) {
+    const readings = getCurveReadings(session.events, session.temperatureReadings);
+    if (readings.length === 0) continue;
+
+    const collect = (type: string, bucket: number[]) => {
+      const atSeconds = session.events.find((e) => e.type === type)?.atSeconds;
+      if (atSeconds != null) bucket.push(nearestCurveReading(readings, atSeconds).temp);
+    };
+    collect("DRY_END", dryEndTemps);
+    collect("YELLOWING_END", yellowingEndTemps);
+    collect("FIRST_CRACK_START", firstCrackTemps);
+  }
+
+  return {
+    dryEndTempF: avg(dryEndTemps),
+    yellowingEndTempF: avg(yellowingEndTemps),
+    firstCrackTempF: avg(firstCrackTemps),
+  };
+}
+
 export type Tip = { id: string; message: string };
 
 /** A specific past roast to compare live progress against — either the bean's explicitly-marked golden roast, or (falling back) its most recent completed roast. */
@@ -56,6 +104,85 @@ function avgRoR(readings: CurveReading[]): number | null {
   const withRoR = readings.map((r) => r.rorPerMin).filter((v): v is number => v != null);
   if (withRoR.length === 0) return null;
   return withRoR.reduce((a, b) => a + b, 0) / withRoR.length;
+}
+
+export type NextMilestoneType = "DRY_END" | "YELLOWING_END" | "FIRST_CRACK_START";
+
+export type MilestoneProjection = {
+  milestone: NextMilestoneType;
+  projectedAtSeconds: number;
+  rorPerMin: number;
+};
+
+// Starting estimate for how long to distrust a freshly-changed dial's RoR
+// window — see the verification script for backtesting this against real
+// fan-change transitions before trusting it live.
+const PROJECTION_SETTLE_SECONDS = 60;
+// Floor guards a divide-by-near-zero or backwards ETA from a stalled/dropping RoR.
+const PROJECTION_MIN_ROR = 1;
+// Ceiling guards against showing an absurd far-future ETA off a barely-moving RoR.
+const PROJECTION_MAX_LOOKAHEAD_SECONDS = 20 * 60;
+
+/**
+ * Extrapolates forward from live, directly-measured RoR to estimate when the
+ * next unreached milestone (dry end / yellowing end / first crack — one hop
+ * ahead only, since RoR is non-monotonic across phases and chaining further
+ * projections would compound error) will hit its typical temperature.
+ *
+ * Deliberately NOT a fan/heat causal model — this unit's historical fan
+ * changes are confounded with time-since-charge (fan is ramped down on a
+ * near-fixed schedule from charge in nearly every roast, both by choice and
+ * because lighter/drier beans need less airflow to stay fluidized), and RoR
+ * naturally decays early in any roast regardless of fan. A before/after
+ * regression on that data found the after/before RoR ratio below 1 in 14 of
+ * 16 clean transitions — the opposite of what roastAdvisor.ts's system
+ * prompt claims — so fitting a coefficient from it would be actively
+ * misleading. Extrapolating the RoR that's actually happening right now
+ * sidesteps that: it doesn't need to know *why* RoR is what it is.
+ */
+export function projectNextMilestone(input: {
+  events: Pick<RoastEvent, "type" | "atSeconds">[];
+  curveReadings: CurveReading[];
+  elapsedSeconds: number;
+  milestoneTempBaseline: MilestoneTempBaseline;
+  hasYellowingTarget: boolean;
+}): MilestoneProjection | null {
+  const { events, curveReadings, elapsedSeconds, milestoneTempBaseline, hasYellowingTarget } = input;
+
+  const hasType = (t: NextMilestoneType) => events.some((e) => e.type === t);
+  let milestone: NextMilestoneType;
+  let targetTempF: number | null;
+  if (!hasType("DRY_END")) {
+    milestone = "DRY_END";
+    targetTempF = milestoneTempBaseline.dryEndTempF;
+  } else if (hasYellowingTarget && !hasType("YELLOWING_END")) {
+    milestone = "YELLOWING_END";
+    targetTempF = milestoneTempBaseline.yellowingEndTempF;
+  } else if (!hasType("FIRST_CRACK_START")) {
+    milestone = "FIRST_CRACK_START";
+    targetTempF = milestoneTempBaseline.firstCrackTempF;
+  } else {
+    return null; // past 1C — development/drop are a duration and an explicit temp, not RoR-projected here
+  }
+  if (targetTempF == null) return null; // cold start: no bean or global history to ground a target temp in yet
+
+  const lastDialChangeAt = events
+    .filter((e) => e.type === "FAN" || e.type === "HEAT")
+    .reduce((max, e) => Math.max(max, e.atSeconds), -Infinity);
+  const windowStart = Math.max(elapsedSeconds - STALL_WINDOW_SECONDS, lastDialChangeAt + PROJECTION_SETTLE_SECONDS);
+  const window = curveReadings.filter((r) => r.atSeconds > windowStart && r.atSeconds <= elapsedSeconds);
+  if (window.length < STALL_MIN_READINGS) return null;
+
+  const ror = avgRoR(window);
+  const currentTemp = curveReadings.at(-1)?.temp;
+  if (ror == null || currentTemp == null) return null;
+  if (ror < PROJECTION_MIN_ROR) return null;
+  if (currentTemp >= targetTempF) return null; // logging is lagging reality — no meaningful ETA to give
+
+  const secondsToMilestone = ((targetTempF - currentTemp) / ror) * 60;
+  if (secondsToMilestone > PROJECTION_MAX_LOOKAHEAD_SECONDS) return null;
+
+  return { milestone, projectedAtSeconds: elapsedSeconds + secondsToMilestone, rorPerMin: ror };
 }
 
 /**
@@ -145,15 +272,59 @@ export function generateLiveTips(input: {
    * divergence means the plan's remaining targets are no longer trustworthy,
    * not just off by a fixed offset. */
   planDivergedAtSeconds?: number;
+  /** Enables projectNextMilestone — omit (or pass null) to fall back to the
+   * plain "unadjusted" divergence message, e.g. before the caller has
+   * fetched calibration data. */
+  milestoneTempBaseline?: MilestoneTempBaseline | null;
+  /** The accepted plan's raw, pre-drift targets — comparison text only. */
+  originalPlanTargets?: PlanTargets;
 }): Tip[] {
-  const { elapsedSeconds, events, baseline, referenceRoast, curveReadings = [], planDivergedAtSeconds } = input;
+  const {
+    elapsedSeconds,
+    events,
+    baseline,
+    referenceRoast,
+    curveReadings = [],
+    planDivergedAtSeconds,
+    milestoneTempBaseline,
+    originalPlanTargets,
+  } = input;
   const tips: Tip[] = [];
 
+  const projection = milestoneTempBaseline
+    ? projectNextMilestone({
+        events,
+        curveReadings,
+        elapsedSeconds,
+        milestoneTempBaseline,
+        hasYellowingTarget: originalPlanTargets?.yellowingEndSeconds != null,
+      })
+    : null;
+
   if (planDivergedAtSeconds != null) {
-    tips.unshift({
-      id: "plan-diverged",
-      message: `Plan diverged around ${formatMMSS(planDivergedAtSeconds)} — remaining targets are the original suggestion, unadjusted from here on.`,
-    });
+    tips.unshift(
+      projection
+        ? {
+            id: "plan-reprojected",
+            message: `Plan diverged around ${formatMMSS(planDivergedAtSeconds)} — at the current pace (~${projection.rorPerMin.toFixed(0)}°F/min), ${EVENT_LABELS[projection.milestone].toLowerCase()} now looks more like ${formatMMSS(projection.projectedAtSeconds)}.`,
+          }
+        : {
+            id: "plan-diverged",
+            message: `Plan diverged around ${formatMMSS(planDivergedAtSeconds)} — not enough live data yet to re-project; treat remaining targets as the original suggestion.`,
+          }
+    );
+  } else if (projection && originalPlanTargets) {
+    const planned = {
+      DRY_END: originalPlanTargets.dryEndSeconds,
+      YELLOWING_END: originalPlanTargets.yellowingEndSeconds,
+      FIRST_CRACK_START: originalPlanTargets.firstCrackSeconds,
+    }[projection.milestone];
+    if (planned != null && Math.abs(projection.projectedAtSeconds - planned) > 60) {
+      tips.push({
+        id: "milestone-projection",
+        message: `At the current pace, ${EVENT_LABELS[projection.milestone].toLowerCase()} looks more like ${formatMMSS(projection.projectedAtSeconds)} than the planned ${formatMMSS(planned)}.`,
+      });
+    }
   }
 
   const stallTip = detectStall(

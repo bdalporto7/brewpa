@@ -5,8 +5,8 @@ import { Sparkles } from "lucide-react";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import { useProbeReadings } from "@/lib/useProbeReadings";
 import { computeRoastPhases } from "@/lib/phases";
-import { getCurveReadings } from "@/lib/curve";
-import { generateLiveTips, type HistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
+import { getCurveReadings, type PlanTargets } from "@/lib/curve";
+import { generateLiveTips, type HistoricalBaseline, type MilestoneTempBaseline, type ReferenceRoast } from "@/lib/tips";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import type { RoastEvent } from "@prisma/client";
 
@@ -17,6 +17,8 @@ export default function LiveTipsPanel({
   baseline,
   referenceRoast,
   planDivergedAtSeconds,
+  milestoneTempBaseline,
+  originalPlanTargets,
 }: {
   roastSessionId: string;
   startedAt: string;
@@ -24,6 +26,8 @@ export default function LiveTipsPanel({
   baseline: HistoricalBaseline;
   referenceRoast?: ReferenceRoast | null;
   planDivergedAtSeconds?: number;
+  milestoneTempBaseline?: MilestoneTempBaseline | null;
+  originalPlanTargets?: PlanTargets;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const phases = computeRoastPhases(events, elapsed);
@@ -32,7 +36,16 @@ export default function LiveTipsPanel({
     () => getCurveReadings(events, probeReadings ?? []),
     [events, probeReadings]
   );
-  const tips = generateLiveTips({ elapsedSeconds: elapsed, events, baseline, referenceRoast, curveReadings, planDivergedAtSeconds });
+  const tips = generateLiveTips({
+    elapsedSeconds: elapsed,
+    events,
+    baseline,
+    referenceRoast,
+    curveReadings,
+    planDivergedAtSeconds,
+    milestoneTempBaseline,
+    originalPlanTargets,
+  });
 
   return (
     <div className="flex flex-col gap-3">

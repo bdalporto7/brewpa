@@ -8,7 +8,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import BrewCard from "@/components/brews/BrewCard";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
-import { computeHistoricalBaseline, type ReferenceRoast } from "@/lib/tips";
+import { computeHistoricalBaseline, computeMilestoneTempBaseline, projectNextMilestone, type ReferenceRoast } from "@/lib/tips";
 import { getCurveReadings, computeAdjustedPlan, type PlanSettingChange, type PlanTargets } from "@/lib/curve";
 import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
 import type { EventType } from "@/lib/constants";
@@ -147,21 +147,24 @@ export default async function RoastSessionPage({
   const phases = computeRoastPhases(session.events, durationSeconds ?? 0);
 
   let baseline = null;
+  let milestoneTempBaseline = null;
   let referenceRoast: ReferenceRoast | null = null;
+  let projectedTargets = acceptedPlanTargets;
   if (isLive) {
     const sameBeanCompleted = await prisma.roastSession.findMany({
       where: { beanId: session.beanId, endedAt: { not: null }, id: { not: session.id } },
-      include: { events: true },
+      include: { events: true, temperatureReadings: true },
     });
     let baselineSessions = sameBeanCompleted;
     if (baselineSessions.length === 0) {
       baselineSessions = await prisma.roastSession.findMany({
         where: { endedAt: { not: null } },
-        include: { events: true },
+        include: { events: true, temperatureReadings: true },
         take: 50,
       });
     }
     baseline = computeHistoricalBaseline(baselineSessions);
+    milestoneTempBaseline = computeMilestoneTempBaseline(baselineSessions);
 
     // The reference roast to compare live progress against never falls back
     // across beans (unlike the averages above) — a different bean's curve
@@ -179,10 +182,37 @@ export default async function RoastSessionPage({
       const readings = getCurveReadings(refSession.events);
       if (readings.length > 0) referenceRoast = { label, readings };
     }
+
+    // Live RoR-based re-projection of the next unreached milestone — see
+    // src/lib/tips.ts's projectNextMilestone for why this extrapolates
+    // directly-measured RoR rather than a fan/heat causal model. Only
+    // overrides the one field it projects; every other target (already-
+    // reached milestones, developmentSeconds, dropTempF) is untouched.
+    const projection = acceptedPlan
+      ? projectNextMilestone({
+          events: session.events,
+          curveReadings: getCurveReadings(session.events, session.temperatureReadings),
+          elapsedSeconds: liveElapsedSeconds,
+          milestoneTempBaseline,
+          hasYellowingTarget: acceptedPlan.targets.yellowingEndSeconds != null,
+        })
+      : null;
+    if (projection && projectedTargets) {
+      projectedTargets = {
+        ...projectedTargets,
+        ...(projection.milestone === "DRY_END" && { dryEndSeconds: Math.round(projection.projectedAtSeconds) }),
+        ...(projection.milestone === "YELLOWING_END" && {
+          yellowingEndSeconds: Math.round(projection.projectedAtSeconds),
+        }),
+        ...(projection.milestone === "FIRST_CRACK_START" && {
+          firstCrackSeconds: Math.round(projection.projectedAtSeconds),
+        }),
+      };
+    }
   }
 
   return (
-    <div className={`flex flex-col gap-6 ${isLive ? "pt-20 sm:pt-24" : ""}`}>
+    <div className={`flex flex-col gap-6 ${isLive ? "pt-24 sm:pt-28" : ""}`}>
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         {justCompleted && <BeanBurst />}
         <div>
@@ -290,6 +320,8 @@ export default async function RoastSessionPage({
             baseline={baseline}
             referenceRoast={referenceRoast}
             planDivergedAtSeconds={planDivergedAtSeconds}
+            milestoneTempBaseline={milestoneTempBaseline}
+            originalPlanTargets={acceptedPlan?.targets}
           />
           {/* Probe readings can arrive on their own, ahead of the latest
               hand-logged event, so the chart's time axis has to account for
@@ -313,7 +345,7 @@ export default async function RoastSessionPage({
               events={session.events}
               totalSeconds={liveElapsedSeconds}
               probeReadings={session.temperatureReadings}
-              targets={acceptedPlanTargets}
+              targets={projectedTargets}
             />
           )}
           {baseline && (
@@ -324,6 +356,8 @@ export default async function RoastSessionPage({
               baseline={baseline}
               referenceRoast={referenceRoast}
               planDivergedAtSeconds={planDivergedAtSeconds}
+              milestoneTempBaseline={milestoneTempBaseline}
+              originalPlanTargets={acceptedPlan?.targets}
             />
           )}
           <EventLogPanel roastSessionId={session.id} startedAt={session.startedAt!.toISOString()} />
