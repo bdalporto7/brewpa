@@ -24,7 +24,6 @@ import EventLogPanel from "@/components/roasts/EventLogPanel";
 import EventTimeline from "@/components/roasts/EventTimeline";
 import RoastDetailsForm from "@/components/roasts/RoastDetailsForm";
 import AiFeedbackForm from "@/components/roasts/AiFeedbackForm";
-import PublishControl from "@/components/roasts/PublishControl";
 import GoldenRoastToggle from "@/components/roasts/GoldenRoastToggle";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
 import PhaseBar from "@/components/roasts/PhaseBar";
@@ -179,7 +178,7 @@ export default async function RoastSessionPage({
       label = "Last roast";
     }
     if (refSession) {
-      const readings = getCurveReadings(refSession.events);
+      const readings = getCurveReadings(refSession.events, refSession.temperatureReadings);
       if (readings.length > 0) referenceRoast = { label, readings };
     }
 
@@ -243,7 +242,6 @@ export default async function RoastSessionPage({
                 roastSessionId={session.id}
                 isGolden={session.bean.goldenRoastId === session.id}
               />
-              <PublishControl roastSessionId={session.id} publishedAt={session.publishedAt} />
               <SaveProfileForm
                 action={saveProfileFromCompletedRoast.bind(null, session.id)}
                 defaultName={`${session.bean.name}${session.roastLevel ? ` — ${session.roastLevel}` : ""}`}

@@ -70,7 +70,6 @@ model RoastSession {
   bean                  Bean      @relation("BeanRoasts", fields: [beanId], references: [id], onDelete: Restrict)
   startedAt             DateTime?
   endedAt               DateTime?
-  publishedAt           DateTime?
   greenWeightGrams      Float
   roastedWeightGrams    Float?
   roastedRemainingGrams Float?

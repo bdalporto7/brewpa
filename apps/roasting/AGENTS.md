@@ -73,13 +73,4 @@ read:
   — per Artisan's source, not something empirically guessed. Only the
   probed channel (bytes 5-6) is ever forwarded, unconditionally.
 
-**Still open, now that there's real probe data to test against** (not
-blocked on hardware anymore):
-- `src/lib/tips.ts`'s live golden-roast comparison and "log a temp
-  reading" nudge are still event-based only — doesn't know about probe
-  readings, so it can show a stale nudge even with a probe actively
-  connected.
-- The static "Publish to GitHub Pages" export still renders curves from
-  events only, not probe readings.
-
 <!-- END:nextjs-agent-rules -->

@@ -189,8 +189,9 @@ export function projectNextMilestone(input: {
  * Flags a stalling RoR during the browning/Maillard phase, or a crash right
  * after first crack — both are how acidity and origin character get muted
  * even in a roast that finishes light-colored (see roastAdvisor.ts's system
- * prompt for the mechanism, and this SR800 unit's own fan/heat-vs-RoR
- * analysis behind the "lower fan" suggestion). Only fires with enough
+ * prompt for the mechanism — the "lower fan" suggestion is general fluid-bed
+ * theory, not something this unit's own logs have isolated; see that
+ * prompt's comment for why). Only fires with enough
  * recent readings to trust — a probe streaming every 5s or dense
  * hand-logged points — and only compares like-for-like windows (this
  * roast's own earlier pace, or a chosen reference roast at the same
@@ -217,7 +218,7 @@ function detectStall(
     if (postCrackRoR == null || postCrackRoR > CRASH_FLOOR_ROR) return null;
     return {
       id: "ror-crash",
-      message: `RoR has flattened to ~${postCrackRoR.toFixed(0)}°F/min right after first crack — watch for a "flick" (RoR rebounding too fast), which can add harsh notes. A small fan reduction tends to smooth this transition better than a heat bump.`,
+      message: `RoR has flattened to ~${postCrackRoR.toFixed(0)}°F/min right after first crack — watch for a "flick" (RoR rebounding too fast), which can add harsh notes. Fluid-bed theory favors a small fan reduction over a heat bump here (less airflow retains more heat around the beans), though this unit's own logs haven't isolated the effect.`,
     };
   }
   if (firstCrackAt != null) return null; // through 1C, outside the crash window — not the stall zone anymore
@@ -248,7 +249,7 @@ function detectStall(
   if (recentRoR < priorRoR * STALL_DROP_RATIO && recentRoR < STALL_FLOOR_ROR) {
     return {
       id: "ror-stall",
-      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. This machine's own data shows lowering fan is the more reliable way to rebuild momentum here than adding heat.`,
+      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. Fluid-bed theory favors lowering fan over adding heat to rebuild momentum (less airflow retains more heat around the beans), though this unit's own logs haven't confirmed the effect size.`,
     };
   }
   return null;
