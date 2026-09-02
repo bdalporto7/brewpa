@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Flame, Home, Gift, BookOpen, Shield, LogOut } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
 import { BrewedCupIcon, GreenBeanIcon } from "@/components/ui/CoffeeIcons";
+import CybarMark from "@/components/ui/CybarMark";
 import SteamWisp from "@/components/ui/SteamWisp";
 import WaterPour from "@/components/ui/WaterPour";
 
@@ -37,10 +38,7 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
         <div className="flex items-center gap-3">
           <Link href={mode === "brewing" ? "/brews" : "/"} className="flex items-center gap-2">
-            <picture>
-              <source srcSet="/cybar-mark-dark.png" media="(prefers-color-scheme: dark)" />
-              <img src="/cybar-mark.png" alt="Cybar Coffee" className="h-7 w-auto" />
-            </picture>
+            <CybarMark className="h-7 w-auto" />
             <span className="font-marker text-xl leading-none">Cybar</span>
           </Link>
 

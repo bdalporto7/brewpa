@@ -13,6 +13,7 @@ import BrewCard from "@/components/brews/BrewCard";
 import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
 import Eyebrow from "@/components/ui/Eyebrow";
+import SectionHeading from "@/components/ui/SectionHeading";
 
 /**
  * `bean` and `user` are independent fetches, run in parallel — but `brews`
@@ -75,7 +76,9 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div>
-        <h2 className="mb-3 font-medium">Drops</h2>
+        <div className="mb-3">
+          <SectionHeading>Drops</SectionHeading>
+        </div>
         {bean.drops.length === 0 ? (
           <p className="mb-3 text-sm text-muted">No drops opened for this bean yet.</p>
         ) : (
@@ -90,7 +93,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-medium">Your brews</h2>
+          <SectionHeading>Your brews</SectionHeading>
           <Link href="/brews" className="text-sm text-muted hover:text-foreground">
             Log a brew →
           </Link>
@@ -107,7 +110,9 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div>
-        <h2 className="mb-3 font-medium">Roast history</h2>
+        <div className="mb-3">
+          <SectionHeading>Roast history</SectionHeading>
+        </div>
         {bean.roastSessions.length === 0 ? (
           <p className="text-sm text-muted">No roasts logged for this bean yet.</p>
         ) : (

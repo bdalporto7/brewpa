@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Coffee } from "lucide-react";
+import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
 import { format } from "date-fns";
 import { deleteCuppingNote } from "@/lib/actions";
 import { computeCuppingTotal, PRIMARY_SCORE_FIELDS, DERIVED_SCORE_FIELDS, SCORE_LABELS, type ScoreField } from "@/lib/cupping";
@@ -95,7 +95,7 @@ export default function CuppingTab({
 
       {isAdding ? (
         <Card interactive={false} className="p-4">
-          <Eyebrow icon={<Coffee className="h-3.5 w-3.5" />} className="mb-3">
+          <Eyebrow icon={<BrewedCupIcon className="h-3.5 w-3.5" />} className="mb-3">
             New cupping session
           </Eyebrow>
           <CuppingNoteForm roastSessionId={roastSessionId} onDone={() => setIsAdding(false)} />

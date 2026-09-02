@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Pencil, ChevronDown } from "lucide-react";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
 import DeleteButton from "@/components/DeleteButton";
 import type { ReactNode } from "react";
 
@@ -106,7 +107,7 @@ export default function EditableTextCard({
 
   if (!isEditing) {
     return (
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <div className={collapsed ? "" : "mb-2 flex items-center justify-between"}>
           {header}
           {!collapsed && (
@@ -129,12 +130,12 @@ export default function EditableTextCard({
           )}
         </div>
         {!collapsed && <p className="text-sm whitespace-pre-wrap">{saved}</p>}
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <div className="mb-2">{header}</div>
       <div className="flex gap-2">
         <textarea
@@ -164,6 +165,6 @@ export default function EditableTextCard({
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

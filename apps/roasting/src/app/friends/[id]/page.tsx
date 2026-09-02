@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
+import SectionHeading from "@/components/ui/SectionHeading";
 import FriendHeader from "@/components/friends/FriendHeader";
 
 export default async function FriendPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +42,9 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div>
-        <h2 className="mb-3 font-medium">Drop claims</h2>
+        <div className="mb-3">
+          <SectionHeading>Drop claims</SectionHeading>
+        </div>
         {friend.dropClaims.length === 0 ? (
           <p className="text-sm text-muted">No drop claims for {friend.name} yet.</p>
         ) : (
@@ -68,7 +71,9 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div>
-        <h2 className="mb-3 font-medium">Roast drops</h2>
+        <div className="mb-3">
+          <SectionHeading>Roast drops</SectionHeading>
+        </div>
         {friend.sales.length === 0 ? (
           <p className="text-sm text-muted">No roast drops logged for {friend.name} yet.</p>
         ) : (

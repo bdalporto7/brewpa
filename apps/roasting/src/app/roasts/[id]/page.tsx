@@ -206,7 +206,16 @@ export default async function RoastSessionPage({
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         {justCompleted && <BeanBurst />}
         <div>
-          <h1 className="text-4xl font-black tracking-tight">{session.bean.name}</h1>
+          <h1 className="flex items-center gap-2.5 text-4xl font-black tracking-tight">
+            {session.bean.name}
+            {isCompleted && (
+              <GoldenRoastToggle
+                beanId={session.beanId}
+                roastSessionId={session.id}
+                isGolden={session.bean.goldenRoastId === session.id}
+              />
+            )}
+          </h1>
           <p className="text-sm text-muted">
             {session.startedAt
               ? format(session.startedAt, "MMM d, yyyy 'at' h:mm a")
@@ -214,10 +223,10 @@ export default async function RoastSessionPage({
             · {session.greenWeightGrams}g green
           </p>
         </div>
-        {/* flex-wrap: four text-labeled actions (Export CSV, golden-roast
-            toggle, Publish, Delete) next to a real bean name genuinely
-            don't fit in one row on a phone — wrapping beats the row
-            silently overflowing the page sideways. */}
+        {/* flex-wrap: three text-labeled actions (Export CSV, Save as
+            profile, Delete) next to a real bean name genuinely don't fit
+            in one row on a phone — wrapping beats the row silently
+            overflowing the page sideways. */}
         <div className="flex flex-wrap items-center gap-4">
           {isCompleted && (
             <>
@@ -228,11 +237,6 @@ export default async function RoastSessionPage({
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
               </a>
-              <GoldenRoastToggle
-                beanId={session.beanId}
-                roastSessionId={session.id}
-                isGolden={session.bean.goldenRoastId === session.id}
-              />
               <SaveProfileForm
                 action={saveProfileFromCompletedRoast.bind(null, session.id)}
                 defaultName={`${session.bean.name}${session.roastLevel ? ` — ${session.roastLevel}` : ""}`}

@@ -5,6 +5,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import RecipeDetailsPanel from "@/components/brews/RecipeDetailsPanel";
 import BrewCard from "@/components/brews/BrewCard";
 import Stat from "@/components/ui/Stat";
+import SectionHeading from "@/components/ui/SectionHeading";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -34,7 +35,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       {recipe.notes && <p className="text-sm whitespace-pre-line text-foreground/80">{recipe.notes}</p>}
 
       <div>
-        <h2 className="mb-3 font-medium">Your brews with this recipe</h2>
+        <div className="mb-3">
+          <SectionHeading>Your brews with this recipe</SectionHeading>
+        </div>
         {brews.length === 0 ? (
           <p className="text-sm text-muted">No brews logged with this recipe yet.</p>
         ) : (

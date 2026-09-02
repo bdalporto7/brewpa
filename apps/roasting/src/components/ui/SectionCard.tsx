@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 import Eyebrow from "@/components/ui/Eyebrow";
+import Card from "@/components/ui/Card";
 
 /**
  * The shared "labeled, bordered card, optionally collapsible" shell used
@@ -33,7 +34,7 @@ export default function SectionCard({
   const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed);
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -49,6 +50,6 @@ export default function SectionCard({
         {!collapsed && headerExtra}
       </div>
       {!collapsed && <div className="mt-3">{children}</div>}
-    </div>
+    </Card>
   );
 }

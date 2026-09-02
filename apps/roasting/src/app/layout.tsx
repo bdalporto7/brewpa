@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Permanent_Marker } from "next/font/google";
 import Nav from "@/components/Nav";
 import ToastProvider from "@/components/ui/ToastProvider";
+import SketchyFilterDefs from "@/components/ui/SketchyFilterDefs";
 import "./globals.css";
 
 const geistSans = Bricolage_Grotesque({
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${marker.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <SketchyFilterDefs />
         <ToastProvider>
           <Nav />
           {/* Extra bottom padding on mobile only — clears the fixed bottom

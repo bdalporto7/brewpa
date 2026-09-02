@@ -1,3 +1,5 @@
+"use client";
+
 import { toggleProfileFavorite } from "@/lib/profile-actions";
 import FavoriteToggle from "@/components/ui/FavoriteToggle";
 

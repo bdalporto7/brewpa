@@ -1,7 +1,7 @@
 /** Three staggered rising/fading wisps — used next to heat/roasting moments (the active-roast banner). */
 export default function SteamWisp({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 16" className={className} fill="none" aria-hidden="true">
+    <svg viewBox="0 0 24 16" className={className} fill="none" aria-hidden="true" style={{ filter: "url(#sketchy)" }}>
       <path
         d="M8 16c0-3 2-3 2-6s-2-3-2-6"
         className="steam-path"

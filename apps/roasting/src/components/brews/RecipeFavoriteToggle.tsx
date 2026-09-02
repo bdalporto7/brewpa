@@ -1,3 +1,5 @@
+"use client";
+
 import { toggleRecipeFavorite } from "@/lib/brew-actions";
 import FavoriteToggle from "@/components/ui/FavoriteToggle";
 

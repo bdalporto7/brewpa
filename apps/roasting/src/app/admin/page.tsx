@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import Card from "@/components/ui/Card";
 import Checkbox from "@/components/ui/Checkbox";
+import SectionHeading from "@/components/ui/SectionHeading";
 import AllowedUserRow from "@/components/admin/AllowedUserRow";
 
 export default async function AdminPage() {
@@ -34,7 +35,9 @@ export default async function AdminPage() {
       </Card>
 
       <div>
-        <h2 className="mb-3 font-medium">Allowed to sign in</h2>
+        <div className="mb-3">
+          <SectionHeading>Allowed to sign in</SectionHeading>
+        </div>
         <Card interactive={false}>
           <ul className="flex flex-col divide-y divide-border px-4">
             {users.map((user) => (

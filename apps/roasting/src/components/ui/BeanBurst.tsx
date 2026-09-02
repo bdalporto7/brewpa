@@ -32,6 +32,7 @@ export default function BeanBurst() {
             "--tx": `${p.tx}px`,
             "--ty": `${p.ty}px`,
             color: p.color,
+            filter: "url(#sketchy)",
           }}
         >
           <ellipse cx="12" cy="12" rx="5.5" ry="8" fill="currentColor" transform="rotate(-18 12 12)" />

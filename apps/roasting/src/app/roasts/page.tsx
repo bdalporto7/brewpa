@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import StartRoastForm from "@/components/roasts/StartRoastForm";
 import LogPastRoastForm from "@/components/roasts/LogPastRoastForm";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
+import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
 
 /**
  * A `RoastSession` has no explicit status field — "setup" vs "in progress"
@@ -50,7 +51,7 @@ export default async function RoastsPage() {
       <LogPastRoastForm beans={beans} />
 
       {pastSessions.length === 0 ? (
-        <p className="text-sm text-muted">No completed roasts yet.</p>
+        <DecoratedEmptyState>No completed roasts yet.</DecoratedEmptyState>
       ) : (
         <div className="flex flex-col gap-3">
           {pastSessions.map((session) => (

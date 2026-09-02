@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Coffee } from "lucide-react";
+import { RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
 import { recordSale, deleteSale, adjustRoastedStock, setRoastedStock } from "@/lib/actions";
 import ActionForm from "@/components/ActionForm";
 import DeleteButton from "@/components/DeleteButton";
@@ -30,7 +30,7 @@ export default function SalesPanel({
 }) {
   return (
     <SectionCard
-      icon={<Coffee className="h-3.5 w-3.5" />}
+      icon={<RoastedBeanIcon className="h-3.5 w-3.5" />}
       label="Drops"
       collapsible
       defaultCollapsed

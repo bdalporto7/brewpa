@@ -4,8 +4,9 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import LogBrewForm from "@/components/brews/LogBrewForm";
 import BrewCard from "@/components/brews/BrewCard";
 import WaterRipple from "@/components/ui/WaterRipple";
-import CoffeeRingStain from "@/components/ui/CoffeeRingStain";
 import Card from "@/components/ui/Card";
+import SectionHeading from "@/components/ui/SectionHeading";
+import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
 
 export default async function BrewsPage({
   searchParams,
@@ -48,12 +49,11 @@ export default async function BrewsPage({
       </Card>
 
       <div>
-        <h2 className="mb-3 font-medium">Recent brews</h2>
+        <div className="mb-3">
+          <SectionHeading>Recent brews</SectionHeading>
+        </div>
         {brews.length === 0 ? (
-          <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-[var(--border-strong)] px-4 py-8 text-center">
-            <CoffeeRingStain className="pointer-events-none absolute -top-6 -right-6 h-32 w-32" />
-            <p className="relative text-sm text-muted">No brews logged yet.</p>
-          </div>
+          <DecoratedEmptyState>No brews logged yet.</DecoratedEmptyState>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {brews.map((brew) => (

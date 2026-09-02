@@ -7,6 +7,7 @@ import type { PlanSettingChange, PlanTargets } from "@/lib/curve";
 import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
 import Eyebrow from "@/components/ui/Eyebrow";
+import SectionHeading from "@/components/ui/SectionHeading";
 
 /**
  * `planJson` is a raw JSON string column (see schema) with no runtime
@@ -70,7 +71,9 @@ export default async function RoastProfilePage({ params }: { params: Promise<{ i
       </Card>
 
       <div>
-        <h2 className="mb-3 font-medium">Roasts started from this profile</h2>
+        <div className="mb-3">
+          <SectionHeading>Roasts started from this profile</SectionHeading>
+        </div>
         {roasts.length === 0 ? (
           <p className="text-sm text-muted">No roasts have used this profile yet.</p>
         ) : (

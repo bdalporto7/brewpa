@@ -20,6 +20,7 @@ function BeanShape({ crease = "rgba(0,0,0,0.35)", ...props }: SVGProps<SVGSVGEle
         strokeLinecap="round"
         fill="none"
         transform="rotate(-18 12 12)"
+        style={{ filter: "url(#sketchy)" }}
       />
     </svg>
   );
@@ -58,6 +59,7 @@ export function BrewedCupIcon(props: SVGProps<SVGSVGElement>) {
         strokeLinecap="round"
         fill="none"
         opacity="0.7"
+        style={{ filter: "url(#sketchy)" }}
       />
     </svg>
   );
