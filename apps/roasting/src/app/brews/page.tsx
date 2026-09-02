@@ -7,6 +7,7 @@ import WaterRipple from "@/components/ui/WaterRipple";
 import Card from "@/components/ui/Card";
 import SectionHeading from "@/components/ui/SectionHeading";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
+import PageStamp from "@/components/ui/PageStamp";
 
 export default async function BrewsPage({
   searchParams,
@@ -33,7 +34,8 @@ export default async function BrewsPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <div className="flex items-center gap-2">
           <h1 className="text-4xl font-black tracking-tight">Brews</h1>
           <span className="relative -top-1 inline-flex h-7 w-7 text-accent">

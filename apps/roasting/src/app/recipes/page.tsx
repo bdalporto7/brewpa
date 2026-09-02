@@ -4,13 +4,15 @@ import RecipeForm from "@/components/brews/RecipeForm";
 import RecipeCard from "@/components/brews/RecipeCard";
 import SectionHeading from "@/components/ui/SectionHeading";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
+import PageStamp from "@/components/ui/PageStamp";
 
 export default async function RecipesPage() {
   const recipes = await prisma.recipe.findMany({ orderBy: [{ isFavorite: "desc" }, { name: "asc" }] });
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Recipes</h1>
         <p className="text-sm text-muted">Dial in a method once, reuse it for every brew.</p>
       </div>

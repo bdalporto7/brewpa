@@ -12,7 +12,7 @@ import CoffeeRingStain from "@/components/ui/CoffeeRingStain";
 export default function DecoratedEmptyState({ children }: { children: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-[var(--border-strong)] px-4 py-8 text-center">
-      <CoffeeRingStain className="pointer-events-none absolute -top-6 -right-6 h-32 w-32" />
+      <CoffeeRingStain className="pointer-events-none absolute -top-8 -right-8 h-40 w-40" />
       <p className="relative text-sm text-muted">{children}</p>
     </div>
   );

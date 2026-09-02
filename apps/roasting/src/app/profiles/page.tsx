@@ -4,13 +4,15 @@ import RoastProfileForm from "@/components/roasts/RoastProfileForm";
 import RoastProfileCard from "@/components/roasts/RoastProfileCard";
 import SectionHeading from "@/components/ui/SectionHeading";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
+import PageStamp from "@/components/ui/PageStamp";
 
 export default async function RoastProfilesPage() {
   const profiles = await prisma.roastProfile.findMany({ orderBy: [{ isFavorite: "desc" }, { name: "asc" }] });
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Profiles</h1>
         <p className="text-sm text-muted">Save a dial schedule and targets once, apply it to any future roast.</p>
       </div>

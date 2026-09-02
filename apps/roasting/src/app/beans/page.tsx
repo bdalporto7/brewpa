@@ -4,6 +4,7 @@ import BeanCard from "@/components/beans/BeanCard";
 import BeanRoastedSummaryCard from "@/components/beans/BeanRoastedSummaryCard";
 import BeanFilters from "@/components/beans/BeanFilters";
 import Section from "@/components/Section";
+import PageStamp from "@/components/ui/PageStamp";
 import type { Bean } from "@prisma/client";
 
 /**
@@ -66,7 +67,8 @@ export default async function BeansPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Beans</h1>
         <p className="text-sm text-muted">
           {hasFilters

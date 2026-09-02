@@ -4,6 +4,7 @@ import StartDropToggle from "@/components/friends/StartDropToggle";
 import DropCard from "@/components/friends/DropCard";
 import SectionHeading from "@/components/ui/SectionHeading";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
+import PageStamp from "@/components/ui/PageStamp";
 
 export default async function FriendsPage() {
   const [friends, beans, drops] = await Promise.all([
@@ -20,7 +21,8 @@ export default async function FriendsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Drops</h1>
         <p className="text-sm text-muted">
           Open up green coffee for friends to claim, first-come-first-serve, plus everyone who&apos;s

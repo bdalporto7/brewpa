@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import InventoryCard from "@/components/beans/InventoryCard";
 import { GreenBeanIcon, RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
 import SteamWisp from "@/components/ui/SteamWisp";
+import PageStamp from "@/components/ui/PageStamp";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
@@ -118,7 +119,8 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted">Your roasting activity at a glance.</p>
       </div>

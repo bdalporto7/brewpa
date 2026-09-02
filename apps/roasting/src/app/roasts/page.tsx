@@ -5,6 +5,7 @@ import StartRoastForm from "@/components/roasts/StartRoastForm";
 import LogPastRoastForm from "@/components/roasts/LogPastRoastForm";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
+import PageStamp from "@/components/ui/PageStamp";
 
 /**
  * A `RoastSession` has no explicit status field — "setup" vs "in progress"
@@ -26,7 +27,8 @@ export default async function RoastsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Roasts</h1>
         <p className="text-sm text-muted">Live roast sessions on the SR800, and your roast history.</p>
       </div>

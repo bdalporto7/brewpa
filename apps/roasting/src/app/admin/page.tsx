@@ -9,6 +9,7 @@ import Card from "@/components/ui/Card";
 import Checkbox from "@/components/ui/Checkbox";
 import SectionHeading from "@/components/ui/SectionHeading";
 import AllowedUserRow from "@/components/admin/AllowedUserRow";
+import PageStamp from "@/components/ui/PageStamp";
 
 export default async function AdminPage() {
   const currentUser = await getCurrentAllowedUser();
@@ -20,7 +21,8 @@ export default async function AdminPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <div className="relative">
+        <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Admin</h1>
         <p className="text-sm text-muted">Who&apos;s allowed to sign in, and who can manage this list.</p>
       </div>
