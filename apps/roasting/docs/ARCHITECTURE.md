@@ -26,13 +26,11 @@ flowchart TB
 
     turso[("Turso\n(hosted libSQL / SQLite-compatible)")]
     oauth["GitHub / Google OAuth"]
-    pages["GitHub Pages\n(static, no auth)"]
 
     browser -- HTTPS --> proxy --> rsc
     browser -- "sign in" --> oauth --> rsc
     bridge -- "POST reading\n(Authorization: Bearer)" --> probeApi --> turso
     rsc -- "Prisma + @prisma/adapter-libsql" --> turso
-    rsc -- "publishRoast(): writes static HTML\nto repo docs/, git push" --> pages
 
     subgraph local["Local dev (no Turso configured)"]
         devserver["next dev"] --> sqlite[("prisma/dev.db\n(plain SQLite file)")]
@@ -52,13 +50,6 @@ Notes on what this diagram is saying:
   it's a machine client with no browser session, and `proxy.ts`'s matcher
   explicitly excludes `/api/probe/*` so the two never collide. See
   AGENTS.md's "Temperature probe" section for the full reasoning.
-- **The GitHub Pages export is a one-way, static side door**, not a live
-  view of the app — `publishRoast` renders a specific completed roast to
-  static HTML and commits it to the repo's `docs/` directory (root of the
-  monorepo, not `apps/roasting/docs/` — don't confuse this generated
-  directory with *this* hand-maintained one). No auth, no live data; it's a
-  snapshot at publish time.
-
 ## Data model
 
 ```mermaid

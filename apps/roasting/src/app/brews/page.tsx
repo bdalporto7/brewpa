@@ -5,6 +5,7 @@ import LogBrewForm from "@/components/brews/LogBrewForm";
 import BrewCard from "@/components/brews/BrewCard";
 import WaterRipple from "@/components/ui/WaterRipple";
 import CoffeeRingStain from "@/components/ui/CoffeeRingStain";
+import Card from "@/components/ui/Card";
 
 export default async function BrewsPage({
   searchParams,
@@ -41,10 +42,10 @@ export default async function BrewsPage({
         <p className="text-sm text-muted">Your own brew journal — nobody else&apos;s brews show up here.</p>
       </div>
 
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <p className="mb-3 text-sm font-medium">Log a brew</p>
         <LogBrewForm sessions={sessions} recipes={recipes} defaultRoastSessionId={roastSessionId} />
-      </div>
+      </Card>
 
       <div>
         <h2 className="mb-3 font-medium">Recent brews</h2>

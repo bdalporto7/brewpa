@@ -7,6 +7,7 @@ import { ROAST_LEVELS } from "@/lib/constants";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
 import type { RoastSession } from "@prisma/client";
 
 export default function RoastDetailsForm({ session }: { session: RoastSession }) {
@@ -26,7 +27,7 @@ export default function RoastDetailsForm({ session }: { session: RoastSession })
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <p className="mb-3 text-sm font-medium">
         {hasDetails ? "Edit roast details" : "How'd it turn out?"}
       </p>
@@ -75,6 +76,6 @@ export default function RoastDetailsForm({ session }: { session: RoastSession })
           )}
         </div>
       </ActionForm>
-    </div>
+    </Card>
   );
 }

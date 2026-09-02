@@ -7,16 +7,12 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import { deleteBrew } from "@/lib/brew-actions";
 import DeleteButton from "@/components/DeleteButton";
 import BrewEditForm from "@/components/brews/BrewEditForm";
+import Stat from "@/components/ui/Stat";
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
-
+/** `beanLabel`'s fallback chain matters: a brew doesn't have to trace back
+ * to a roastSession logged in this app (store-bought coffee, or one
+ * roasted before this feature existed) — `brew.beanName` is the free-text
+ * name entered for exactly that case. */
 export default async function BrewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentAllowedUser();

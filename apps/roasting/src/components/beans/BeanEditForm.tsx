@@ -5,6 +5,9 @@ import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
 import type { Bean } from "@prisma/client";
 
+/** `weightGrams`'s min is the bean's own remainingGrams (line 62) — total
+ * purchased can't drop below what's already logged as remaining, since
+ * that would imply negative stock used. */
 export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () => void }) {
   return (
     <ActionForm

@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import Card from "@/components/ui/Card";
 
+/**
+ * Filters live in the URL (search params), not local component state, so
+ * the actual filtering happens server-side in BeansPage on every
+ * navigation — a bookmarked/shared filtered URL renders the same list
+ * server-rendered, not just a client-side re-filter of an already-fetched
+ * full set.
+ */
 export default function BeanFilters({
   origins,
   processes,
@@ -42,7 +50,7 @@ export default function BeanFilters({
   const hasFilters = origin || process || (searchParams.get("q") ?? "");
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
+    <Card interactive={false} className="flex flex-wrap items-center gap-3 p-3">
       <div className="relative min-w-[160px] flex-1">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
         <input
@@ -92,6 +100,6 @@ export default function BeanFilters({
           <X className="h-3 w-3" /> Clear
         </button>
       )}
-    </div>
+    </Card>
   );
 }

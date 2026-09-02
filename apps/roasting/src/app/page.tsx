@@ -4,13 +4,15 @@ import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import Timer from "@/components/roasts/Timer";
 import Button from "@/components/ui/Button";
-import InventoryCard from "@/components/InventoryCard";
+import InventoryCard from "@/components/beans/InventoryCard";
 import { GreenBeanIcon, RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
 import SteamWisp from "@/components/ui/SteamWisp";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
-import LowStockBanner from "@/components/LowStockBanner";
+import LowStockBanner from "@/components/beans/LowStockBanner";
+import Card from "@/components/ui/Card";
+import Stat from "@/components/ui/Stat";
 
 // Same threshold BeanStockBar/BeanRoastedSummaryCard already use for their own "isLow" styling.
 const LOW_STOCK_PERCENT = 15;
@@ -125,10 +127,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-            <p className="font-mono text-lg font-semibold">{stat.value}</p>
-            <p className="text-xs text-muted">{stat.label}</p>
-          </div>
+          <Stat key={stat.label} label={stat.label} value={stat.value} />
         ))}
       </div>
 
@@ -205,16 +204,14 @@ export default async function DashboardPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {recentSessions.map((session) => (
-              <Link
-                key={session.id}
-                href={`/roasts/${session.id}`}
-                className="flex items-center justify-between rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4 py-2 text-sm transition hover:border-accent"
-              >
-                <span>
-                  {session.bean.name}
-                  {session.roastLevel && ` — ${session.roastLevel}`}
-                </span>
-                <span className="text-muted">{format(session.startedAt!, "MMM d, yyyy")}</span>
+              <Link key={session.id} href={`/roasts/${session.id}`}>
+                <Card className="flex items-center justify-between px-4 py-2 text-sm">
+                  <span>
+                    {session.bean.name}
+                    {session.roastLevel && ` — ${session.roastLevel}`}
+                  </span>
+                  <span className="text-muted">{format(session.startedAt!, "MMM d, yyyy")}</span>
+                </Card>
               </Link>
             ))}
           </div>

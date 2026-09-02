@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import RoastProfileForm from "@/components/roasts/RoastProfileForm";
 import RoastProfileCard from "@/components/roasts/RoastProfileCard";
+import Card from "@/components/ui/Card";
 
 export default async function RoastProfilesPage() {
   const profiles = await prisma.roastProfile.findMany({ orderBy: [{ isFavorite: "desc" }, { name: "asc" }] });
@@ -12,10 +13,10 @@ export default async function RoastProfilesPage() {
         <p className="text-sm text-muted">Save a dial schedule and targets once, apply it to any future roast.</p>
       </div>
 
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <p className="mb-3 text-sm font-medium">New profile</p>
         <RoastProfileForm />
-      </div>
+      </Card>
 
       <div>
         <h2 className="mb-3 font-medium">All profiles</h2>

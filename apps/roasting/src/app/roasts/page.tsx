@@ -5,6 +5,13 @@ import StartRoastForm from "@/components/roasts/StartRoastForm";
 import LogPastRoastForm from "@/components/roasts/LogPastRoastForm";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 
+/**
+ * A `RoastSession` has no explicit status field — "setup" vs "in progress"
+ * vs "completed" is inferred purely from whether `startedAt`/`endedAt` are
+ * null, which is why this page re-derives the same `startedAt == null`
+ * check as `/roasts/[id]` and the home dashboard rather than reading a
+ * stored state.
+ */
 export default async function RoastsPage() {
   const [activeSession, pastSessions, beans] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),

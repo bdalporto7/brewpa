@@ -109,7 +109,7 @@ constraint on them matters.
 | `startPastRoast` | `(formData)` | Backfills an already-completed roast in one step (bean, weights, a past start date/time, `m:ss` duration, level, rating) — no live timer involved. Also logs a synthetic `DROP` `RoastEvent` at the given duration. Redirects to `/roasts/[id]`. |
 | `dropRoast` | `(roastSessionId)` | Ends a live roast *right now* — no form. Logs a `DROP` event at the actual elapsed time, sets `endedAt`. Deliberately separate from `updateRoastDetails` so filling in details later never affects the recorded duration. |
 | `updateRoastDetails` | `(roastSessionId, formData)` | Fills in/edits a completed roast's `roastedWeightGrams`/`roastLevel`/`rating`/`notes`. Re-editable: correcting the total weight preserves whatever's already been dropped/sold rather than resetting `roastedRemainingGrams`. |
-| `deleteRoastSession` | `(id)` | Restores `greenWeightGrams` to the bean; cascades events/sales/cupping/readings/brews. If published, also removes the static page and re-syncs `docs/`. Redirects to `/roasts`. |
+| `deleteRoastSession` | `(id)` | Restores `greenWeightGrams` to the bean; cascades events/sales/cupping/readings/brews. Redirects to `/roasts`. |
 
 ### `src/lib/actions.ts` — Events
 
@@ -134,13 +134,6 @@ constraint on them matters.
 | `setRoastedStock` | `(roastSessionId, amount)` | Pure recount of `roastedRemainingGrams` only. |
 | `recordSale` | `(roastSessionId, formData)` | Creates a `Sale` (this roast's coffee given/sold to a friend). Requires positive weight ≤ what's on hand. Find-or-creates the `Friend` by name (case-insensitive). |
 | `deleteSale` | `(roastSessionId, saleId)` | Restores the weight to `roastedRemainingGrams`, deletes the `Sale`. If it was fulfilling a `DropClaim`, that claim's `saleId` auto-nulls via the FK. |
-
-### `src/lib/actions.ts` — Publish & export
-
-| Action | Signature | Effect |
-|---|---|---|
-| `publishRoast` | `(id)` | Renders a completed roast to a static HTML page under the repo's `docs/`, regenerates the published-roasts index, and `git push`es. Rolls `publishedAt` back to `null` if the push fails (files are already correct locally either way). |
-| `unpublishRoast` | `(id)` | Removes the static page, regenerates the index, pushes. Rolls back the same way on push failure. |
 
 ### `src/lib/actions.ts` — Friends
 

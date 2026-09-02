@@ -6,6 +6,7 @@ import { deleteEvent } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
 import { EVENT_LABELS, type EventType } from "@/lib/constants";
 import DeleteButton from "@/components/DeleteButton";
+import Card from "@/components/ui/Card";
 import type { RoastEvent } from "@prisma/client";
 
 const MILESTONE_COLOR: Partial<Record<EventType, string>> = {
@@ -157,10 +158,8 @@ export default function EventTimeline({
   const defaultGroups = [...keyGroups, ...sampledTemp].sort((a, b) => a[0].atSeconds - b[0].atSeconds);
   const visibleGroups = showReadings ? groups : defaultGroups;
 
-  return (
-    <div
-      className={`overflow-x-auto ${bare ? "" : "rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]"}`}
-    >
+  const content = (
+    <>
       <table className="w-full min-w-[420px] text-sm">
         <thead>
           <tr className="border-b border-border text-xs text-muted">
@@ -187,6 +186,17 @@ export default function EventTimeline({
           {showReadings ? "Show fewer readings" : `+${hiddenCount} more temperature ${hiddenCount === 1 ? "reading" : "readings"}`}
         </button>
       )}
-    </div>
+    </>
+  );
+
+  // `bare` skips this component's own Card shell for when a caller (e.g.
+  // SectionCard on the completed view) already provides one — see this
+  // file's earlier design note on the pattern.
+  return bare ? (
+    <div className="overflow-x-auto">{content}</div>
+  ) : (
+    <Card interactive={false} className="overflow-x-auto">
+      {content}
+    </Card>
   );
 }

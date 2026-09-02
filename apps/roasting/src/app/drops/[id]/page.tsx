@@ -4,15 +4,7 @@ import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import DropHeaderControls from "@/components/friends/DropHeaderControls";
 import DropClaimsPanel from "@/components/friends/DropClaimsPanel";
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
+import Stat from "@/components/ui/Stat";
 
 export default async function DropPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,6 +24,8 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
 
   if (!drop) notFound();
 
+  // Can't join the Promise.all above — needs drop.beanId, only known once
+  // that query resolves.
   const eligibleRoasts = await prisma.roastSession.findMany({
     where: { beanId: drop.beanId, endedAt: { not: null }, roastedRemainingGrams: { gt: 0 } },
     orderBy: { startedAt: "desc" },

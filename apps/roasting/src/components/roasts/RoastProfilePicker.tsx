@@ -4,6 +4,8 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { BookOpen } from "lucide-react";
 import { applyRoastProfile } from "@/lib/profile-actions";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 export interface ProfileOption {
   id: string;
@@ -60,11 +62,10 @@ export default function RoastProfilePicker({
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <span className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        <BookOpen className="h-3.5 w-3.5" />
+    <Card interactive={false} className="p-4">
+      <Eyebrow icon={<BookOpen className="h-3.5 w-3.5" />} className="mb-3">
         Or apply a saved profile
-      </span>
+      </Eyebrow>
       <div className="flex gap-2">
         <select
           ref={selectRef}
@@ -85,6 +86,6 @@ export default function RoastProfilePicker({
       </div>
       {applied && <p className="mt-2 text-xs font-medium text-accent">Applied — dial-in below has been pre-filled.</p>}
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
-    </div>
+    </Card>
   );
 }

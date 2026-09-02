@@ -8,11 +8,12 @@ import FriendEditForm from "@/components/friends/FriendEditForm";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { SelectField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
 import type { Friend } from "@prisma/client";
 
 function MergeForm({ friend, otherFriends, onDone }: { friend: Friend; otherFriends: Friend[]; onDone: () => void }) {
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <p className="mb-1 text-sm font-medium">Merge {friend.name} into…</p>
       <p className="mb-3 text-xs text-muted">
         Every drop {friend.name} has ever gotten moves to whoever you pick, then {friend.name} is deleted. Can&apos;t
@@ -40,7 +41,7 @@ function MergeForm({ friend, otherFriends, onDone }: { friend: Friend; otherFrie
           Cancel
         </Button>
       </ActionForm>
-    </div>
+    </Card>
   );
 }
 

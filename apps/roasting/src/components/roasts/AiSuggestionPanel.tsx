@@ -10,6 +10,8 @@ import type { RoastPlan } from "@/lib/roastAdvisor";
 import Button from "@/components/ui/Button";
 import SaveProfileForm from "@/components/roasts/SaveProfileForm";
 import CybarMark from "@/components/ui/CybarMark";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 function parsePlan(raw: string | null): RoastPlan | null {
   if (!raw) return null;
@@ -110,11 +112,10 @@ export default function AiSuggestionPanel({
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <span className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        <CybarMark dancing={false} className="h-4 w-auto" />
+    <Card interactive={false} className="p-4">
+      <Eyebrow icon={<CybarMark dancing={false} className="h-4 w-auto" />} className="mb-3">
         {profileName ? `From saved profile — ${profileName}` : "AI roast suggestion"}
-      </span>
+      </Eyebrow>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="w-full sm:w-32">
@@ -185,6 +186,10 @@ export default function AiSuggestionPanel({
           </div>
           <p className="text-sm text-foreground/80">{aiSuggestionSummary}</p>
 
+          {/* Not SectionCard — this toggles just the plan-detail block below,
+              while the summary/dial/accept controls above stay always
+              visible. SectionCard's collapse hides its whole body, which
+              would hide those too. */}
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -277,6 +282,6 @@ export default function AiSuggestionPanel({
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

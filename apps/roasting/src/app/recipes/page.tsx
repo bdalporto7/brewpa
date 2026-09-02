@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import RecipeForm from "@/components/brews/RecipeForm";
 import RecipeCard from "@/components/brews/RecipeCard";
+import Card from "@/components/ui/Card";
 
 export default async function RecipesPage() {
   const recipes = await prisma.recipe.findMany({ orderBy: [{ isFavorite: "desc" }, { name: "asc" }] });
@@ -12,10 +13,10 @@ export default async function RecipesPage() {
         <p className="text-sm text-muted">Dial in a method once, reuse it for every brew.</p>
       </div>
 
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <p className="mb-3 text-sm font-medium">New recipe</p>
         <RecipeForm />
-      </div>
+      </Card>
 
       <div>
         <h2 className="mb-3 font-medium">All recipes</h2>

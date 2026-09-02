@@ -4,16 +4,18 @@ import { formatMMSS } from "@/lib/format";
 import RoastProfileDetailsPanel from "@/components/roasts/RoastProfileDetailsPanel";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import type { PlanSettingChange, PlanTargets } from "@/lib/curve";
+import Card from "@/components/ui/Card";
+import Stat from "@/components/ui/Stat";
+import Eyebrow from "@/components/ui/Eyebrow";
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
-
+/**
+ * `planJson` is a raw JSON string column (see schema) with no runtime
+ * validation on read — the cast below just trusts that whatever
+ * profile-actions.ts wrote still matches `PlanSettingChange`/`PlanTargets`.
+ * If that shape ever changes, it needs a data migration alongside the type
+ * change, or older saved profiles will render blank/wrong values here
+ * instead of failing loudly.
+ */
 export default async function RoastProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profile = await prisma.roastProfile.findUnique({ where: { id } });
@@ -49,8 +51,8 @@ export default async function RoastProfilePage({ params }: { params: Promise<{ i
 
       {profile.description && <p className="text-sm whitespace-pre-line text-foreground/80">{profile.description}</p>}
 
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-        <p className="mb-2 text-xs font-medium tracking-wide text-muted uppercase">Dial schedule</p>
+      <Card interactive={false} className="p-4">
+        <Eyebrow className="mb-2">Dial schedule</Eyebrow>
         {plan.settingChanges.length === 0 ? (
           <p className="text-sm text-muted">No dial changes saved.</p>
         ) : (
@@ -65,7 +67,7 @@ export default async function RoastProfilePage({ params }: { params: Promise<{ i
             ))}
           </ul>
         )}
-      </div>
+      </Card>
 
       <div>
         <h2 className="mb-3 font-medium">Roasts started from this profile</h2>

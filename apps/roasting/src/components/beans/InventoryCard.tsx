@@ -1,8 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 const MAX_ITEMS = 6;
 
+/** A dashboard summary tile, not a link itself — the individual items
+ * inside are the links, so the card stays non-interactive (no hover
+ * lift) to avoid implying the whole tile is clickable. */
 export default function InventoryCard({
   icon,
   label,
@@ -20,11 +25,10 @@ export default function InventoryCard({
   const remaining = items.length - shown.length;
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <div className="mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        {icon}
+    <Card interactive={false} className="p-4">
+      <Eyebrow icon={icon} className="mb-1">
         {label}
-      </div>
+      </Eyebrow>
       <p className="font-mono text-2xl font-semibold">{totalGrams}g</p>
 
       {shown.length === 0 ? (
@@ -45,6 +49,6 @@ export default function InventoryCard({
         </ul>
       )}
       {remaining > 0 && <p className="mt-1.5 text-xs text-muted">+{remaining} more</p>}
-    </div>
+    </Card>
   );
 }

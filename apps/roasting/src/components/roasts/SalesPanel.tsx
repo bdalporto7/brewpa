@@ -10,6 +10,13 @@ import SectionCard from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/Field";
 import type { Friend, Sale } from "@prisma/client";
 
+/**
+ * `key={roastedRemainingGrams}` remounts the sale form after every logged
+ * drop. Nothing here calls `form.reset()`, and the fields are uncontrolled,
+ * so without forcing a fresh mount the weight/friend/price someone just
+ * typed would still be sitting in the inputs for the next sale (same
+ * pattern as DropClaimsPanel).
+ */
 export default function SalesPanel({
   roastSessionId,
   roastedRemainingGrams,

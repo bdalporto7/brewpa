@@ -1,5 +1,7 @@
 import { formatMMSS } from "@/lib/format";
 import type { RoastPhases } from "@/lib/phases";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 const SEGMENTS: { key: keyof RoastPhases & `${string}Percent`; label: string; className: string }[] = [
   { key: "dryingPercent", label: "Drying", className: "bg-border" },
@@ -20,8 +22,8 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
   };
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Roast phases</p>
+    <Card interactive={false} className="p-4">
+      <Eyebrow className="mb-3">Roast phases</Eyebrow>
 
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-border/40">
         {SEGMENTS.map(
@@ -60,6 +62,6 @@ export default function PhaseBar({ phases }: { phases: RoastPhases }) {
           point, lower on high-powered roasters — not a rule, and it varies by bean and roast level.
         </p>
       )}
-    </div>
+    </Card>
   );
 }

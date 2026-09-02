@@ -6,6 +6,7 @@ import { formatMMSS } from "@/lib/format";
 import CompareRoastPicker from "@/components/roasts/CompareRoastPicker";
 import RoastComparisonChart from "@/components/roasts/RoastComparisonChart";
 import RatingBeans from "@/components/ui/RatingBeans";
+import Card from "@/components/ui/Card";
 import type { RoastEvent, TemperatureReading, RoastSession, Bean } from "@prisma/client";
 
 type FullSession = RoastSession & { bean: Bean; events: RoastEvent[]; temperatureReadings: TemperatureReading[] };
@@ -22,9 +23,12 @@ function weightLossPercent(s: RoastSession) {
   return s.roastedWeightGrams != null ? (1 - s.roastedWeightGrams / s.greenWeightGrams) * 100 : null;
 }
 
+/** Two-value variant of Stat (ui/Stat.tsx) — side by side per roast being
+ * compared, colored to match each roast's own line color on the chart
+ * below, so a stat and its curve are visually linked. */
 function CompareStat({ label, a, b }: { label: string; a: React.ReactNode; b: React.ReactNode }) {
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
+    <Card interactive={false} className="p-3">
       <p className="mb-1.5 text-xs text-muted">{label}</p>
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-sm font-semibold" style={{ color: "var(--accent)" }}>
@@ -34,7 +38,7 @@ function CompareStat({ label, a, b }: { label: string; a: React.ReactNode; b: Re
           {b}
         </span>
       </div>
-    </div>
+    </Card>
   );
 }
 

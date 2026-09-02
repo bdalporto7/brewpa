@@ -8,6 +8,7 @@ import { BREW_METHODS } from "@/lib/constants";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
 import type { Brew, Recipe } from "@prisma/client";
 
 export default function BrewEditForm({ brew, recipes }: { brew: Brew; recipes: Recipe[] }) {
@@ -26,7 +27,7 @@ export default function BrewEditForm({ brew, recipes }: { brew: Brew; recipes: R
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <p className="mb-3 text-sm font-medium">Edit brew</p>
       <ActionForm
         action={updateBrew.bind(null, brew.id)}
@@ -46,18 +47,14 @@ export default function BrewEditForm({ brew, recipes }: { brew: Brew; recipes: R
             </option>
           ))}
         </SelectField>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted" htmlFor="edit-method">
-            Method
-          </label>
-          <input
-            id="edit-method"
+        <div>
+          <TextField
+            label="Method"
             name="method"
             list="brew-methods-edit"
             required
             defaultValue={brew.method}
             autoComplete="off"
-            className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm placeholder:text-muted/70 focus:border-accent focus:outline-none"
           />
           <datalist id="brew-methods-edit">
             {BREW_METHODS.map((m) => (
@@ -123,6 +120,6 @@ export default function BrewEditForm({ brew, recipes }: { brew: Brew; recipes: R
           </Button>
         </div>
       </ActionForm>
-    </div>
+    </Card>
   );
 }

@@ -58,7 +58,6 @@ One roast run against a `Bean`. Lifecycle: **pending** (`startedAt` null) → **
 | `beanId` | String | ✅ | | FK → `Bean.id`, `onDelete: Restrict` |
 | `startedAt` | DateTime | | | Null = still pending |
 | `endedAt` | DateTime | | | Null = pending or live |
-| `publishedAt` | DateTime | | | Set when exported to the static GitHub Pages site |
 | `greenWeightGrams` | Float | ✅ | | Decremented from `Bean.remainingGrams` when the session is created |
 | `roastedWeightGrams` | Float | | | Total yield, filled in via `updateRoastDetails` |
 | `roastedRemainingGrams` | Float | | | Roasted-coffee stock for *this specific roast* — every roast has its own pool, not aggregated at the bean level in the DB (the UI aggregates for display) |

@@ -2,6 +2,7 @@ import { startDrop } from "@/lib/actions";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
 import type { Bean } from "@prisma/client";
 
 export default function StartDropForm({
@@ -17,16 +18,16 @@ export default function StartDropForm({
 
   if (beans.length === 0 || (lockedBeanId && !lockedBean)) {
     return (
-      <p className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4 py-3 text-sm text-muted">
+      <Card interactive={false} className="px-4 py-3 text-sm text-muted">
         {lockedBeanId
           ? "No green stock left for this bean."
           : "Add a green bean first — you need stock on hand to open a drop."}
-      </p>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <p className="mb-3 text-sm font-medium">Start a drop</p>
       <ActionForm action={startDrop} onSuccess={onSuccess} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {lockedBean ? (
@@ -92,6 +93,6 @@ export default function StartDropForm({
           <Button type="submit">Open drop</Button>
         </div>
       </ActionForm>
-    </div>
+    </Card>
   );
 }

@@ -2,6 +2,7 @@
 
 import { adjustBeanStock, setBeanStock } from "@/lib/actions";
 import StockAdjuster from "@/components/StockAdjuster";
+import ProgressBar from "@/components/ui/ProgressBar";
 import type { Bean } from "@prisma/client";
 
 export default function BeanStockBar({ bean }: { bean: Bean }) {
@@ -20,14 +21,8 @@ export default function BeanStockBar({ bean }: { bean: Bean }) {
         />
         <span className="font-mono text-xs text-muted">{Math.round(percentLeft)}%</span>
       </div>
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
-        <div
-          className={`pour-fill h-full rounded-full ${isLow ? "bg-warning" : "bg-accent"}`}
-          style={
-            // @ts-expect-error -- custom property consumed by the pour-fill keyframe
-            { "--fill-width": `${Math.max(0, Math.min(100, percentLeft))}%` }
-          }
-        />
+      <div className="mt-1">
+        <ProgressBar percent={percentLeft} low={isLow} />
       </div>
     </div>
   );

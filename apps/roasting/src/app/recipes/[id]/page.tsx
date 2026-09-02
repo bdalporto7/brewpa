@@ -4,15 +4,7 @@ import { formatMMSS } from "@/lib/format";
 import { getCurrentAllowedUser } from "@/lib/admin";
 import RecipeDetailsPanel from "@/components/brews/RecipeDetailsPanel";
 import BrewCard from "@/components/brews/BrewCard";
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
+import Stat from "@/components/ui/Stat";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

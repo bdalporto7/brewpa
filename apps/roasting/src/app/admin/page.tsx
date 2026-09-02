@@ -5,6 +5,8 @@ import { addAllowedUser } from "@/lib/admin-actions";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
+import Checkbox from "@/components/ui/Checkbox";
 import AllowedUserRow from "@/components/admin/AllowedUserRow";
 
 export default async function AdminPage() {
@@ -22,25 +24,24 @@ export default async function AdminPage() {
         <p className="text-sm text-muted">Who&apos;s allowed to sign in, and who can manage this list.</p>
       </div>
 
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <p className="mb-3 text-sm font-medium">Admit someone</p>
         <ActionForm action={addAllowedUser} className="flex flex-wrap items-end gap-3">
           <TextField label="Email" name="email" type="email" required placeholder="friend@example.com" />
-          <label className="flex items-center gap-1.5 pb-1.5 text-xs text-muted">
-            <input type="checkbox" name="isAdmin" className="accent-accent" />
-            Make admin
-          </label>
+          <Checkbox name="isAdmin" label="Make admin" className="pb-1.5" />
           <Button type="submit">Admit</Button>
         </ActionForm>
-      </div>
+      </Card>
 
       <div>
         <h2 className="mb-3 font-medium">Allowed to sign in</h2>
-        <ul className="flex flex-col divide-y divide-border rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4">
-          {users.map((user) => (
-            <AllowedUserRow key={user.id} user={user} isSelf={user.id === currentUser.id} />
-          ))}
-        </ul>
+        <Card interactive={false}>
+          <ul className="flex flex-col divide-y divide-border px-4">
+            {users.map((user) => (
+              <AllowedUserRow key={user.id} user={user} isSelf={user.id === currentUser.id} />
+            ))}
+          </ul>
+        </Card>
       </div>
     </div>
   );

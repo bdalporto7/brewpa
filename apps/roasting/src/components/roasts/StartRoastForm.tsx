@@ -3,19 +3,20 @@ import { startRoast } from "@/lib/actions";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
 import type { Bean } from "@prisma/client";
 
 export default function StartRoastForm({ beans }: { beans: Bean[] }) {
   if (beans.length === 0) {
     return (
-      <p className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] px-4 py-3 text-sm text-muted">
+      <Card interactive={false} className="px-4 py-3 text-sm text-muted">
         Add a green bean first — you need stock on hand to start a roast.
-      </p>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <p className="mb-3 text-sm font-medium">Start a roast</p>
       <ActionForm action={startRoast} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
         <SelectField label="Bean" name="beanId" required defaultValue="">
@@ -44,6 +45,6 @@ export default function StartRoastForm({ beans }: { beans: Bean[] }) {
           </Button>
         </div>
       </ActionForm>
-    </div>
+    </Card>
   );
 }

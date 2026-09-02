@@ -6,17 +6,20 @@ import DeleteButton from "@/components/DeleteButton";
 import Button from "@/components/ui/Button";
 import RoastProfileForm from "@/components/roasts/RoastProfileForm";
 import RoastProfileFavoriteToggle from "@/components/roasts/RoastProfileFavoriteToggle";
+import Card from "@/components/ui/Card";
 import type { RoastProfile } from "@prisma/client";
 
+/** Same isEditing-toggle shape as RecipeDetailsPanel — not merged since
+ * the two entities' forms/fields are unrelated beyond this shell. */
 export default function RoastProfileDetailsPanel({ profile }: { profile: RoastProfile }) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
     return (
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <p className="mb-3 text-sm font-medium">Edit profile</p>
         <RoastProfileForm profile={profile} onSuccess={() => setIsEditing(false)} onCancel={() => setIsEditing(false)} />
-      </div>
+      </Card>
     );
   }
 

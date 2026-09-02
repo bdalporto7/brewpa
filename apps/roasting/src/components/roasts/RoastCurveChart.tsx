@@ -13,6 +13,7 @@ import {
   type RoastCurveTargets,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
+import Card from "@/components/ui/Card";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export default function RoastCurveChart({
@@ -101,13 +102,13 @@ export default function RoastCurveChart({
     );
     if (!title) return emptyState;
     return (
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <div className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
           <LineChart className="h-3.5 w-3.5" />
           {title}
         </div>
         <div className="mt-3">{emptyState}</div>
-      </div>
+      </Card>
     );
   }
 
@@ -195,19 +196,19 @@ export default function RoastCurveChart({
 
   if (title) {
     return (
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         {titleHeader}
         {!collapsed && <div className="overflow-x-auto">{chartContent}</div>}
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-end">{rorToggle}</div>
-      <div className="overflow-x-auto rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="overflow-x-auto p-4">
         {chartContent}
-      </div>
+      </Card>
     </div>
   );
 }

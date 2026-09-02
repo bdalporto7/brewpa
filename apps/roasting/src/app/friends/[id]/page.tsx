@@ -3,16 +3,8 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import Card from "@/components/ui/Card";
+import Stat from "@/components/ui/Stat";
 import FriendHeader from "@/components/friends/FriendHeader";
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
 
 export default async function FriendPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

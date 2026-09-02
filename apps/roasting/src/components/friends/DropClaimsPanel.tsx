@@ -2,9 +2,18 @@ import { addDropClaim } from "@/lib/actions";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 import DropClaimRow from "@/components/friends/DropClaimRow";
 import type { Drop, DropClaim, Friend, RoastSession, Sale } from "@prisma/client";
 
+/**
+ * `key={remainingGrams}` remounts the claim form after every successful
+ * claim. Nothing here ever calls `form.reset()`, and the fields are
+ * uncontrolled, so without forcing a fresh mount whatever weight/friend/
+ * price someone just typed would still be sitting in the inputs for the
+ * next claim.
+ */
 export default function DropClaimsPanel({
   drop,
   claims,
@@ -21,8 +30,8 @@ export default function DropClaimsPanel({
   const isOpen = !drop.closedAt;
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Claims</p>
+    <Card interactive={false} className="p-4">
+      <Eyebrow className="mb-3">Claims</Eyebrow>
 
       {isOpen && remainingGrams > 0 ? (
         <ActionForm
@@ -41,18 +50,8 @@ export default function DropClaimsPanel({
             defaultValue={drop.portionGrams ?? undefined}
             mono
           />
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted" htmlFor="friendName">
-              Friend
-            </label>
-            <input
-              id="friendName"
-              name="friendName"
-              list="friends-list"
-              placeholder="e.g. Jake"
-              autoComplete="off"
-              className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm placeholder:text-muted/70 focus:border-accent focus:outline-none"
-            />
+          <div>
+            <TextField label="Friend" name="friendName" list="friends-list" placeholder="e.g. Jake" autoComplete="off" />
             <datalist id="friends-list">
               {friends.map((friend) => (
                 <option key={friend.id} value={friend.name} />
@@ -79,6 +78,6 @@ export default function DropClaimsPanel({
           ))}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }

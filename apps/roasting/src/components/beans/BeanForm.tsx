@@ -5,6 +5,13 @@ import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
 
+/**
+ * A native <details>/<summary> disclosure, not SectionCard — deliberately
+ * zero-JS collapse (works before hydration, no useState) for a form that
+ * sits open-by-choice at the top of a long bean list; the `group-open:`
+ * variant below drives the border styling off the browser's own open
+ * state rather than a React flag. Same pattern as LogPastRoastForm.
+ */
 export default function BeanForm() {
   return (
     <details className="group rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)]">

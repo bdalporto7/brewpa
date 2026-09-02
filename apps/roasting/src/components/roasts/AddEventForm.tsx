@@ -22,6 +22,12 @@ const VALUE_FIELD: Record<EventType, "fan" | "heat" | "temp" | "note" | null> = 
   DROP: null,
 };
 
+/**
+ * DROP is a real `EventType` but isn't offered here — ending a roast goes
+ * through the dedicated `dropRoast` action, which stamps the session's
+ * `endedAt` in the same transaction as the event. Logging DROP through this
+ * generic form would create the event without ever closing out the roast.
+ */
 export default function AddEventForm({ roastSessionId }: { roastSessionId: string }) {
   const [type, setType] = useState<EventType>("TEMP");
   const [atInput, setAtInput] = useState("");

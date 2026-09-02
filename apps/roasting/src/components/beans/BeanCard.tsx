@@ -5,12 +5,15 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { deleteBean } from "@/lib/actions";
 import DeleteButton from "@/components/DeleteButton";
-import BeanEditForm from "@/components/BeanEditForm";
-import BeanStockBar from "@/components/BeanStockBar";
-import BeanMeta from "@/components/BeanMeta";
+import BeanEditForm from "@/components/beans/BeanEditForm";
+import BeanStockBar from "@/components/beans/BeanStockBar";
+import BeanMeta from "@/components/beans/BeanMeta";
 import Card from "@/components/ui/Card";
 import type { Bean } from "@prisma/client";
 
+/** Same inline isEditing-toggle-to-BeanEditForm pattern as BeanHeader —
+ * kept separate rather than merged since this one nests inside Card plus
+ * the stock bar/meta rows, while BeanHeader is a page's plain top block. */
 export default function BeanCard({ bean }: { bean: Bean }) {
   const [isEditing, setIsEditing] = useState(false);
 

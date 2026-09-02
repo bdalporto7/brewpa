@@ -8,6 +8,8 @@ import { computeCuppingTotal, PRIMARY_SCORE_FIELDS, DERIVED_SCORE_FIELDS, SCORE_
 import CuppingNoteForm from "@/components/roasts/CuppingNoteForm";
 import DeleteButton from "@/components/DeleteButton";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 import type { CuppingNote } from "@prisma/client";
 
 const DISPLAY_FIELDS: ScoreField[] = [...PRIMARY_SCORE_FIELDS, ...DERIVED_SCORE_FIELDS];
@@ -40,14 +42,14 @@ function CuppingNoteCard({ note, roastSessionId }: { note: CuppingNote; roastSes
 
   if (isEditing) {
     return (
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+      <Card interactive={false} className="p-4">
         <CuppingNoteForm roastSessionId={roastSessionId} note={note} onDone={() => setIsEditing(false)} />
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="p-4">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <p className="text-sm font-medium">{format(note.cuppedAt, "MMM d, yyyy")}</p>
@@ -72,7 +74,7 @@ function CuppingNoteCard({ note, roastSessionId }: { note: CuppingNote; roastSes
       </div>
       {note.notes && <p className="mb-2 text-sm whitespace-pre-wrap">{note.notes}</p>}
       <ScoreGrid note={note} />
-    </div>
+    </Card>
   );
 }
 
@@ -92,13 +94,12 @@ export default function CuppingTab({
       ))}
 
       {isAdding ? (
-        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-          <p className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-            <Coffee className="h-3.5 w-3.5" />
+        <Card interactive={false} className="p-4">
+          <Eyebrow icon={<Coffee className="h-3.5 w-3.5" />} className="mb-3">
             New cupping session
-          </p>
+          </Eyebrow>
           <CuppingNoteForm roastSessionId={roastSessionId} onDone={() => setIsAdding(false)} />
-        </div>
+        </Card>
       ) : (
         <Button
           type="button"

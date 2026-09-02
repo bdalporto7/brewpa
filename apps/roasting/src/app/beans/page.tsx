@@ -1,11 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import BeanForm from "@/components/BeanForm";
-import BeanCard from "@/components/BeanCard";
-import BeanRoastedSummaryCard from "@/components/BeanRoastedSummaryCard";
-import BeanFilters from "@/components/BeanFilters";
+import BeanForm from "@/components/beans/BeanForm";
+import BeanCard from "@/components/beans/BeanCard";
+import BeanRoastedSummaryCard from "@/components/beans/BeanRoastedSummaryCard";
+import BeanFilters from "@/components/beans/BeanFilters";
 import Section from "@/components/Section";
 import type { Bean } from "@prisma/client";
 
+/**
+ * Filtering happens in memory against `allBeans`, not as a Prisma `where`
+ * — the origin/process dropdown OPTIONS themselves are derived from the
+ * full unfiltered set (line 26-27), so a query-based filter would need a
+ * second unfiltered fetch just to populate those dropdowns. One fetch,
+ * filter client-visible-side in JS, is simpler for a dataset this small
+ * (a personal roasting log, not a multi-tenant catalog).
+ */
 export default async function BeansPage({
   searchParams,
 }: {

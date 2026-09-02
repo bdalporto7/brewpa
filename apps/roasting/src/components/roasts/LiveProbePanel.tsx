@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Thermometer } from "lucide-react";
 import { useProbeReadings } from "@/lib/useProbeReadings";
+import Card from "@/components/ui/Card";
 
 const STALE_AFTER_SECONDS = 30;
 const NOW_TICK_MS = 5000;
@@ -40,7 +41,7 @@ export default function LiveProbePanel({ roastSessionId }: { roastSessionId: str
   const isLive = secondsSinceReading < STALE_AFTER_SECONDS;
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
+    <Card interactive={false} className="flex items-center justify-between gap-3 p-3">
       <div className="flex items-center gap-2">
         <Thermometer className="h-3.5 w-3.5 text-accent" />
         <span className="font-mono text-lg font-semibold">{Math.round(latest.tempFahrenheit)}°F</span>
@@ -50,6 +51,6 @@ export default function LiveProbePanel({ roastSessionId }: { roastSessionId: str
         <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "animate-pulse bg-accent" : "bg-muted"}`} />
         {isLive ? "Connected" : "Probe quiet"}
       </span>
-    </div>
+    </Card>
   );
 }

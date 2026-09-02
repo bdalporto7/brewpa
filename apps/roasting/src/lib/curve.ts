@@ -224,16 +224,16 @@ function buildStepPath(
 }
 
 /**
- * Renders the roasting curve as a raw SVG markup string — shared by the live
- * React chart (via dangerouslySetInnerHTML) and the static published page,
- * so both stay pixel-identical. Colors reference the app's CSS custom
- * properties by name; the caller must define them (globals.css does this in
- * the app, the static page inlines its own copy).
+ * Renders the roasting curve as a raw SVG markup string rather than JSX —
+ * `RoastCurveChart` injects it via dangerouslySetInnerHTML and memoizes it,
+ * so the (potentially large) markup only regenerates when the underlying
+ * data actually changes, not on every render. Colors reference the app's
+ * CSS custom properties by name; globals.css defines them.
  */
 /** Accepted-plan target milestones (src/lib/roastAdvisor.ts's RoastPlan,
  * via AiSuggestionPanel's "Accept plan") — same shape as RoastPlanTargets,
- * duplicated here rather than imported to keep curve.ts (used by the
- * static published-page build too) independent of the AI module. */
+ * duplicated here rather than imported to keep curve.ts independent of the
+ * AI module (curve.ts is reused in more places than just the AI flow). */
 export interface RoastCurveTargets {
   dryEndSeconds?: number;
   yellowingEndSeconds?: number;

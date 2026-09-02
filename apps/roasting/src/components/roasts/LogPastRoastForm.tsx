@@ -6,6 +6,9 @@ import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
 import type { Bean } from "@prisma/client";
 
+/** Native <details>/<summary>, not SectionCard — same reasoning as
+ * BeanForm's own comment (zero-JS collapse for a form that's closed by
+ * default at the top of the roasts list). */
 export default function LogPastRoastForm({ beans }: { beans: Bean[] }) {
   if (beans.length === 0) return null;
 

@@ -4,9 +4,11 @@ import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { deleteBean } from "@/lib/actions";
 import DeleteButton from "@/components/DeleteButton";
-import BeanEditForm from "@/components/BeanEditForm";
+import BeanEditForm from "@/components/beans/BeanEditForm";
 import type { Bean } from "@prisma/client";
 
+/** Same inline isEditing-toggle-to-BeanEditForm pattern as BeanCard — see
+ * that component's comment for why they aren't merged. */
 export default function BeanHeader({ bean }: { bean: Bean }) {
   const [isEditing, setIsEditing] = useState(false);
 

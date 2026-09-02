@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Card from "@/components/ui/Card";
+import ProgressBar from "@/components/ui/ProgressBar";
 import type { Bean } from "@prisma/client";
 
 export default function BeanRoastedSummaryCard({
@@ -29,14 +30,8 @@ export default function BeanRoastedSummaryCard({
             <span>{remainingGrams}g left of {totalGrams}g</span>
             <span>{Math.round(percentLeft)}%</span>
           </div>
-          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
-            <div
-              className={`pour-fill h-full rounded-full ${isLow ? "bg-warning" : "bg-accent"}`}
-              style={
-                // @ts-expect-error -- custom property consumed by the pour-fill keyframe
-                { "--fill-width": `${Math.max(0, Math.min(100, percentLeft))}%` }
-              }
-            />
+          <div className="mt-1">
+            <ProgressBar percent={percentLeft} low={isLow} />
           </div>
         </div>
 

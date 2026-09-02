@@ -8,7 +8,8 @@ brew it yourself), and **brewing**, a personal brew journal alongside it.
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a diagram-first
 overview of how the pieces connect, [`docs/SCHEMA.md`](docs/SCHEMA.md) for
 a field-by-field data dictionary, [`docs/API.md`](docs/API.md) for every
-route and Server Action, and the repo-level
+route and Server Action, [`docs/COMPONENTS.md`](docs/COMPONENTS.md) for the
+shared UI component library, and the repo-level
 [AGENTS.md](../../AGENTS.md) for full project context, design standards,
 and the reasoning behind specific decisions.
 
@@ -88,10 +89,8 @@ and the reasoning behind specific decisions.
   drop behind the scenes), so a claim and the roasted-coffee stock it
   eventually comes from stay in sync instead of tracked twice; "Undo"
   reverses that the same way undoing a roast drop does.
-- **Export & publish** — download a completed roast as CSV, or publish it as
-  a static page to this repo's GitHub Pages site (curve, stats, event log).
-  See "Export & publish" below — there's a one-time repo setting and a
-  manual `git push` involved, not just an in-app button.
+- **Export** — download a completed roast as CSV (curve, stats, event log).
+  See "Export" below.
 - **Backfilling** — "Log a past roast" on `/roasts` records one already
   completed (bean, weights, a past date/duration, level, rating) without a
   live timer; "Add event" on any completed roast lets you add individual
@@ -99,7 +98,7 @@ and the reasoning behind specific decisions.
   time.
 - **Roast phases** — Scott Rao's three-phase breakdown (drying / Maillard /
   development), computed from milestone events and shown on every completed
-  roast, live during one, in the CSV, and on published pages.
+  roast, live during one, and in the CSV.
 - **Live tips** — a small rule-based panel during a live roast: reminders
   grounded in general roasting heuristics, comparisons to your own past
   roasts of that bean (e.g. "your average for this bean is 6:15"), and — if
@@ -344,33 +343,13 @@ section for the full rationale.
    available on every populated cell but fades to 40% opacity until you
    hover that row.
 
-## Export & publish
+## Export
 
 - **CSV** — the "Export CSV" link on a completed roast hits
   `/roasts/[id]/export` ([`route.ts`](<src/app/roasts/[id]/export/route.ts>)),
   which streams a CSV built by [`src/lib/csv.ts`](src/lib/csv.ts): a
   metadata block (bean, weights, level, rating, duration) then the full
   event table.
-- **Publish to GitHub Pages** — "Publish" on a completed roast renders a
-  static, self-contained HTML page (no build step, no JS) to
-  `docs/roasts/<id>.html`, via [`src/lib/publish.ts`](src/lib/publish.ts),
-  and regenerates `docs/index.html` from every published roast. "Unpublish"
-  removes it and regenerates the index. Both then commit and push just the
-  `docs/` folder automatically (`syncGeneratedDocs` in
-  [`src/lib/git.ts`](src/lib/git.ts)) — if that fails (no remote, diverged
-  history, no auth), the publish/unpublish state rolls back and the button
-  shows a real error rather than claiming something is live that isn't. The
-  curve on the published page comes from the exact same function as the
-  live chart ([`buildRoastCurveSvg`](src/lib/curve.ts)) — they can't
-  visually drift apart. All user text (bean name, notes, friend names) is
-  HTML-escaped, since this page is genuinely public.
-
-GitHub Pages itself needs a one-time repo setup — Settings → Pages → Deploy
-from a branch → `main`, folder `/docs` — but note it requires a **public**
-repo unless you're on a paid GitHub plan; Pages isn't available for a
-private repo on the free tier at all. Beyond that, publishing is now fully
-self-contained: clicking Publish/Unpublish generates the page *and* commits
-+ pushes it, no manual git step left.
 
 ## Roast lifecycle
 
@@ -401,8 +380,7 @@ after via "Edit details."
   whole dry-end-to-first-crack window on older roasts logged before
   "yellowing end" existed as a milestone.
   [`PhaseBar.tsx`](src/components/roasts/PhaseBar.tsx) renders it everywhere:
-  completed roasts, live (via `LiveTipsPanel`), the CSV export, and the
-  published static page.
+  completed roasts, live (via `LiveTipsPanel`), and the CSV export.
 - **Tips** — [`generateLiveTips`](src/lib/tips.ts) is a small, deliberately
   rule-based set of prompts shown during a live roast
   ([`LiveTipsPanel.tsx`](src/components/roasts/LiveTipsPanel.tsx)) — no LLM

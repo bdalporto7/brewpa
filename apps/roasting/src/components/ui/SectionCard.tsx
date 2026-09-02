@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 /**
  * The shared "labeled, bordered card, optionally collapsible" shell used
@@ -38,10 +39,9 @@ export default function SectionCard({
           type="button"
           onClick={() => collapsible && setCollapsed((v) => !v)}
           disabled={!collapsible}
-          className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase"
+          className="flex items-center gap-1.5"
         >
-          {icon}
-          {label}
+          <Eyebrow icon={icon}>{label}</Eyebrow>
           {collapsible && (
             <ChevronDown className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-180"}`} />
           )}

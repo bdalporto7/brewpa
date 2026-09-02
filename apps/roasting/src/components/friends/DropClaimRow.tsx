@@ -8,21 +8,18 @@ import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
 import DeleteButton from "@/components/DeleteButton";
+import Checkbox from "@/components/ui/Checkbox";
 import type { DropClaim, Friend, RoastSession, Sale } from "@prisma/client";
 
 function PaidCheckbox({ dropId, claim }: { dropId: string; claim: DropClaim }) {
   const [isPending, startTransition] = useTransition();
   return (
-    <label className="flex items-center gap-1.5 text-xs text-muted">
-      <input
-        type="checkbox"
-        checked={claim.paid}
-        disabled={isPending}
-        onChange={(e) => startTransition(() => setDropClaimPaid(dropId, claim.id, e.target.checked))}
-        className="accent-accent"
-      />
-      Paid
-    </label>
+    <Checkbox
+      label="Paid"
+      checked={claim.paid}
+      disabled={isPending}
+      onChange={(e) => startTransition(() => setDropClaimPaid(dropId, claim.id, e.target.checked))}
+    />
   );
 }
 

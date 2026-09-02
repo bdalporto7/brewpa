@@ -39,16 +39,7 @@ import BeanBurst from "@/components/ui/BeanBurst";
 import RatingBeans from "@/components/ui/RatingBeans";
 import SectionCard from "@/components/ui/SectionCard";
 import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
-import type { ReactNode } from "react";
-
-function Stat({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
+import Stat from "@/components/ui/Stat";
 
 export default async function RoastSessionPage({
   params,

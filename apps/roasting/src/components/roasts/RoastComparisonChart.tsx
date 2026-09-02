@@ -10,7 +10,18 @@ import {
   type CurveReading,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
+import Card from "@/components/ui/Card";
 
+/**
+ * The curve markup itself comes back as a raw SVG string from
+ * `buildComparisonCurveSvg` and is injected via `dangerouslySetInnerHTML`,
+ * so the interactive crosshair/tooltip can't live inside that same SVG tree
+ * — it's a second, absolutely-positioned `<svg>` stacked on top. It only
+ * lines up with the injected markup because it recomputes the exact same
+ * `getChartLayout`/`CHART_WIDTH`/`CHART_HEIGHT` coordinates the string
+ * builder used; if that layout math ever changes, both sides need to change
+ * together.
+ */
 export default function RoastComparisonChart({
   readingsA,
   labelA,
@@ -63,7 +74,7 @@ export default function RoastComparisonChart({
   const anchor = leftPct < 15 ? "left" : leftPct > 85 ? "right" : "center";
 
   return (
-    <div className="overflow-x-auto rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="overflow-x-auto p-4">
       <div
         ref={containerRef}
         className="relative cursor-crosshair"
@@ -128,6 +139,6 @@ export default function RoastComparisonChart({
           </>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

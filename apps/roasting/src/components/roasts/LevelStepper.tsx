@@ -2,6 +2,8 @@
 
 import { Minus, Plus } from "lucide-react";
 import { SR800_LEVEL_MIN, SR800_LEVEL_MAX } from "@/lib/constants";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 export default function LevelStepper({
   label,
@@ -17,11 +19,8 @@ export default function LevelStepper({
   pending: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        {icon}
-        {label}
-      </span>
+    <Card interactive={false} className="flex flex-col items-center gap-2 p-4">
+      <Eyebrow icon={icon}>{label}</Eyebrow>
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -43,6 +42,6 @@ export default function LevelStepper({
           <Plus className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

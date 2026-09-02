@@ -10,6 +10,7 @@ import {
   CHART_WIDTH,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
+import Card from "@/components/ui/Card";
 import { EVENT_LABELS } from "@/lib/constants";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
@@ -85,7 +86,7 @@ export default function LiveComparisonChart({
   const hoveredB = hoveredSeconds != null ? nearestCurveReading(readingsB, hoveredSeconds) : null;
 
   return (
-    <div className="overflow-x-auto rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
+    <Card interactive={false} className="overflow-x-auto p-4">
       <div
         ref={containerRef}
         className="relative cursor-crosshair"
@@ -179,6 +180,6 @@ export default function LiveComparisonChart({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

@@ -10,6 +10,13 @@ import Button from "@/components/ui/Button";
 import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
 import type { Bean, Recipe, RoastSession } from "@prisma/client";
 
+/**
+ * Picking a recipe swaps in its dose/water/grind/etc. as defaults, but
+ * the fields below are plain uncontrolled inputs — changing a
+ * `defaultValue` prop after a field has already mounted does nothing.
+ * `key={recipeId}` on the form forces a full remount instead, which is
+ * the only way to get them to pick up the newly-selected recipe's values.
+ */
 export default function LogBrewForm({
   sessions,
   recipes,
@@ -77,19 +84,15 @@ export default function LogBrewForm({
           ))}
         </SelectField>
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted" htmlFor="method">
-          Method
-        </label>
-        <input
-          id="method"
+      <div>
+        <TextField
+          label="Method"
           name="method"
           list="brew-methods"
           required
           defaultValue={recipe?.method ?? ""}
           placeholder="V60"
           autoComplete="off"
-          className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm placeholder:text-muted/70 focus:border-accent focus:outline-none"
         />
         <datalist id="brew-methods">
           {BREW_METHODS.map((m) => (

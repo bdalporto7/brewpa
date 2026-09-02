@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Card from "@/components/ui/Card";
+import ProgressBar from "@/components/ui/ProgressBar";
 import type { Bean, Drop, DropClaim } from "@prisma/client";
 
 export default function DropCard({ drop }: { drop: Drop & { bean: Bean; claims: DropClaim[] } }) {
@@ -11,7 +13,7 @@ export default function DropCard({ drop }: { drop: Drop & { bean: Bean; claims: 
 
   return (
     <Link href={`/drops/${drop.id}`}>
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4 transition duration-200 hover:border-accent hover:-translate-y-0.5 hover:-rotate-[0.4deg]">
+      <Card className="p-4 hover:border-accent">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-medium">{drop.bean.name}</h3>
           <span className={`text-xs font-medium ${isClosed ? "text-muted" : "text-accent"}`}>
@@ -21,17 +23,11 @@ export default function DropCard({ drop }: { drop: Drop & { bean: Bean; claims: 
         <p className="mt-1 font-mono text-xs text-muted">
           {claimed}g / {total}g claimed · {drop.claims.length} {drop.claims.length === 1 ? "claim" : "claims"}
         </p>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
-          <div
-            className="pour-fill h-full rounded-full bg-accent"
-            style={
-              // @ts-expect-error -- custom property consumed by the pour-fill keyframe
-              { "--fill-width": `${percent}%` }
-            }
-          />
+        <div className="mt-2">
+          <ProgressBar percent={percent} />
         </div>
         {!isClosed && remaining > 0 && <p className="mt-1.5 text-xs text-muted">{remaining}g left</p>}
-      </div>
+      </Card>
     </Link>
   );
 }

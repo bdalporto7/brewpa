@@ -2,24 +2,25 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAllowedUser } from "@/lib/admin";
-import BeanHeader from "@/components/BeanHeader";
-import BeanStockBar from "@/components/BeanStockBar";
-import BeanMeta from "@/components/BeanMeta";
-import SupplierTastingNotes from "@/components/SupplierTastingNotes";
+import BeanHeader from "@/components/beans/BeanHeader";
+import BeanStockBar from "@/components/beans/BeanStockBar";
+import BeanMeta from "@/components/beans/BeanMeta";
+import SupplierTastingNotes from "@/components/beans/SupplierTastingNotes";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DropCard from "@/components/friends/DropCard";
 import StartDropToggle from "@/components/friends/StartDropToggle";
 import BrewCard from "@/components/brews/BrewCard";
+import Card from "@/components/ui/Card";
+import Stat from "@/components/ui/Stat";
+import Eyebrow from "@/components/ui/Eyebrow";
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-3">
-      <p className="font-mono text-lg font-semibold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
-    </div>
-  );
-}
-
+/**
+ * `bean` and `user` are independent fetches, run in parallel — but `brews`
+ * has to come after, since it needs `user.id` from that same Promise.all
+ * (can't join the parallel batch, it depends on one of its results). Stats
+ * below only count `completed` (endedAt set) roasts, since a pending/live
+ * session has no final roasted weight or rating to average in yet.
+ */
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [bean, user] = await Promise.all([
@@ -57,13 +58,13 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col gap-6">
       <BeanHeader bean={bean} />
 
-      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-        <p className="mb-2 text-xs font-medium tracking-wide text-muted uppercase">Green stock</p>
+      <Card interactive={false} className="p-4">
+        <Eyebrow className="mb-2">Green stock</Eyebrow>
         <BeanStockBar bean={bean} />
         <div className="mt-3">
           <BeanMeta bean={bean} />
         </div>
-      </div>
+      </Card>
 
       <SupplierTastingNotes bean={bean} />
 

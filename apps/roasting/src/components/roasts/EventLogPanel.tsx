@@ -5,6 +5,8 @@ import { NotebookPen } from "lucide-react";
 import { logEvent } from "@/lib/actions";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 /**
  * Just the note form now — fan/heat/temp/milestones moved into
@@ -32,11 +34,10 @@ export default function EventLogPanel({
   }
 
   return (
-    <div className="rounded-xl border-2 border-[var(--border-strong)] bg-surface shadow-[2px_2px_0_var(--shadow-ink)] p-4">
-      <span className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-        <NotebookPen className="h-3.5 w-3.5" />
+    <Card interactive={false} className="p-4">
+      <Eyebrow icon={<NotebookPen className="h-3.5 w-3.5" />} className="mb-2">
         Note
-      </span>
+      </Eyebrow>
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -57,6 +58,6 @@ export default function EventLogPanel({
           Add
         </Button>
       </form>
-    </div>
+    </Card>
   );
 }

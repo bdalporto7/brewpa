@@ -33,6 +33,13 @@ function rowsFromPlan(settingChanges: PlanSettingChange[]): Row[] {
   }));
 }
 
+/**
+ * Dial-schedule rows key off a monotonically increasing `id` (`newRowId()`),
+ * not their position in the array — deleting a row from the middle would
+ * otherwise shift every following row onto a new index-as-key, and React
+ * would recycle each `<input>`'s DOM node (including whatever's mid-typed
+ * in it) onto the wrong row instead of actually removing one.
+ */
 export default function RoastProfileForm({
   profile,
   onSuccess,

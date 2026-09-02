@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
+import ProgressBar from "@/components/ui/ProgressBar";
 import RatingBeans from "@/components/ui/RatingBeans";
 import type { Bean, RoastSession } from "@prisma/client";
 
@@ -50,14 +51,8 @@ export default function RoastSessionCard({
               <span>{Math.round((session.roastedRemainingGrams ?? 0) * 10) / 10}g roasted coffee on hand</span>
               <span>{Math.round(roastedPercentLeft)}%</span>
             </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
-              <div
-                className="pour-fill h-full rounded-full bg-accent"
-                style={
-                  // @ts-expect-error -- custom property consumed by the pour-fill keyframe
-                  { "--fill-width": `${Math.max(0, Math.min(100, roastedPercentLeft))}%` }
-                }
-              />
+            <div className="mt-1">
+              <ProgressBar percent={roastedPercentLeft} />
             </div>
           </div>
         )}

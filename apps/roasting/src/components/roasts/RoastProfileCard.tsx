@@ -6,6 +6,11 @@ import RoastProfileFavoriteToggle from "@/components/roasts/RoastProfileFavorite
 import type { RoastProfile } from "@prisma/client";
 import type { PlanTargets } from "@/lib/curve";
 
+/**
+ * The whole card is a `<Link>` to the profile's own page; the favorite
+ * star nested inside it depends on `FavoriteToggle` swallowing the click
+ * (see its own comment) so tapping the star doesn't also navigate away.
+ */
 export default function RoastProfileCard({ profile }: { profile: RoastProfile }) {
   const targets = (JSON.parse(profile.planJson) as { targets: PlanTargets }).targets;
 

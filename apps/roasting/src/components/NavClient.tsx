@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Home, Bean, Gift, BookOpen, Shield, LogOut } from "lucide-react";
+import { Flame, Home, Gift, BookOpen, Shield, LogOut } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
-import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
+import { BrewedCupIcon, GreenBeanIcon } from "@/components/ui/CoffeeIcons";
 import SteamWisp from "@/components/ui/SteamWisp";
 import WaterPour from "@/components/ui/WaterPour";
 
 const ROASTING_LINKS = [
   { href: "/", label: "Dashboard", icon: Home },
-  { href: "/beans", label: "Beans", icon: Bean },
+  // lucide's own "Bean" glyph is a kidney bean, not a coffee bean — use
+  // the real coffee-bean shape already built for the dashboard instead.
+  { href: "/beans", label: "Beans", icon: GreenBeanIcon },
   { href: "/roasts", label: "Roasts", icon: Flame },
   { href: "/profiles", label: "Profiles", icon: BookOpen },
   { href: "/friends", label: "Drops", icon: Gift },
