@@ -16,6 +16,14 @@ export default function SketchyFilterDefs() {
         <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="7" result="noise" />
         <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
       </filter>
+      {/* Same technique, gentler displacement — `sketchy` at scale 3.5 breaks
+          up thin strokes (a 6-8px progress-bar fill, a squiggle underline)
+          into visible gaps instead of a wobble. Used wherever the shape
+          being wobbled is thin/small rather than a full icon-sized path. */}
+      <filter id="sketchy-fine" x="-30%" y="-30%" width="160%" height="160%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="3" result="noise-fine" />
+        <feDisplacementMap in="SourceGraphic" in2="noise-fine" scale="1.6" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
     </svg>
   );
 }

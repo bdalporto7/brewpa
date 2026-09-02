@@ -13,7 +13,6 @@ import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
 import LowStockBanner from "@/components/beans/LowStockBanner";
 import Card from "@/components/ui/Card";
-import Stat from "@/components/ui/Stat";
 
 // Same threshold BeanStockBar/BeanRoastedSummaryCard already use for their own "isLow" styling.
 const LOW_STOCK_PERCENT = 15;
@@ -127,9 +126,27 @@ export default async function DashboardPage() {
 
       <LowStockBanner lowGreenBeans={lowGreenBeans} lowRoastedSessions={lowRoastedSessions} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* The dashboard's own stat treatment, not the shared Stat tile used
+          on every other detail page — this is the one spot meant to read
+          as an instrument readout right under the chalkboard nav, and
+          giving Stat.tsx itself a dark variant for a single use site would
+          be the wrong kind of reuse. */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
         {stats.map((stat) => (
-          <Stat key={stat.label} label={stat.label} value={stat.value} />
+          <div key={stat.label}>
+            <p className="font-mono text-3xl font-bold tabular-nums tracking-tight">{stat.value}</p>
+            <p className="mt-1 text-xs text-muted">{stat.label}</p>
+            <svg width="46" height="8" viewBox="0 0 46 8" className="mt-1 block" aria-hidden="true">
+              <path
+                d="M1 5 Q8 2 14 5 T26 5 T38 5 T44 4"
+                stroke="var(--accent)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                fill="none"
+                style={{ filter: "url(#sketchy-fine)" }}
+              />
+            </svg>
+          </div>
         ))}
       </div>
 

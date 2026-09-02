@@ -245,7 +245,18 @@ export interface RoastCurveTargets {
 export function buildRoastCurveSvg(
   events: RoastEvent[],
   totalSeconds: number,
-  options: { showRor?: boolean; probeReadings?: TemperatureReading[]; targets?: RoastCurveTargets } = {}
+  options: {
+    showRor?: boolean;
+    probeReadings?: TemperatureReading[];
+    targets?: RoastCurveTargets;
+    /** Draws the temp line in on mount instead of appearing complete —
+     * scoped to the completed-roast view only (RoastCurveChart passes this
+     * when it renders with `title`). The live view's chart regenerates on
+     * every polled event, and replaying a multi-second draw-in on each
+     * poll would be distracting rather than delightful, so it's opt-in
+     * rather than the default. */
+    animateIn?: boolean;
+  } = {}
 ): string | null {
   const readings = getCurveReadings(events, options.probeReadings);
   if (readings.length < 2) return null;
@@ -375,8 +386,15 @@ export function buildRoastCurveSvg(
     }
   }
 
+  // filter, not a redrawn path: the sketchy-fine wobble (same filter every
+  // other hand-drawn line in the app uses) is a couple px of visual
+  // displacement only — the underlying points, and everything that reads
+  // them (hover tooltip, hit-testing), are untouched. pathLength="1" is
+  // only meaningful with the draw-in animation (globals.css's
+  // .curve-draw-in, gated on animateIn) — harmless to always include, and
+  // simpler than branching the whole polyline string on it.
   parts.push(
-    `<polyline points="${tempLine}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" />`
+    `<polyline points="${tempLine}" pathLength="1" ${options.animateIn ? 'class="curve-draw-in"' : ""} fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" filter="url(#sketchy-fine)" />`
   );
   for (const p of readings) {
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);

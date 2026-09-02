@@ -47,6 +47,16 @@
      palette, so it reads as a clearly distinct series from the temp curve
      (which owns --accent) rather than a shade of the same color. */
   --ror: #2f6b6b;
+
+  /* The nav's "chalkboard" panel — a fixed material, like the mascot
+     artwork, not a themable surface: it's meant to always read as a dark
+     board regardless of light/dark mode, so these don't get a dark-mode
+     override the way every other token above does. */
+  --panel-bg: #2b1d14;
+  --panel-fg: #f3eadd;
+  --panel-muted: #a89684;
+  --panel-line: rgba(243, 234, 221, 0.14);
+  --panel-accent: #d97a4f;
 }
 
 @theme inline {
@@ -61,6 +71,11 @@
   --color-accent-soft: var(--accent-soft);
 
   --color-brand: var(--brand);
+
+  --color-panel-bg: var(--panel-bg);
+  --color-panel-fg: var(--panel-fg);
+  --color-panel-muted: var(--panel-muted);
+  --color-panel-accent: var(--panel-accent);
 
   --color-success: var(--success);
   --color-warning: var(--warning);
@@ -281,4 +296,64 @@ body {
 }
 .mascot-dance {
   animation: mascot-dance 0.6s ease-in-out infinite;
+}
+
+/* TapCircleLink's chalk-circle tap confirmation — a real stroke traced
+   around the loop (dashoffset, not a fade-in of a finished shape), so it
+   reads as drawn rather than appearing. Purely decorative feedback, so
+   under reduced motion it's skipped entirely rather than replaced with an
+   instant equivalent. */
+.tap-circle-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  filter: url(#sketchy);
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tap-circle-draw .tap-circle-path {
+    animation: draw-tap-circle 0.9s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+}
+/* Completed-roast curve draw-in (RoastCurveChart, gated on animateIn —
+   see curve.ts). Unlike tap-circle-path above, this is real data, not
+   decoration: the default state (no media query, reduced motion, or if
+   this rule fails to apply for any reason) is a plain, fully-visible
+   stroke — only *inside* the no-preference query does it start hidden and
+   animate to visible, so a missed trigger can never leave the curve blank. */
+@media (prefers-reduced-motion: no-preference) {
+  .curve-draw-in {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw-roast-curve 1.4s 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+}
+@keyframes draw-roast-curve {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draw-tap-circle {
+  0% {
+    opacity: 1;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  45% {
+    opacity: 1;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  75% {
+    opacity: 1;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { deleteBean } from "@/lib/actions";
 import DeleteButton from "@/components/DeleteButton";
@@ -9,6 +8,7 @@ import BeanEditForm from "@/components/beans/BeanEditForm";
 import BeanStockBar from "@/components/beans/BeanStockBar";
 import BeanMeta from "@/components/beans/BeanMeta";
 import Card from "@/components/ui/Card";
+import TapCircleLink from "@/components/ui/TapCircleLink";
 import type { Bean } from "@prisma/client";
 
 /** Same inline isEditing-toggle-to-BeanEditForm pattern as BeanHeader —
@@ -29,9 +29,11 @@ export default function BeanCard({ bean }: { bean: Bean }) {
     <Card className="p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href={`/beans/${bean.id}`} className="hover:text-accent">
-            <h3 className="font-medium">{bean.name}</h3>
-          </Link>
+          <h3 className="font-medium">
+            <TapCircleLink href={`/beans/${bean.id}`} className="hover:text-accent">
+              {bean.name}
+            </TapCircleLink>
+          </h3>
           <p className="text-sm text-muted">
             {bean.origin}
             {bean.producer ? ` · ${bean.producer}` : ""} · {bean.process}

@@ -35,7 +35,10 @@ export default function RoastCurveChart({
   /** When given, renders a labeled header INSIDE the chart's own bordered
    * box (completed-roast view) instead of leaving the "Rate of rise"
    * toggle floating in its own unboxed row above it (the live view's
-   * existing look, unchanged when this is omitted). */
+   * existing look, unchanged when this is omitted). Also the signal this
+   * component uses to draw the curve in on mount rather than showing it
+   * complete — see the animateIn comment on buildRoastCurveSvg for why
+   * that's scoped away from the live view specifically. */
   title?: string;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
@@ -46,8 +49,11 @@ export default function RoastCurveChart({
   const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed);
 
   const svg = useMemo(
-    () => buildRoastCurveSvg(events, totalSeconds, { showRor, probeReadings, targets }),
-    [events, totalSeconds, showRor, probeReadings, targets]
+    // animateIn tracks `title`: the same signal RoastCurveChart's own
+    // callers already use to mean "this is the completed-roast view," not
+    // the live one — see this component's `title` doc comment above.
+    () => buildRoastCurveSvg(events, totalSeconds, { showRor, probeReadings, targets, animateIn: !!title }),
+    [events, totalSeconds, showRor, probeReadings, targets, title]
   );
   const readings = useMemo(() => getCurveReadings(events, probeReadings), [events, probeReadings]);
   const layout = useMemo(

@@ -35,29 +35,29 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-panel-fg sm:px-6">
         <div className="flex items-center gap-3">
           <Link href={mode === "brewing" ? "/brews" : "/"} className="flex items-center gap-2">
             <CybarMark className="h-7 w-auto" />
             <span className="font-marker text-xl leading-none">Cybar</span>
           </Link>
 
-          <div className="flex items-center rounded-full border-2 border-[var(--border-strong)] bg-surface p-0.5 text-xs font-medium">
+          <div className="flex items-center rounded-full bg-white/[0.07] p-0.5 text-xs font-medium">
             <Link
               href="/"
               className={`flex items-center gap-1 rounded-full px-3 py-1 transition ${
-                mode === "roasting" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
+                mode === "roasting" ? "bg-panel-accent text-panel-bg" : "text-panel-muted hover:text-panel-fg"
               }`}
             >
               <span className="relative inline-flex">
                 <Flame className="h-3.5 w-3.5" />
                 {mode === "roasting" && (
                   // Explicit color, not inherited: this sits inside the active
-                  // pill's text-accent-foreground, which in dark mode is the
-                  // exact same value as the page background — invisible where
-                  // the wisp pokes above the pill. text-foreground always
-                  // contrasts against both the pill and the nav bar.
-                  <SteamWisp className="pointer-events-none absolute -top-3.5 left-0 h-3.5 w-5 text-foreground" />
+                  // pill's text-panel-bg, which reads as the panel's own dark
+                  // fill — invisible where the wisp pokes above the pill.
+                  // text-panel-fg always contrasts against both the pill and
+                  // the dark panel behind it.
+                  <SteamWisp className="pointer-events-none absolute -top-3.5 left-0 h-3.5 w-5 text-panel-fg" />
                 )}
               </span>
               Roasting
@@ -65,13 +65,13 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
             <Link
               href="/brews"
               className={`flex items-center gap-1 rounded-full px-3 py-1 transition ${
-                mode === "brewing" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
+                mode === "brewing" ? "bg-panel-accent text-panel-bg" : "text-panel-muted hover:text-panel-fg"
               }`}
             >
               <span className="relative inline-flex">
                 <BrewedCupIcon className="h-3.5 w-3.5" />
                 {mode === "brewing" && (
-                  <WaterPour className="pointer-events-none absolute -top-3.5 left-0.5 h-3.5 w-5 text-foreground" />
+                  <WaterPour className="pointer-events-none absolute -top-3.5 left-0.5 h-3.5 w-5 text-panel-fg" />
                 )}
               </span>
               Brewing
@@ -86,17 +86,17 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
             is literally what used to happen before). */}
         <nav className="hidden items-center gap-4 text-sm sm:flex">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className="text-muted transition hover:text-foreground">
+            <Link key={link.href} href={link.href} className="text-panel-muted transition hover:text-panel-fg">
               {link.label}
             </Link>
           ))}
           {isAdmin && (
-            <Link href="/admin" className="text-muted transition hover:text-foreground">
+            <Link href="/admin" className="text-panel-muted transition hover:text-panel-fg">
               Admin
             </Link>
           )}
           <form action={logout}>
-            <button type="submit" className="text-muted transition hover:text-foreground">
+            <button type="submit" className="text-panel-muted transition hover:text-panel-fg">
               Log out
             </button>
           </form>
@@ -107,12 +107,12 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
             tab, unlike the links in `links` below. */}
         <div className="flex items-center gap-3 sm:hidden">
           {isAdmin && (
-            <Link href="/admin" aria-label="Admin" className="text-muted transition hover:text-foreground">
+            <Link href="/admin" aria-label="Admin" className="text-panel-muted transition hover:text-panel-fg">
               <Shield className="h-5 w-5" />
             </Link>
           )}
           <form action={logout}>
-            <button type="submit" aria-label="Log out" className="text-muted transition hover:text-foreground">
+            <button type="submit" aria-label="Log out" className="text-panel-muted transition hover:text-panel-fg">
               <LogOut className="h-5 w-5" />
             </button>
           </form>
