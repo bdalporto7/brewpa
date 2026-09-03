@@ -125,7 +125,7 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
           keeps the small number of pages you actually jump between reachable
           with a thumb without any menu to open first. */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--border-strong)] bg-surface sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--panel-line)] bg-panel-bg sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className={`grid ${links.length === 2 ? "grid-cols-2" : links.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
@@ -137,7 +137,7 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
                 key={link.href}
                 href={link.href}
                 className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition ${
-                  active ? "text-accent" : "text-muted"
+                  active ? "text-panel-accent" : "text-panel-muted"
                 }`}
               >
                 <Icon className="h-5 w-5" />
