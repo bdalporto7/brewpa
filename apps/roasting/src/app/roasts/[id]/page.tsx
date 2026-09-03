@@ -38,7 +38,8 @@ import DeleteButton from "@/components/DeleteButton";
 import BeanBurst from "@/components/ui/BeanBurst";
 import RatingBeans from "@/components/ui/RatingBeans";
 import SectionCard from "@/components/ui/SectionCard";
-import { BrewedCupIcon } from "@/components/ui/CoffeeIcons";
+import { BrewedCupIcon, RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
+import { estimateRoastLevel } from "@/lib/roastLevelColor";
 import Stat from "@/components/ui/Stat";
 
 export default async function RoastSessionPage({
@@ -133,6 +134,7 @@ export default async function RoastSessionPage({
     session.roastedWeightGrams != null
       ? (1 - session.roastedWeightGrams / session.greenWeightGrams) * 100
       : null;
+  const estimatedRoast = weightLoss != null ? estimateRoastLevel(weightLoss) : null;
 
   const phases = computeRoastPhases(session.events, durationSeconds ?? 0);
 
@@ -406,7 +408,22 @@ export default async function RoastSessionPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Stat label="Duration" value={formatMMSS(durationSeconds ?? 0)} />
             <Stat label="Roast level" value={session.roastLevel ?? "—"} />
-            <Stat label="Weight loss" value={weightLoss != null ? `${weightLoss.toFixed(1)}%` : "—"} />
+            <Stat
+              label="Weight loss"
+              value={
+                weightLoss != null && estimatedRoast ? (
+                  // A fun easter egg, not a real instrument reading — a bean
+                  // tinted to roughly the color a roast at this weight loss
+                  // would actually look, hover for the estimated level.
+                  <span className="inline-flex items-center gap-1.5" title={`Estimated: ${estimatedRoast.level}`}>
+                    <RoastedBeanIcon className="h-4 w-4" style={{ color: estimatedRoast.color }} />
+                    {weightLoss.toFixed(1)}%
+                  </span>
+                ) : (
+                  "—"
+                )
+              }
+            />
             <Stat
               label="Rating"
               value={session.rating != null ? <RatingBeans rating={session.rating} /> : "—"}
