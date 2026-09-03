@@ -31,7 +31,10 @@ export default function BeanCard({ bean }: { bean: Bean }) {
     // continuous list instead of a stack of separate boxes.
     <div className="flex items-center gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <h3 className="truncate font-medium">
+        {/* No `truncate` here — its overflow:hidden would clip
+            TapCircleLink's circle, which deliberately extends a few px
+            past the text itself. A long name just wraps instead. */}
+        <h3 className="font-medium">
           <TapCircleLink href={`/beans/${bean.id}`} className="hover:text-accent">
             {bean.name}
           </TapCircleLink>

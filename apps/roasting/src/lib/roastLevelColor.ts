@@ -23,3 +23,8 @@ export function estimateRoastLevel(weightLossPercent: number): { level: RoastLev
   const band = BANDS.find((b) => weightLossPercent < b.max) ?? BANDS[BANDS.length - 1];
   return { level: band.level, color: band.color };
 }
+
+/** Light → dark, three stops off the same bands above — for anywhere that
+ * wants "the color progression a roast goes through" rather than one
+ * specific estimate (the loading indicator's three beans). */
+export const ROAST_COLOR_SWATCH = [BANDS[0].color, BANDS[2].color, BANDS[4].color];

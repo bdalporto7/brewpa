@@ -35,7 +35,10 @@ export default function LedgerRow({
       style={{ cursor: "pointer" }}
     >
       <div className="min-w-0 flex-1">
-        <h3 className="truncate font-medium">{primary}</h3>
+        {/* No `truncate` here — its overflow:hidden would clip
+            TapCircleLink's circle, which deliberately extends a few px
+            past the text itself. A long name just wraps instead. */}
+        <h3 className="font-medium">{primary}</h3>
         {secondary && <p className="truncate text-sm text-muted">{secondary}</p>}
       </div>
       {(trailing || percent != null) && (
