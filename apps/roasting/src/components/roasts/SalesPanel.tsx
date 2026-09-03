@@ -8,6 +8,8 @@ import StockAdjuster from "@/components/StockAdjuster";
 import Button from "@/components/ui/Button";
 import SectionCard from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/Field";
+import { formatCurrency } from "@/lib/format";
+import type { RoastMargin } from "@/lib/economics";
 import type { Friend, Sale } from "@prisma/client";
 
 /**
@@ -22,11 +24,15 @@ export default function SalesPanel({
   roastedRemainingGrams,
   sales,
   friends,
+  margin,
 }: {
   roastSessionId: string;
   roastedRemainingGrams: number;
   sales: (Sale & { friend: Friend | null })[];
   friends: Friend[];
+  /** null when the bean has no purchasePrice recorded — shown as nothing,
+   * never a fake $0 cost. See src/lib/economics.ts. */
+  margin: RoastMargin | null;
 }) {
   return (
     <SectionCard
@@ -44,6 +50,15 @@ export default function SalesPanel({
         />
       }
     >
+      {margin && (
+        <p className="mb-3 font-mono text-xs text-muted">
+          Cost {formatCurrency(margin.totalCost)} · Sold {formatCurrency(margin.revenue)} ·{" "}
+          <span className={margin.profit >= 0 ? "text-success" : "text-danger"}>
+            Profit {formatCurrency(margin.profit)}
+          </span>
+        </p>
+      )}
+
       {roastedRemainingGrams > 0 ? (
         <ActionForm
           key={roastedRemainingGrams}
@@ -95,7 +110,7 @@ export default function SalesPanel({
                     </Link>
                   </span>
                 )}
-                {sale.price != null && <span className="text-muted"> · ${sale.price.toFixed(2)}</span>}
+                {sale.price != null && <span className="text-muted"> · {formatCurrency(sale.price)}</span>}
                 <span className="text-muted"> · {format(sale.soldAt, "MMM d")}</span>
               </div>
               <DeleteButton

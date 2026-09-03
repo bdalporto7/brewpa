@@ -40,6 +40,7 @@ import RatingBeans from "@/components/ui/RatingBeans";
 import SectionCard from "@/components/ui/SectionCard";
 import { BrewedCupIcon, RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
 import { estimateRoastLevel } from "@/lib/roastLevelColor";
+import { roastMargin } from "@/lib/economics";
 import Stat from "@/components/ui/Stat";
 
 export default async function RoastSessionPage({
@@ -135,6 +136,7 @@ export default async function RoastSessionPage({
       ? (1 - session.roastedWeightGrams / session.greenWeightGrams) * 100
       : null;
   const estimatedRoast = weightLoss != null ? estimateRoastLevel(weightLoss) : null;
+  const margin = roastMargin(session, session.bean, session.sales);
 
   const phases = computeRoastPhases(session.events, durationSeconds ?? 0);
 
@@ -455,6 +457,7 @@ export default async function RoastSessionPage({
               roastedRemainingGrams={session.roastedRemainingGrams ?? 0}
               sales={session.sales}
               friends={friends}
+              margin={margin}
             />
           )}
           <SectionCard

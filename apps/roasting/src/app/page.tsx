@@ -13,6 +13,7 @@ import StartDropToggle from "@/components/friends/StartDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
 import LowStockBanner from "@/components/beans/LowStockBanner";
 import Card from "@/components/ui/Card";
+import { estimateDaysUntilEmpty, REORDER_WARNING_DAYS } from "@/lib/inventoryVelocity";
 
 // Same threshold BeanStockBar/BeanRoastedSummaryCard already use for their own "isLow" styling.
 const LOW_STOCK_PERCENT = 15;
@@ -37,9 +38,19 @@ export default async function DashboardPage() {
     prisma.roastSession.count({ where: { startedAt: { gte: startOfMonth(new Date()) } } }),
     prisma.bean.findMany({
       include: {
+        // startedAt/greenWeightGrams (every roast, not just completed ones
+        // with a recorded yield) feed estimateDaysUntilEmpty below; the
+        // endedAt/roastedWeightGrams gate for roastedByBean's totals is now
+        // applied in memory instead of in the query, since both need the
+        // same relation.
         roastSessions: {
-          where: { endedAt: { not: null }, roastedWeightGrams: { not: null } },
-          select: { roastedRemainingGrams: true },
+          select: {
+            startedAt: true,
+            greenWeightGrams: true,
+            endedAt: true,
+            roastedWeightGrams: true,
+            roastedRemainingGrams: true,
+          },
         },
       },
     }),
@@ -73,7 +84,11 @@ export default async function DashboardPage() {
   const roastedByBean = beansWithRoasts
     .map((b) => ({
       bean: b,
-      remainingGrams: round1(b.roastSessions.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0)),
+      remainingGrams: round1(
+        b.roastSessions
+          .filter((s) => s.endedAt != null && s.roastedWeightGrams != null)
+          .reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0)
+      ),
     }))
     .filter((r) => r.remainingGrams > 0)
     .sort((a, b) => b.remainingGrams - a.remainingGrams);
@@ -89,6 +104,11 @@ export default async function DashboardPage() {
       s.roastedRemainingGrams > 0 &&
       (s.roastedRemainingGrams / s.roastedWeightGrams) * 100 <= LOW_STOCK_PERCENT
   );
+  const runningOutSoon = beansWithRoasts
+    .filter((b) => b.remainingGrams > 0)
+    .map((b) => ({ bean: b, daysLeft: estimateDaysUntilEmpty(b.remainingGrams, b.roastSessions) }))
+    .filter((r): r is { bean: (typeof beansWithRoasts)[number]; daysLeft: number } => r.daysLeft != null && r.daysLeft <= REORDER_WARNING_DAYS)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
 
   const stats = [
     { label: "Beans in inventory", value: String(beanCount) },
@@ -122,9 +142,16 @@ export default async function DashboardPage() {
         <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted">Your roasting activity at a glance.</p>
+        <Link href="/business" className="mt-1 inline-block text-sm text-muted underline hover:text-foreground">
+          Cost &amp; profit breakdown →
+        </Link>
       </div>
 
-      <LowStockBanner lowGreenBeans={lowGreenBeans} lowRoastedSessions={lowRoastedSessions} />
+      <LowStockBanner
+        lowGreenBeans={lowGreenBeans}
+        lowRoastedSessions={lowRoastedSessions}
+        runningOutSoon={runningOutSoon}
+      />
 
       {/* The dashboard's own stat treatment, not the shared Stat tile used
           on every other detail page — this is the one spot meant to read

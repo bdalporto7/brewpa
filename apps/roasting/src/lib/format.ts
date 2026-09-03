@@ -1,3 +1,10 @@
+/** The `` `$${x.toFixed(2)}` `` pattern already duplicated ad hoc across
+ * BeanMeta, SalesPanel, and the friends/drops pages — a single home for it
+ * now that the economics work adds several more call sites. */
+export function formatCurrency(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
 export function formatMMSS(totalSeconds: number): string {
   const clamped = Math.max(0, Math.round(totalSeconds));
   const m = Math.floor(clamped / 60);

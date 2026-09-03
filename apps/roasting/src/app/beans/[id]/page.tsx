@@ -14,6 +14,7 @@ import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
 import Eyebrow from "@/components/ui/Eyebrow";
 import SectionHeading from "@/components/ui/SectionHeading";
+import { estimateDaysUntilEmpty } from "@/lib/inventoryVelocity";
 
 /**
  * `bean` and `user` are independent fetches, run in parallel — but `brews`
@@ -49,6 +50,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
     include: { roastSession: { include: { bean: true } } },
   });
 
+  const daysUntilEmpty = estimateDaysUntilEmpty(bean.remainingGrams, bean.roastSessions);
   const completed = bean.roastSessions.filter((s) => s.endedAt != null);
   const roastedTotal = completed.reduce((sum, s) => sum + (s.roastedRemainingGrams ?? 0), 0);
   const rated = completed.filter((s) => s.rating != null);
@@ -62,6 +64,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       <Card interactive={false} className="p-4">
         <Eyebrow className="mb-2">Green stock</Eyebrow>
         <BeanStockBar bean={bean} />
+        {daysUntilEmpty != null && (
+          <p className="mt-1 text-xs text-muted">
+            ~{Math.round(daysUntilEmpty)} days left at your recent roasting pace
+          </p>
+        )}
         <div className="mt-3">
           <BeanMeta bean={bean} />
         </div>
