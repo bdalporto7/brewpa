@@ -43,7 +43,10 @@ export default function BeanCard({ bean }: { bean: Bean }) {
         </p>
         {bean.notes && <p className="truncate text-sm text-foreground/80">{bean.notes}</p>}
       </div>
-      <div className="w-36 flex-none text-right sm:w-44">
+      {/* min-w, not a fixed w — the closed StockAdjuster state is a short
+          line of text, but its open "adjust"/"set" state is an input plus
+          several buttons that needs real room to grow into. */}
+      <div className="min-w-36 flex-none text-right sm:min-w-44">
         <BeanStockBar bean={bean} />
       </div>
       <div className="flex flex-none items-center gap-2">
