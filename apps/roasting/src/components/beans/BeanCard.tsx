@@ -55,15 +55,15 @@ export default function BeanCard({ bean }: { bean: Bean }) {
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2">
         <BeanStockBar bean={bean} />
       </div>
 
-      <div className="mt-3">
+      <div className="mt-1.5">
         <BeanMeta bean={bean} />
       </div>
 
-      {bean.notes && <p className="mt-2 text-sm text-foreground/80">{bean.notes}</p>}
+      {bean.notes && <p className="mt-1.5 text-sm text-foreground/80">{bean.notes}</p>}
     </Card>
   );
 }

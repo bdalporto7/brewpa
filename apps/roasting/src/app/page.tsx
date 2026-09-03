@@ -164,6 +164,7 @@ export default async function DashboardPage() {
               label: b.name,
               grams: b.remainingGrams,
               href: `/beans/${b.id}`,
+              percent: b.weightGrams > 0 ? (b.remainingGrams / b.weightGrams) * 100 : 0,
             }))}
             emptyText="No green stock on hand."
           />

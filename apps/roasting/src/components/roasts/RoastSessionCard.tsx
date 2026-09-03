@@ -55,13 +55,14 @@ export default function RoastSessionCard({
             {session.greenWeightGrams}g green
             {session.roastedWeightGrams != null && ` → ${session.roastedWeightGrams}g roasted`}
             {weightLoss != null && ` (${weightLoss.toFixed(1)}% loss)`}
+            {durationSeconds != null && ` · ${formatMMSS(durationSeconds)}`}
           </p>
         </div>
         {session.rating != null && <RatingBeans rating={session.rating} max={5} className="shrink-0" />}
       </div>
 
       {roastedPercentLeft != null && (
-        <div className="mt-3">
+        <div className="mt-2">
           <div className="flex justify-between font-mono text-xs text-muted">
             <span>{Math.round((session.roastedRemainingGrams ?? 0) * 10) / 10}g roasted coffee on hand</span>
             <span>{Math.round(roastedPercentLeft)}%</span>
@@ -70,10 +71,6 @@ export default function RoastSessionCard({
             <ProgressBar percent={roastedPercentLeft} />
           </div>
         </div>
-      )}
-
-      {durationSeconds != null && (
-        <p className="mt-2 font-mono text-xs text-muted">{formatMMSS(durationSeconds)} total</p>
       )}
     </Card>
   );
