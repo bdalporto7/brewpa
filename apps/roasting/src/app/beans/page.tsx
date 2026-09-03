@@ -90,6 +90,7 @@ export default async function BeansPage({
               title="In Stock — Green"
               isEmpty={inStockGreen.length === 0}
               emptyText={hasFilters ? "No matching green beans in stock." : "No green beans in stock — add one above."}
+              layout="list"
             >
               {inStockGreen.map((bean) => (
                 <BeanCard key={bean.id} bean={bean} />
@@ -100,6 +101,7 @@ export default async function BeansPage({
               title="In Stock — Roasted"
               isEmpty={inStockRoasted.length === 0}
               emptyText={hasFilters ? "No matching roasted coffee on hand." : "No roasted coffee on hand right now."}
+              layout="list"
             >
               {inStockRoasted.map((r) => (
                 <BeanRoastedSummaryCard
@@ -116,6 +118,10 @@ export default async function BeansPage({
               title="Out of Stock — Green"
               isEmpty={outOfStockGreen.length === 0}
               emptyText="Nothing used up yet."
+              layout="list"
+              collapsible
+              defaultCollapsed
+              count={outOfStockGreen.length}
             >
               {outOfStockGreen.map((bean) => (
                 <BeanCard key={bean.id} bean={bean} />
@@ -126,6 +132,10 @@ export default async function BeansPage({
               title="Out of Stock — Roasted"
               isEmpty={outOfStockRoasted.length === 0}
               emptyText="Nothing used up yet."
+              layout="list"
+              collapsible
+              defaultCollapsed
+              count={outOfStockRoasted.length}
             >
               {outOfStockRoasted.map((r) => (
                 <BeanRoastedSummaryCard

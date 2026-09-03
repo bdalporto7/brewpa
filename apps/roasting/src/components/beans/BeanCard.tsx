@@ -6,7 +6,6 @@ import { deleteBean } from "@/lib/actions";
 import DeleteButton from "@/components/DeleteButton";
 import BeanEditForm from "@/components/beans/BeanEditForm";
 import BeanStockBar from "@/components/beans/BeanStockBar";
-import BeanMeta from "@/components/beans/BeanMeta";
 import Card from "@/components/ui/Card";
 import TapCircleLink from "@/components/ui/TapCircleLink";
 import type { Bean } from "@prisma/client";
@@ -26,44 +25,42 @@ export default function BeanCard({ bean }: { bean: Bean }) {
   }
 
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="font-medium">
-            <TapCircleLink href={`/beans/${bean.id}`} className="hover:text-accent">
-              {bean.name}
-            </TapCircleLink>
-          </h3>
-          <p className="text-sm text-muted">
-            {bean.origin}
-            {bean.producer ? ` · ${bean.producer}` : ""} · {bean.process}
-            {bean.variety ? ` · ${bean.variety}` : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="flex items-center gap-1 text-xs font-medium text-muted transition hover:text-foreground"
-          >
-            <Pencil className="h-3 w-3" /> Edit
-          </button>
-          <DeleteButton
-            action={deleteBean.bind(null, bean.id)}
-            confirmText={`Delete ${bean.name}? This only works if no roasts are logged against it.`}
-          />
-        </div>
+    // No Card here — a bordered/shadowed box per row is what made this
+    // list oversized; a flat row plus the wrapping list's hairline
+    // dividers (see BeansPage's Section layout="list") reads as one
+    // continuous list instead of a stack of separate boxes.
+    <div className="flex items-center gap-3 py-2">
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate font-medium">
+          <TapCircleLink href={`/beans/${bean.id}`} className="hover:text-accent">
+            {bean.name}
+          </TapCircleLink>
+        </h3>
+        <p className="truncate text-sm text-muted">
+          {bean.origin}
+          {bean.producer ? ` · ${bean.producer}` : ""} · {bean.process}
+          {bean.variety ? ` · ${bean.variety}` : ""}
+        </p>
+        {bean.notes && <p className="truncate text-sm text-foreground/80">{bean.notes}</p>}
       </div>
-
-      <div className="mt-2">
+      <div className="w-36 flex-none text-right sm:w-44">
         <BeanStockBar bean={bean} />
       </div>
-
-      <div className="mt-1.5">
-        <BeanMeta bean={bean} />
+      <div className="flex flex-none items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setIsEditing(true)}
+          aria-label="Edit"
+          className="text-muted transition hover:text-foreground"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+        <DeleteButton
+          variant="icon"
+          action={deleteBean.bind(null, bean.id)}
+          confirmText={`Delete ${bean.name}? This only works if no roasts are logged against it.`}
+        />
       </div>
-
-      {bean.notes && <p className="mt-1.5 text-sm text-foreground/80">{bean.notes}</p>}
-    </Card>
+    </div>
   );
 }

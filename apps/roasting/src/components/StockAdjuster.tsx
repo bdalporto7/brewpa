@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Minus, Plus, Pencil } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 
 /** Add/remove/set-exact control for a stock figure — used for both green bean
  * and roasted-coffee remaining grams. Add/remove is the primary interaction
@@ -49,14 +49,18 @@ export default function StockAdjuster({
   }
 
   if (mode === "closed") {
+    // No pencil icon here — this sits right next to BeanCard's own "edit
+    // bean details" pencil in the compact row layout, and two pencils
+    // that close together read as duplicates of the same action when
+    // they're actually different ones. The text itself, with its hover
+    // color change, is affordance enough.
     return (
       <button
         type="button"
         onClick={() => setMode("adjust")}
-        className="flex items-center gap-1 font-mono text-xs text-muted transition hover:text-accent"
+        className="font-mono text-xs text-muted transition hover:text-accent"
       >
         {Math.round(currentGrams * 10) / 10}g {unitLabel}
-        <Pencil className="h-3 w-3" />
       </button>
     );
   }
