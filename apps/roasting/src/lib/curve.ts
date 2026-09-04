@@ -60,6 +60,33 @@ function levelAt(points: { atSeconds: number; level: number }[], atSeconds: numb
  * produce a jagged, doubled-up line. Fan/heat/milestones stay event-
  * sourced regardless, since a bean-temp probe doesn't know about those.
  */
+// A fluid-bed roaster's probe reads a blend of true bean temp and the
+// hot airflow that's tumbling the beans past it — every fan/heat change
+// shows up in the reading almost immediately, faster than a bean's real
+// thermal mass could actually respond, which shows up as noisy point-to-
+// point jitter in raw RoR. Smoothing over a short trailing window (not a
+// fixed point-count — see below) damps that jitter the way a physically
+// thicker BT probe would, without needing different hardware. This never
+// touches the *displayed* temp (still the raw reading), only the values
+// RoR is computed from.
+const ROR_SMOOTHING_WINDOW_SECONDS = 15;
+
+/** Time-windowed, not count-windowed: dense probe data (~5s cadence) gets a
+ * real 3ish-point average, while sparse hand-logged points spaced further
+ * apart than the window naturally fall back to using just that one point —
+ * averaging across widely-spaced manual readings would blend unrelated
+ * moments together, not smooth noise. */
+function smoothedTempAt(points: { atSeconds: number; temp: number }[], i: number): number {
+  const windowStart = points[i].atSeconds - ROR_SMOOTHING_WINDOW_SECONDS;
+  let sum = 0;
+  let count = 0;
+  for (let j = i; j >= 0 && points[j].atSeconds > windowStart; j--) {
+    sum += points[j].temp;
+    count++;
+  }
+  return count > 0 ? sum / count : points[i].temp;
+}
+
 export function getCurveReadings(
   events: RoastEvent[],
   probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = []
@@ -92,7 +119,9 @@ export function getCurveReadings(
     if (i > 0) {
       const prev = tempPoints[i - 1];
       const minutesElapsed = (p.atSeconds - prev.atSeconds) / 60;
-      if (minutesElapsed > 0) rorPerMin = (p.temp - prev.temp) / minutesElapsed;
+      if (minutesElapsed > 0) {
+        rorPerMin = (smoothedTempAt(tempPoints, i) - smoothedTempAt(tempPoints, i - 1)) / minutesElapsed;
+      }
     }
     return {
       atSeconds: p.atSeconds,

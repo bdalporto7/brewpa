@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { EventType } from "@/lib/constants";
 import { parseMMSS } from "@/lib/format";
-import { generateRoastAdvice } from "@/lib/roastAdvisor";
+import { generateRoastAdvice, type RoastPlan } from "@/lib/roastAdvisor";
 import { extractSupplierInfo } from "@/lib/supplierExtractor";
 
 function num(formData: FormData, key: string): number | null {
@@ -236,6 +236,14 @@ export async function startRoast(formData: FormData) {
  * the moment the roaster has dialed in their starting fan/heat and is
  * actually turning the roaster on. Sets startedAt (which is what makes the
  * session "live") and logs the initial fan/heat as atSeconds: 0 events.
+ *
+ * If an AI/profile plan was accepted for this session, its *later* dial
+ * changes (atSeconds > 0) get pre-filled as real events too — an editable
+ * starting point the roaster adjusts as the actual roast diverges from plan,
+ * not a claim that these already happened. The atSeconds: 0 entry is never
+ * taken from the plan: it's always whatever fan/heat the roaster actually
+ * dialed in at this exact moment, which is what makes the drift comparison
+ * elsewhere (computeAdjustedPlan) meaningful in the first place.
  */
 export async function beginRoast(roastSessionId: string, fanLevel: number, heatLevel: number) {
   await prisma.$transaction(async (tx) => {
@@ -251,6 +259,23 @@ export async function beginRoast(roastSessionId: string, fanLevel: number, heatL
         { roastSessionId, type: "HEAT", atSeconds: 0, heatLevel },
       ],
     });
+
+    if (session.aiSuggestionAcceptedAt && session.aiSuggestionPlan) {
+      let plan: RoastPlan | null = null;
+      try {
+        plan = JSON.parse(session.aiSuggestionPlan) as RoastPlan;
+      } catch {
+        plan = null; // malformed plan JSON shouldn't block starting the roast
+      }
+      const laterChanges = plan?.settingChanges.filter((c) => c.atSeconds > 0) ?? [];
+      const prefilled = laterChanges.flatMap((c) => [
+        c.fanLevel != null ? { roastSessionId, type: "FAN" as const, atSeconds: c.atSeconds, fanLevel: c.fanLevel } : null,
+        c.heatLevel != null ? { roastSessionId, type: "HEAT" as const, atSeconds: c.atSeconds, heatLevel: c.heatLevel } : null,
+      ]).filter((e): e is NonNullable<typeof e> => e != null);
+      if (prefilled.length > 0) {
+        await tx.roastEvent.createMany({ data: prefilled });
+      }
+    }
   });
 
   revalidatePath(`/roasts/${roastSessionId}`);

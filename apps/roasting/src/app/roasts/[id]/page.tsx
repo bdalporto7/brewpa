@@ -14,6 +14,7 @@ import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
 import LiveRoastBars from "@/components/roasts/LiveRoastBars";
+import LiveRoastPoller from "@/components/roasts/LiveRoastPoller";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import AiSuggestionPanel from "@/components/roasts/AiSuggestionPanel";
@@ -300,6 +301,7 @@ export default async function RoastSessionPage({
 
       {isLive && (
         <>
+          <LiveRoastPoller />
           {/* Two permanent fixed bars (top: timer/hint/drop, bottom:
               fan/heat/temp/milestones) — see LiveRoastBars for why they're
               split. Everything below them is reference material (chart,
