@@ -22,7 +22,10 @@ const MILESTONE_BUTTONS: EventType[] = [
 ];
 
 /** A -/value/+ control sized for a thumb, not a mouse — the previous 20px
- * circles in this bar were reported hard to hit while actually roasting. */
+ * circles in this bar were reported hard to hit while actually roasting.
+ * The value itself is also tappable — jumping straight from, say, 3 to 8
+ * shouldn't take five taps on +. Same "tap the value to edit it" pattern as
+ * BarTempForm just below, sized for a single digit instead of a full form. */
 function BarStepper({
   icon,
   label,
@@ -36,6 +39,17 @@ function BarStepper({
   pending: boolean;
   onChange: (next: number) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function commit() {
+    const raw = Number(inputRef.current?.value);
+    if (Number.isInteger(raw) && raw >= SR800_LEVEL_MIN && raw <= SR800_LEVEL_MAX) {
+      onChange(raw);
+    }
+    setEditing(false);
+  }
+
   return (
     <div className="flex items-center gap-1">
       {icon}
@@ -48,7 +62,38 @@ function BarStepper({
       >
         <Minus className="h-4 w-4" />
       </button>
-      <span className="w-4 text-center font-mono text-sm font-bold tabular-nums text-accent-foreground">{level}</span>
+      {editing ? (
+        <form
+          className="contents"
+          onSubmit={(e) => {
+            e.preventDefault();
+            commit();
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="number"
+            inputMode="numeric"
+            min={SR800_LEVEL_MIN}
+            max={SR800_LEVEL_MAX}
+            defaultValue={level}
+            autoFocus
+            onBlur={commit}
+            aria-label={`Set ${label} level`}
+            className="w-8 rounded-md bg-accent-foreground/10 text-center font-mono text-sm font-bold tabular-nums text-accent-foreground [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+        </form>
+      ) : (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setEditing(true)}
+          aria-label={`Type a ${label} level`}
+          className="w-4 text-center font-mono text-sm font-bold tabular-nums text-accent-foreground disabled:opacity-30"
+        >
+          {level}
+        </button>
+      )}
       <button
         type="button"
         disabled={pending || level >= SR800_LEVEL_MAX}

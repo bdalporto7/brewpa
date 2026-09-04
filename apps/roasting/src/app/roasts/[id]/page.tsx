@@ -71,7 +71,7 @@ export default async function RoastSessionPage({
           orderBy: { brewedAt: "desc" },
           include: { roastSession: { include: { bean: true } } },
         },
-        compareTo: { include: { bean: true, events: true } },
+        compareTo: { include: { bean: true, events: true, temperatureReadings: true } },
         profile: true,
       },
     }),
@@ -324,8 +324,14 @@ export default async function RoastSessionPage({
           />
           {/* Probe readings can arrive on their own, ahead of the latest
               hand-logged event, so the chart's time axis has to account for
-              both rather than just the latest RoastEvent. */}
-          {session.compareTo ? (
+              both rather than just the latest RoastEvent. Also require the
+              comparison roast to actually have 2+ readings of its own —
+              LiveComparisonChart renders nothing at all (not even an empty
+              state) when buildLiveComparisonSvg can't build a comparison
+              line, which used to silently kill the *entire* chart, live
+              curve included, just because whatever past roast was picked
+              to compare against had too little hand-logged temp data. */}
+          {session.compareTo && getCurveReadings(session.compareTo.events).length >= 2 ? (
             <LiveComparisonChart
               currentEvents={session.events}
               currentLabel={`${session.bean.name} (live)`}
@@ -338,6 +344,7 @@ export default async function RoastSessionPage({
                   : 0
               }
               currentProbeReadings={session.temperatureReadings}
+              comparisonProbeReadings={session.compareTo.temperatureReadings}
             />
           ) : (
             <RoastCurveChart

@@ -22,6 +22,7 @@ export default function LiveComparisonChart({
   comparisonLabel,
   comparisonTotalSeconds,
   currentProbeReadings = [],
+  comparisonProbeReadings = [],
 }: {
   currentEvents: RoastEvent[];
   currentLabel: string;
@@ -30,9 +31,13 @@ export default function LiveComparisonChart({
   comparisonLabel: string;
   comparisonTotalSeconds: number;
   currentProbeReadings?: TemperatureReading[];
+  comparisonProbeReadings?: TemperatureReading[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredSeconds, setHoveredSeconds] = useState<number | null>(null);
+  // Current roast's RoR only — see buildLiveComparisonSvg's showRor comment
+  // for why the comparison roast doesn't get a second RoR line here.
+  const [showRor, setShowRor] = useState(false);
 
   const svg = useMemo(
     () =>
@@ -43,15 +48,30 @@ export default function LiveComparisonChart({
         comparisonEvents,
         comparisonLabel,
         comparisonTotalSeconds,
-        currentProbeReadings
+        currentProbeReadings,
+        comparisonProbeReadings,
+        showRor
       ),
-    [currentEvents, currentLabel, currentElapsedSeconds, comparisonEvents, comparisonLabel, comparisonTotalSeconds, currentProbeReadings]
+    [
+      currentEvents,
+      currentLabel,
+      currentElapsedSeconds,
+      comparisonEvents,
+      comparisonLabel,
+      comparisonTotalSeconds,
+      currentProbeReadings,
+      comparisonProbeReadings,
+      showRor,
+    ]
   );
   const readingsA = useMemo(
     () => getCurveReadings(currentEvents, currentProbeReadings),
     [currentEvents, currentProbeReadings]
   );
-  const readingsB = useMemo(() => getCurveReadings(comparisonEvents), [comparisonEvents]);
+  const readingsB = useMemo(
+    () => getCurveReadings(comparisonEvents, comparisonProbeReadings),
+    [comparisonEvents, comparisonProbeReadings]
+  );
   const duration = Math.max(currentElapsedSeconds, comparisonTotalSeconds, 1);
 
   // The chart's dashed "ghost" markers show *where* the comparison roast's
@@ -70,6 +90,29 @@ export default function LiveComparisonChart({
 
   if (!svg) return null;
 
+  // Same button as RoastCurveChart's own RoR toggle — kept visually and
+  // behaviorally identical since it's the same concept on both charts.
+  const rorToggle = (
+    <button
+      type="button"
+      onClick={() => setShowRor((v) => !v)}
+      aria-pressed={showRor}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition"
+      style={
+        showRor
+          ? {
+              borderColor: "var(--foreground)",
+              color: "var(--foreground)",
+              background: "color-mix(in srgb, var(--foreground) 10%, transparent)",
+            }
+          : { borderColor: "var(--border)", color: "var(--muted)" }
+      }
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--foreground)" }} />
+      Rate of rise
+    </button>
+  );
+
   function updateHoverFromClientX(clientX: number) {
     const el = containerRef.current;
     if (!el) return;
@@ -86,7 +129,9 @@ export default function LiveComparisonChart({
   const hoveredB = hoveredSeconds != null ? nearestCurveReading(readingsB, hoveredSeconds) : null;
 
   return (
-    <Card interactive={false} className="overflow-x-auto p-4">
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-end">{rorToggle}</div>
+      <Card interactive={false} className="overflow-x-auto p-4">
       <div
         ref={containerRef}
         className="relative cursor-crosshair"
@@ -180,6 +225,7 @@ export default function LiveComparisonChart({
           )}
         </div>
       )}
-    </Card>
+      </Card>
+    </div>
   );
 }

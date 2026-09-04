@@ -614,10 +614,22 @@ export function buildLiveComparisonSvg(
   comparisonEvents: RoastEvent[],
   comparisonLabel: string,
   comparisonTotalSeconds: number,
-  currentProbeReadings: TemperatureReading[] = []
+  currentProbeReadings: TemperatureReading[] = [],
+  // The comparison roast's own probe data — easy to forget since it wasn't
+  // needed before probe tracking was reliable, but a past roast tracked
+  // purely via probe (no hand-logged TEMP events at all, which
+  // getCurveReadings never looks at otherwise) has zero readings without
+  // this, silently killing the whole chart even when the current roast has
+  // plenty of its own data.
+  comparisonProbeReadings: TemperatureReading[] = [],
+  // Current roast only — the comparison roast's temp line already uses
+  // --ror's color (dashed), so a second RoR series would either clash with
+  // it or need a third color; the live roast's own RoR is the thing you'd
+  // actually want to watch while roasting, which this option is for.
+  showRor = false
 ): string | null {
   const readingsA = getCurveReadings(currentEvents, currentProbeReadings);
-  const readingsB = getCurveReadings(comparisonEvents);
+  const readingsB = getCurveReadings(comparisonEvents, comparisonProbeReadings);
   if (readingsA.length < 2 || readingsB.length < 2) return null;
 
   const duration = Math.max(currentElapsedSeconds, comparisonTotalSeconds, 1);
@@ -693,6 +705,34 @@ export function buildLiveComparisonSvg(
   );
   for (const p of readingsA) {
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
+  }
+
+  if (showRor) {
+    const rorValues = readingsA.map((p) => p.rorPerMin).filter((v): v is number => v != null);
+    const [rawMinRor, rawMaxRor] = rorPercentileRange(rorValues);
+    const minRor = Math.floor((rawMinRor - 5) / 10) * 10;
+    const maxRor = Math.ceil((rawMaxRor + 5) / 10) * 10;
+    const yRor = (rorPerMin: number) =>
+      tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * LIVE_CMP_TEMP_HEIGHT;
+    // --foreground, not --ror — the comparison roast's temp line already
+    // owns --ror (dashed) in this chart, and both can be on screen at once
+    // once this is toggled on. --foreground at reduced opacity is this same
+    // function's existing convention for a secondary/tertiary series (see
+    // the heat dial step-line below).
+    const rorTicks = [minRor, (minRor + maxRor) / 2, maxRor];
+    for (const t of rorTicks) {
+      parts.push(
+        `<text x="${chartRight + 8}" y="${yRor(t)}" text-anchor="start" dominant-baseline="middle" style="fill:var(--foreground);opacity:0.6" class="mono-10">${Math.round(t)}</text>`
+      );
+    }
+    parts.push(
+      `<text x="${chartRight}" y="${tempChartTop - 6}" text-anchor="end" style="fill:var(--foreground);opacity:0.6" class="marker-label">°F/min</text>`
+    );
+    const rorPoints = readingsA.filter((p): p is CurveReading & { rorPerMin: number } => p.rorPerMin != null);
+    const rorLine = rorPoints.map((p) => `${x(p.atSeconds)},${yRor(p.rorPerMin)}`).join(" ");
+    parts.push(
+      `<polyline points="${rorLine}" fill="none" style="stroke:var(--foreground)" stroke-width="1.75" stroke-linejoin="round" opacity="0.6" />`
+    );
   }
 
   parts.push(
