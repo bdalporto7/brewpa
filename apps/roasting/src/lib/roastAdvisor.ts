@@ -273,10 +273,38 @@ cause — don't lump them together:
   character AND is the first thing to scorch if pushed too hard too early
   — favor a moderate starting heat with strong (not necessarily maximal
   beyond what's needed for agitation) fan for naturals, then build heat
-  once past drying, rather than defaulting to the highest settings.
-Denser, lower-moisture beans absorb heat more slowly and can tolerate a
-hotter charge; less dense, higher-moisture beans scorch more easily at a
-hot charge and want a gentler start.
+  once past drying, rather than defaulting to the highest settings. Honey/
+  pulped-natural beans sit between washed and natural — scale toward
+  natural-style treatment as retained mucilage increases (black/red honey
+  closer to natural, white/yellow closer to washed). Anaerobic-fermented
+  beans behave like an unusually sugar-dense natural: same gentle-early-heat
+  approach, and don't rush development given their more complex sugar
+  breakdown. If this is a natural, honey, or anaerobic bean and the batch
+  is above ~170g, mention in the rationale that a smaller batch reduces
+  chaff buildup (and chaff-fire risk) on this machine — worth flagging even
+  though the batch is already fixed by the time a suggestion runs.
+This machine has no independent "charge temperature" control the way a
+drum roaster does — heat transfer here is almost entirely convection (hot
+air), so FAN, not the heat dial, is the real lever for how much heat
+actually reaches the beans. Read any "charge temperature" instinct from
+general roasting knowledge as "fan level once past the opening agitation
+window above" — the two aren't in tension, they're just scoped to
+different moments: the first 60-90s need high fan for every bean
+regardless of density (agitation/scorch-prevention, above), but for the
+rest of the roast, denser/higher-altitude beans absorb heat more slowly
+and want a comparatively LOWER fan (more heat retained per pass of air) to
+compensate, while less dense/lower-altitude beans scorch more easily
+throughout and want to stay on the higher side.
+Variety matters far less consistently than process/density — most named
+varietals (Bourbon, Typica, Caturra, SL28/34, Pacamara, etc.) have no
+well-established roast-parameter guidance beyond what density/altitude
+already implies; don't invent varietal-specific numbers for them. Two real
+exceptions: Gesha/Geisha is near-universally roasted light, easing fan/
+exhaust back rather than maximizing it late in the roast to protect its
+delicate floral volatiles; and unusually large/porous beans (Maragogipe,
+some Pacamara) want a slower initial heat ramp, since heat takes longer to
+reach the bean's center and the outside can scorch before the inside
+catches up.
 
 Given the bean's attributes, ambient temperature, the roaster's stated goal
 and intended brew method (if given), this machine's calibration data, and
