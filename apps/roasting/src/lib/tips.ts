@@ -188,12 +188,16 @@ export function projectNextMilestone(input: {
 /**
  * Flags a stalling RoR during the browning/Maillard phase, or a crash right
  * after first crack — both are how acidity and origin character get muted
- * even in a roast that finishes light-colored (see roastAdvisor.ts's system
- * prompt for the mechanism — the "lower fan" suggestion is general fluid-bed
- * theory, not something this unit's own logs have isolated; see that
- * prompt's comment for why). Only fires with enough
- * recent readings to trust — a probe streaming every 5s or dense
- * hand-logged points — and only compares like-for-like windows (this
+ * even in a roast that finishes light-colored. The pre-1C stall message
+ * points at heat, not fan — see roastAdvisor.ts's system prompt for why:
+ * this unit's own logged fan-down transitions showed RoR getting *worse*,
+ * not better, in 14 of 16 clean cases, so "lower fan to rebuild momentum"
+ * is actively evidenced against here, not just unconfirmed. The post-1C
+ * crash message deliberately doesn't prescribe a dial — that's a different
+ * mechanism (managing an already-exothermic reaction, not building RoR) and
+ * this unit's logs haven't isolated what actually helps there. Only fires
+ * with enough recent readings to trust — a probe streaming every 5s or
+ * dense hand-logged points — and only compares like-for-like windows (this
  * roast's own earlier pace, or a chosen reference roast at the same
  * elapsed time), never a single noisy point against an invented threshold.
  */
@@ -218,7 +222,7 @@ function detectStall(
     if (postCrackRoR == null || postCrackRoR > CRASH_FLOOR_ROR) return null;
     return {
       id: "ror-crash",
-      message: `RoR has flattened to ~${postCrackRoR.toFixed(0)}°F/min right after first crack — watch for a "flick" (RoR rebounding too fast), which can add harsh notes. Fluid-bed theory favors a small fan reduction over a heat bump here (less airflow retains more heat around the beans), though this unit's own logs haven't isolated the effect.`,
+      message: `RoR has flattened to ~${postCrackRoR.toFixed(0)}°F/min right after first crack — watch for a "flick" (RoR rebounding too fast), which can add harsh notes. This is a delicate moment for either dial — small, deliberate moves rather than a reflexive fan or heat change are safer here, since this unit's logs haven't isolated what actually helps in this specific window.`,
     };
   }
   if (firstCrackAt != null) return null; // through 1C, outside the crash window — not the stall zone anymore
@@ -249,7 +253,7 @@ function detectStall(
   if (recentRoR < priorRoR * STALL_DROP_RATIO && recentRoR < STALL_FLOOR_ROR) {
     return {
       id: "ror-stall",
-      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. Fluid-bed theory favors lowering fan over adding heat to rebuild momentum (less airflow retains more heat around the beans), though this unit's own logs haven't confirmed the effect size.`,
+      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. This unit's own logs show lowering fan doesn't reliably fix this (RoR got worse, not better, in 14 of 16 clean cases) — a small heat increase is the more promising lever, made now while there's still room before first crack rather than right at its doorstep.`,
     };
   }
   return null;
