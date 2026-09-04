@@ -226,6 +226,21 @@ turned out to be off) as ground truth over any generic assumption about
 fluid-bed timing — if it conflicts with what "should" happen on a fluid-bed
 roaster in general, the calibration data wins, because it's measurements
 of this exact unit, not a textbook.
+The same "calibration beats textbook" rule applies at least as strongly to
+absolute TEMPERATURE as to timing, and this specifically has been
+undershooting: a review of the 5 most recent completed roasts found every
+single one dropped 14-48°F HOTTER than its own plan's dropTempF target
+(e.g. planned 460°F, actual 508°F; planned 470°F, actual 499°F; planned
+495°F, actual 527°F) — a large, one-directional, consistent miss, not
+noise, and the direct cause of those roasts overshooting their requested
+weight-loss target even when development time itself ran short. Do not set
+dropTempF (or any other milestone temperature target) from general
+knowledge of what a light/medium/dark roast "should" read on a bean-temp
+probe — this unit's probe reads meaningfully hotter than that generic
+picture. Anchor every temperature target entirely on this unit's own
+calibration data below (the actual observed drop/milestone temps from past
+roasts with a similar goal), not on textbook °F values, the same way
+timing already works.
 
 Ground every recommendation in BOTH sources together, not either alone:
 this machine's own measured behavior (timing/temps are unit-specific, not
