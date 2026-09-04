@@ -188,16 +188,15 @@ export function projectNextMilestone(input: {
 /**
  * Flags a stalling RoR during the browning/Maillard phase, or a crash right
  * after first crack — both are how acidity and origin character get muted
- * even in a roast that finishes light-colored. The pre-1C stall message
- * points at heat, not fan — see roastAdvisor.ts's system prompt for why:
- * this unit's own logged fan-down transitions showed RoR getting *worse*,
- * not better, in 14 of 16 clean cases, so "lower fan to rebuild momentum"
- * is actively evidenced against here, not just unconfirmed. The post-1C
- * crash message deliberately doesn't prescribe a dial — that's a different
- * mechanism (managing an already-exothermic reaction, not building RoR) and
- * this unit's logs haven't isolated what actually helps there. Only fires
- * with enough recent readings to trust — a probe streaming every 5s or
- * dense hand-logged points — and only compares like-for-like windows (this
+ * even in a roast that finishes light-colored (see roastAdvisor.ts's system
+ * prompt for the mechanism, and for why a naive before/after check of this
+ * unit's fan-down transitions is misleading — RoR declines through the
+ * first several minutes of every roast regardless of dial settings, so that
+ * comparison mostly just re-detects the natural trend; a proper detrended
+ * check supports the standard fluid-bed effect being real here after all,
+ * with genuine remaining uncertainty about magnitude). Only fires with
+ * enough recent readings to trust — a probe streaming every 5s or dense
+ * hand-logged points — and only compares like-for-like windows (this
  * roast's own earlier pace, or a chosen reference roast at the same
  * elapsed time), never a single noisy point against an invented threshold.
  */
@@ -253,7 +252,7 @@ function detectStall(
   if (recentRoR < priorRoR * STALL_DROP_RATIO && recentRoR < STALL_FLOOR_ROR) {
     return {
       id: "ror-stall",
-      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. This unit's own logs show lowering fan doesn't reliably fix this (RoR got worse, not better, in 14 of 16 clean cases) — a small heat increase is the more promising lever, made now while there's still room before first crack rather than right at its doorstep.`,
+      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. Fluid-bed theory favors lowering fan over adding heat to rebuild momentum (less airflow retains more heat around the beans); this unit's own logs, properly checked against the natural RoR decline every roast shows here, support that effect being real, though the exact size is still uncertain.`,
     };
   }
   return null;
