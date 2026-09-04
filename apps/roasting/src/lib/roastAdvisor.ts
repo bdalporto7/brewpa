@@ -332,6 +332,27 @@ time (e.g. "more acidity", "less smoky", "sweeter"), reason explicitly from
 what was tried before and its cupping result to what should change this
 time — don't just restate generic roasting advice.
 
+A real, recurring problem with plans generated so far: they schedule a
+heat pullback (typically down to 4) timed right at or just before the
+*predicted* first-crack second — but this unit's actual first crack keeps
+arriving later than predicted, sometimes by a lot (real examples: planned
+380s/actual 583s, planned 410s/actual 475s). Since settingChanges fire on
+a fixed clock, not on the real observed event, that pullback lands before
+the bean has actually reached first crack — so by the time the real crack
+happens, heat has already been throttled back, producing a weak, non-
+rolling crack rather than one with real momentum, and the roast then just
+runs long at a middling heat instead (this is also most of why recent
+roasts have been landing hotter/heavier than their requested weight-loss
+target — see the drop-temperature note above). Build in a real margin for
+this: keep heat/fan at their approach-to-1C level through at least the
+predicted first-crack time plus a buffer (proportional to how much this
+bean/goal's prediction could plausibly run late — err toward more margin,
+not less, given the pattern above), and only schedule the pullback after
+that buffer, not tightly coupled to the single predicted second. A plan
+that eases into a strong, audible crack and trims back shortly after is
+the goal — not one that's already throttled back by the time the crack
+actually happens.
+
 If an intended brew method is given, it maps to a specific weight-loss
 target and flavor priority — these are the roaster's own calibrated
 preferences, not a generic guideline, so treat them as a hard target to

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Download, PlusCircle, History } from "lucide-react";
+import { Download, PlusCircle, History, ChevronDown } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { deleteRoastSession } from "@/lib/actions";
 import { getCurrentAllowedUser } from "@/lib/admin";
@@ -267,20 +267,6 @@ export default async function RoastSessionPage({
       {isPending && (
         <>
           <LiveProbePanel roastSessionId={session.id} />
-          <AiSuggestionPanel
-            roastSessionId={session.id}
-            initialAmbientTempF={session.ambientTempF}
-            initialRoastGoal={session.roastGoal}
-            initialBrewTarget={session.brewTarget}
-            suggestedFanLevel={session.suggestedFanLevel}
-            suggestedHeatLevel={session.suggestedHeatLevel}
-            aiSuggestionSummary={session.aiSuggestionSummary}
-            aiSuggestionNotes={session.aiSuggestionNotes}
-            aiSuggestionPlan={session.aiSuggestionPlan}
-            aiSuggestionAcceptedAt={session.aiSuggestionAcceptedAt}
-            aiSuggestionFeedback={session.aiSuggestionFeedback}
-            profileName={session.profile?.name ?? null}
-          />
           <RoastProfilePicker profiles={profiles} roastSessionId={session.id} beanProcess={session.bean.process} />
           <RoastSetupPanel
             roastSessionId={session.id}
@@ -296,6 +282,31 @@ export default async function RoastSessionPage({
             initialCompareToId={session.compareToId}
           />
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
+          {/* Collapsed by default and pushed to the bottom — still useful
+              when wanted, but no longer confident enough in its own
+              suggestions to earn the top-of-page spot it had before. */}
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted group-open:text-foreground">
+              <ChevronDown className="h-4 w-4 -rotate-90 transition-transform group-open:rotate-0" />
+              AI roast suggestion (optional)
+            </summary>
+            <div className="mt-2">
+              <AiSuggestionPanel
+                roastSessionId={session.id}
+                initialAmbientTempF={session.ambientTempF}
+                initialRoastGoal={session.roastGoal}
+                initialBrewTarget={session.brewTarget}
+                suggestedFanLevel={session.suggestedFanLevel}
+                suggestedHeatLevel={session.suggestedHeatLevel}
+                aiSuggestionSummary={session.aiSuggestionSummary}
+                aiSuggestionNotes={session.aiSuggestionNotes}
+                aiSuggestionPlan={session.aiSuggestionPlan}
+                aiSuggestionAcceptedAt={session.aiSuggestionAcceptedAt}
+                aiSuggestionFeedback={session.aiSuggestionFeedback}
+                profileName={session.profile?.name ?? null}
+              />
+            </div>
+          </details>
         </>
       )}
 
