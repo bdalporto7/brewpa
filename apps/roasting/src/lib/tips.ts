@@ -189,16 +189,18 @@ export function projectNextMilestone(input: {
  * Flags a stalling RoR during the browning/Maillard phase, or a crash right
  * after first crack — both are how acidity and origin character get muted
  * even in a roast that finishes light-colored (see roastAdvisor.ts's system
- * prompt for the mechanism, and for why a naive before/after check of this
- * unit's fan-down transitions is misleading — RoR declines through the
- * first several minutes of every roast regardless of dial settings, so that
- * comparison mostly just re-detects the natural trend; a proper detrended
- * check supports the standard fluid-bed effect being real here after all,
- * with genuine remaining uncertainty about magnitude). Only fires with
- * enough recent readings to trust — a probe streaming every 5s or dense
- * hand-logged points — and only compares like-for-like windows (this
- * roast's own earlier pace, or a chosen reference roast at the same
- * elapsed time), never a single noisy point against an invented threshold.
+ * prompt for the mechanism). The pre-1C stall message's "~6-8°F/min" figure
+ * is a real matched-control measurement from this unit's own roast history
+ * (15 clean one-level fan-down transitions vs. similar no-change stretches
+ * of other roasts, nearest-neighbor matched on elapsed time and pre-change
+ * RoR) — not textbook theory restated; see that prompt's comment for the
+ * methodology and why a naive before/after check of the same transitions is
+ * misleading (RoR declines through the first several minutes of every roast
+ * regardless of dial settings). Only fires with enough recent readings to
+ * trust — a probe streaming every 5s or dense hand-logged points — and only
+ * compares like-for-like windows (this roast's own earlier pace, or a
+ * chosen reference roast at the same elapsed time), never a single noisy
+ * point against an invented threshold.
  */
 function detectStall(
   curveReadings: CurveReading[],
@@ -252,7 +254,7 @@ function detectStall(
   if (recentRoR < priorRoR * STALL_DROP_RATIO && recentRoR < STALL_FLOOR_ROR) {
     return {
       id: "ror-stall",
-      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. Fluid-bed theory favors lowering fan over adding heat to rebuild momentum (less airflow retains more heat around the beans); this unit's own logs, properly checked against the natural RoR decline every roast shows here, support that effect being real, though the exact size is still uncertain.`,
+      message: `RoR has flattened to ~${recentRoR.toFixed(0)}°F/min, well under ${comparedTo} (~${priorRoR.toFixed(0)}°F/min) — a stalling RoR through browning is how acidity and origin character get muted even in a light roast. Dropping fan a level has averaged roughly +6-8°F/min on this machine in similar spots before (a real measurement from your own roast history, not just fluid-bed theory) — worth trying now, while there's still room before first crack.`,
     };
   }
   return null;

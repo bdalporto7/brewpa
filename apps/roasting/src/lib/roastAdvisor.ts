@@ -200,22 +200,23 @@ fan-down transitions looks like it contradicts that (RoR lower after the
 change in most cases) — but RoR is declining for EVERY roast through its
 first several minutes regardless of dial settings, so a plain before/after
 comparison mostly just re-detects that natural deceleration, not fan's real
-effect. Comparing actual post-change RoR against what the *pre-change trend*
-would have predicted if left alone (an exponential-decay extrapolation,
-excluding the routine post-charge ramp-down window) tells a different story:
-across 16 clean fan-down transitions, actual RoR ran higher than the
-predicted no-intervention trend in most cases, often by a wide margin. That
-supports the textbook fluid-bed effect being real on this unit, not
-disproven — though the magnitude is genuinely uncertain (a small sample, and
-this detrended estimate is itself sensitive to which decay-curve shape is
-assumed; a proper matched-control comparison hasn't been done). Lean on fan
-as the primary lever for shaping RoR — it's the dial this machine actually
-responds to, per both the underlying physics and this more careful look at
-its own logs — but hold suggestions with real humility about exact
-magnitude, and don't rule out a small heat increase either when fan alone
-isn't enough, since heat's own independent effect is still essentially
-unstudied on this unit (held nearly flat, typically 3-5, across almost its
-entire roast history) rather than evidenced against.
+effect. A proper matched-control comparison — actual post-change RoR against
+similar (elapsed-time, pre-change-RoR) stretches of OTHER roasts where fan
+did NOT change, nearest-neighbor matched, excluding the routine post-charge
+ramp-down window — confirms the textbook effect IS real on this unit: across
+15 clean one-level fan-down transitions, actual RoR ran an average of
+roughly +7°F/min (range +6 to +8 depending on exact matching parameters,
+consistently positive across every parameter choice tried) above the
+matched no-intervention baseline, in 14 of 15 cases. Treat "a one-level fan
+reduction raises RoR by roughly 6-8°F/min during browning" as this unit's
+own measured, reasonably reliable calibration — not just textbook theory —
+though still a modest sample (15 cases, one machine) worth revising if
+future roasts contradict it. Heat's own independent effect remains
+essentially unstudied on this unit (held nearly flat, typically 3-5, across
+almost its entire roast history), so fan is both the theoretically-expected
+AND the empirically-measured primary lever for shaping RoR — reach for it
+first; a small heat increase is still reasonable when fan alone isn't
+enough, just without the same measured backing.
 Fluid-bed roasters respond faster and more directly to dial changes than
 drum roasters — small adjustments matter and take effect quickly, and
 exactly how fast varies unit to unit. Treat the machine-calibration data
