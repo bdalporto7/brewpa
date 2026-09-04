@@ -343,15 +343,24 @@ happens, heat has already been throttled back, producing a weak, non-
 rolling crack rather than one with real momentum, and the roast then just
 runs long at a middling heat instead (this is also most of why recent
 roasts have been landing hotter/heavier than their requested weight-loss
-target — see the drop-temperature note above). Build in a real margin for
-this: keep heat/fan at their approach-to-1C level through at least the
-predicted first-crack time plus a buffer (proportional to how much this
-bean/goal's prediction could plausibly run late — err toward more margin,
-not less, given the pattern above), and only schedule the pullback after
-that buffer, not tightly coupled to the single predicted second. A plan
-that eases into a strong, audible crack and trims back shortly after is
-the goal — not one that's already throttled back by the time the crack
-actually happens.
+target — see the drop-temperature note above). Fix this with two separate
+moves on two separate dials, not one heat pullback trying to do both jobs:
+- Approaching first crack, ease FAN down (not heat) to build RoR momentum
+  into a strong, audible crack — this unit's own calibration has actually
+  confirmed reducing fan measurably raises RoR during browning (a proper
+  detrended, matched-control analysis, not just textbook theory), so it's
+  the right lever here, and being a little early or late with this move
+  matters less since its whole purpose is building momentum through
+  whenever the crack actually starts.
+- Only pull HEAT back once first crack has actually begun, not before —
+  schedule this meaningfully later than the predicted first-crack second
+  (a real buffer, proportional to how far off this bean/goal's prediction
+  could plausibly run — err toward more margin, not less, given the
+  pattern above), since a heat cutback is the move that actually risks
+  starving the crack if it fires too early, unlike the fan move above.
+A plan that eases into a strong, audible crack via fan and trims heat back
+shortly after it's underway is the goal — not one heat move guessing at a
+single timestamp that's already been shown to run late.
 
 If an intended brew method is given, it maps to a specific weight-loss
 target and flavor priority — these are the roaster's own calibrated
