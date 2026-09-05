@@ -47,26 +47,28 @@ module.exports = async function afterPack(context) {
   copyDereferenced(path.join(bundleSrc, "node_modules"), path.join(bundleDest, "node_modules"));
   copyDereferenced(path.join(bundleSrc, ".next", "node_modules"), path.join(bundleDest, ".next", "node_modules"));
 
-  // apps/desktop/.env holds the real OAuth/Turso secrets for this specific
-  // developer's own builds — deliberately never in `files`/`extraResources`
-  // (which would need it to exist for anyone building this app at all,
-  // and `files` globs are resolved before this hook runs, so a plain glob
-  // can't express "copy it if present, skip it otherwise" the way this
-  // plain fs check can). Without this, `dotenv.config()` in main.ts finds
-  // nothing at runtime — it looks relative to process.cwd(), which for a
-  // real packaged/double-clicked app is unpredictable and never
-  // apps/desktop itself the way a `electron .` dev run's cwd is. That
-  // silently left every sync-enabled real sign-in with empty
-  // TURSO_DATABASE_URL/TURSO_AUTH_TOKEN, throwing inside an unhandled
-  // promise rejection that never surfaced anywhere — confirmed live as the
-  // exact cause of the app hanging forever on startup with no window and
-  // no error. A general contributor building without their own .env still
-  // gets a working (local-only, no sign-in) app — this just skips silently.
+  // This app is meant to be handed to other people to run for their own
+  // needs — a general build must never carry *this* developer's real
+  // TURSO_AUTH_TOKEN (full read/write access to the production database
+  // every sign-in would otherwise all share), OAuth client secrets, or
+  // session-signing key. Bundling `.env` is opt-in via DESKTOP_BUNDLE_ENV,
+  // set only by `npm run dist:private` (see package.json) — a build kept
+  // on this developer's own machine, never distributed. The *default*
+  // `npm run dist`/`pack` ships with no `.env` at all: main.ts's own
+  // fallbacks (empty OAuth client id/secret, a placeholder AUTH_SECRET)
+  // already make that a fully working, local-only app rather than a
+  // crash — "Sign in to sync" just fails harmlessly if someone clicks it,
+  // exactly as intended for a copy that isn't this developer's own.
+  if (process.env.DESKTOP_BUNDLE_ENV !== "1") {
+    console.log("[after-pack] DESKTOP_BUNDLE_ENV not set — shipping without .env (safe to hand to anyone)");
+    return;
+  }
+
   const envSrc = path.resolve(__dirname, "..", ".env");
   if (fs.existsSync(envSrc)) {
-    console.log(`[after-pack] copying ${envSrc} -> ${path.join(resourcesDir, ".env")}`);
+    console.log(`[after-pack] DESKTOP_BUNDLE_ENV=1 — copying ${envSrc} -> ${path.join(resourcesDir, ".env")}`);
     fs.copyFileSync(envSrc, path.join(resourcesDir, ".env"));
   } else {
-    console.log("[after-pack] no apps/desktop/.env found — shipping without one (local-only mode still works)");
+    console.log("[after-pack] DESKTOP_BUNDLE_ENV=1 but apps/desktop/.env doesn't exist — nothing to copy");
   }
 };

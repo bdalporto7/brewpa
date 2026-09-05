@@ -15,10 +15,19 @@ import { createSplashWindow } from "./splash";
 import { DOCK_ICON_PNG_BASE64 } from "./icon-assets";
 
 // Real credentials (GitHub/Google OAuth, Turso) live in a gitignored
-// apps/desktop/.env, never committed — bundled into a packaged build by
-// scripts/after-pack.js (see its own comment for why `files`/
-// `extraResources` can't express "copy this file if it happens to
-// exist"). Loaded from an explicit, packaging-aware path rather than bare
+// apps/desktop/.env, never committed and — critically — never bundled
+// into a build meant to be handed to anyone else: this app is built to
+// be given away for other people to run on their own, and shipping this
+// developer's real production DB token/OAuth secrets in every copy would
+// let every install that ever signed in read and write the *same* remote
+// database, not to mention just leaking the credentials outright. Only
+// `npm run dist:private`/`pack:private` (see package.json,
+// scripts/after-pack.js) opt into bundling `.env`, for a build kept on
+// this developer's own machine and never distributed; the normal
+// `dist`/`pack` ship with none, and main.ts's own fallbacks below (empty
+// OAuth id/secret, a placeholder AUTH_SECRET) make that a fully working
+// local-only app rather than a crash — exactly the general-user case.
+// Loaded from an explicit, packaging-aware path rather than bare
 // `dotenv.config()`: that resolves relative to process.cwd(), which is
 // apps/desktop for a `electron .` dev run but unpredictable for a real
 // double-clicked/Dock-launched app — confirmed live that this silently
@@ -504,6 +513,22 @@ app.whenReady().then(async () => {
     const syncEnabled = desktopConfig.syncEnabled;
 
     if (syncEnabled) {
+      // Checked once, up front, for *either* branch below — not just the
+      // first-sync one. Missing here means this specific install's .env
+      // lost its Turso credentials after already syncing once (a
+      // corrupted/edited .env, or a secrets-free build accidentally
+      // pointed at a userData folder from a previous signed-in build —
+      // confirmed live that without this guard, calling syncReplica with
+      // an undefined syncUrl doesn't fail fast the way a missing-syncUrl
+      // *first* sync already does above; it hangs the native libsql call
+      // indefinitely instead, right back to the original silent-hang bug
+      // this whole rewrite was for). Thrown here, before anything native
+      // touches the file at all, so the outer try/catch's dialog is the
+      // only thing that can happen next.
+      if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
+        throw new Error("Sync is on for this install but TURSO_DATABASE_URL/TURSO_AUTH_TOKEN is missing from apps/desktop/.env");
+      }
+
       // A libsql embedded replica's local file has its own metadata file
       // (`<path>-info`) once it's actually been synced at least once — a
       // plain local file (general/unsynced use, or a stale Phase-1-style
@@ -519,10 +544,6 @@ app.whenReady().then(async () => {
       // already have, via a direct one-off libsql client, before this file
       // gets wiped and replaced with an actual replica below.
       if (!fs.existsSync(`${dbPath}-info`)) {
-        if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
-          throw new Error("Sync is on for this install but TURSO_DATABASE_URL/TURSO_AUTH_TOKEN is missing from apps/desktop/.env");
-        }
-
         await migrateLocalDataToRemote(dbPath, process.env.TURSO_DATABASE_URL, process.env.TURSO_AUTH_TOKEN, desktopConfig.syncedEmail);
 
         for (const suffix of ["", "-wal", "-shm", "-client_wal_index"]) {
