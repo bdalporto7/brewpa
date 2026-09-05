@@ -1,0 +1,51 @@
+{
+  "name": "desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cybar Coffee — standalone desktop build (Electron). Wraps apps/roasting's own Next.js server; no hosted DB, no accounts, no setup.",
+  "main": "src/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare-app": "node scripts/prepare-app.js",
+    "pack": "npm run build && npm run prepare-app && electron-builder --dir",
+    "dist": "npm run build && npm run prepare-app && electron-builder"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.cybar.roasting.desktop",
+    "productName": "Cybar Coffee",
+    "directories": {
+      "output": "release",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "src/**/*.js",
+      "!src/**/*.ts"
+    ],
+    "extraResources": [
+      { "from": "app-bundle", "to": "app-bundle" }
+    ],
+    "asar": {
+      "unpack": ["**/*.node"]
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "linux": {
+      "target": ["AppImage"]
+    }
+  }
+}
