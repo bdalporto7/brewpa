@@ -22,14 +22,16 @@ const nextAuth = NextAuth({
     signIn: "/login",
   },
   // Auth.js only auto-trusts recognized hosting platforms (Vercel, etc.)
-  // for constructing callback URLs from the request's Host header — a
-  // fixed loopback origin like the desktop app's localhost:41823 throws
-  // UntrustedHost without this. Gated to the desktop app specifically: the
-  // hosted deployment runs on Vercel (already trusted) and shouldn't have
-  // its trust model loosened for a case that doesn't apply to it. True for
-  // every desktop launch, synced or not — real sign-in has to work even
-  // before sync is turned on (see desktopAuth below).
-  trustHost: process.env.APP_MODE === "desktop",
+  // when this option is left `undefined` — passing an explicit `false`
+  // (which `=== "desktop"` evaluates to everywhere else) overrides and
+  // disables that auto-detection, breaking every sign-in on the hosted
+  // Vercel deployment with UntrustedHost (confirmed live in production).
+  // A fixed loopback origin like the desktop app's localhost:41823 needs
+  // an explicit `true` — Vercel doesn't, so it must get `undefined`, not
+  // `false`, to keep its own auto-trust. True for every desktop launch,
+  // synced or not — real sign-in has to work even before sync is turned
+  // on (see desktopAuth below).
+  trustHost: process.env.APP_MODE === "desktop" ? true : undefined,
   callbacks: {
     signIn: async ({ user }) => {
       const email = user.email?.toLowerCase();
