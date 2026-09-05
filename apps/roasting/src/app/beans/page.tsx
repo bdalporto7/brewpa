@@ -5,6 +5,7 @@ import BeanRoastedSummaryCard from "@/components/beans/BeanRoastedSummaryCard";
 import BeanFilters from "@/components/beans/BeanFilters";
 import Section from "@/components/Section";
 import PageStamp from "@/components/ui/PageStamp";
+import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
 import type { Bean } from "@prisma/client";
 
 /**
@@ -84,6 +85,8 @@ export default async function BeansPage({
 
         {hasFilters && beans.length === 0 ? (
           <p className="text-sm text-muted">No beans match these filters.</p>
+        ) : allBeans.length === 0 ? (
+          <DecoratedEmptyState>No beans yet — add your first one above to get started.</DecoratedEmptyState>
         ) : (
           <>
             <Section

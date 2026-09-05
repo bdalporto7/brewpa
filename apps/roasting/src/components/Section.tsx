@@ -6,6 +6,7 @@ export default function Section({
   description,
   isEmpty,
   emptyText,
+  emptyState,
   children,
   layout = "grid",
   collapsible = false,
@@ -16,6 +17,13 @@ export default function Section({
   description?: string;
   isEmpty: boolean;
   emptyText: string;
+  /** Overrides the plain `emptyText` sentence with something more
+   * decorated (e.g. DecoratedEmptyState) for a section that's effectively
+   * a top-level page's main content, not a nested sub-list a user only
+   * glances at — same distinction DecoratedEmptyState's own doc comment
+   * draws. `emptyText` is still required even when this is set, as the
+   * accessible/plain fallback these decorated components render around. */
+  emptyState?: ReactNode;
   children: ReactNode;
   /** "list" is a flat, single-column stack with hairline dividers between
    * rows (no per-item card border/shadow) — for lists of many short rows
@@ -40,7 +48,7 @@ export default function Section({
   );
 
   const body = isEmpty ? (
-    <p className="text-sm text-muted">{emptyText}</p>
+    emptyState ?? <p className="text-sm text-muted">{emptyText}</p>
   ) : layout === "list" ? (
     <div className="divide-y divide-border border-t border-border">{children}</div>
   ) : (

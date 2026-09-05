@@ -6,6 +6,7 @@ import BeanEconomicsRow from "@/components/beans/BeanEconomicsRow";
 import Section from "@/components/Section";
 import Stat from "@/components/ui/Stat";
 import PageStamp from "@/components/ui/PageStamp";
+import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
 
 /**
  * Real cost/revenue/profit, not estimates — every number here comes
@@ -62,7 +63,13 @@ export default async function BusinessPage() {
         />
       </div>
 
-      <Section title="By bean" isEmpty={perBean.length === 0} emptyText="No roasted batches yet from a bean with a recorded price." layout="list">
+      <Section
+        title="By bean"
+        isEmpty={perBean.length === 0}
+        emptyText="No roasted batches yet from a bean with a recorded price."
+        emptyState={<DecoratedEmptyState>No roasted batches yet from a bean with a recorded price.</DecoratedEmptyState>}
+        layout="list"
+      >
         {perBean.map((r) => (
           <BeanEconomicsRow
             key={r.bean.id}

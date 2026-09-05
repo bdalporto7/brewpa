@@ -95,17 +95,18 @@ export default async function DashboardPage() {
   const roastedTotal = round1(roastedByBean.reduce((sum, r) => sum + r.remainingGrams, 0));
 
   const lowGreenBeans = beansWithRoasts.filter(
-    (b) => b.remainingGrams > 0 && (b.remainingGrams / b.weightGrams) * 100 <= LOW_STOCK_PERCENT
+    (b) => !b.lowStockDismissed && b.remainingGrams > 0 && (b.remainingGrams / b.weightGrams) * 100 <= LOW_STOCK_PERCENT
   );
   const lowRoastedSessions = endedSessions.filter(
     (s) =>
+      !s.bean.lowStockDismissed &&
       s.roastedWeightGrams != null &&
       s.roastedRemainingGrams != null &&
       s.roastedRemainingGrams > 0 &&
       (s.roastedRemainingGrams / s.roastedWeightGrams) * 100 <= LOW_STOCK_PERCENT
   );
   const runningOutSoon = beansWithRoasts
-    .filter((b) => b.remainingGrams > 0)
+    .filter((b) => !b.lowStockDismissed && b.remainingGrams > 0)
     .map((b) => ({ bean: b, daysLeft: estimateDaysUntilEmpty(b.remainingGrams, b.roastSessions) }))
     .filter((r): r is { bean: (typeof beansWithRoasts)[number]; daysLeft: number } => r.daysLeft != null && r.daysLeft <= REORDER_WARNING_DAYS)
     .sort((a, b) => a.daysLeft - b.daysLeft);

@@ -49,6 +49,17 @@ model Bean {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // Dashboard's LowStockBanner — a one-time "yes, I know" dismissal, not a
+  // permanent per-bean setting: cleared automatically once this bean is
+  // restocked (updateBean, when weightGrams goes up), since a fresh
+  // purchase is the one unambiguous signal that whatever the roaster
+  // already knew about the old low-stock situation no longer applies.
+  // Deliberately one flag covering green stock, roasted stock, and the
+  // burn-rate projection alike — the banner doesn't ask which reason
+  // someone's dismissing, so a bean shouldn't need three separate flags
+  // for three sub-warnings it treats as one "running low" notice.
+  lowStockDismissed Boolean @default(false)
+
   // The one roast of this bean to target/compare future roasts against —
   // set explicitly (not just "most recent"), null until the roaster marks
   // one. A distinct relation from roastSessions below since a bean can

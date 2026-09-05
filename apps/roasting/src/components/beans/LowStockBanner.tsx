@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import type { Bean, RoastSession } from "@prisma/client";
+import { dismissLowStock } from "@/lib/actions";
 
 /** Same 15% threshold as BeanStockBar/BeanRoastedSummaryCard's own "isLow" styling — one definition of "running low" everywhere it shows up. */
 export default function LowStockBanner({
@@ -26,32 +27,48 @@ export default function LowStockBanner({
         Running low:
       </span>
       {lowGreenBeans.map((b) => (
-        <Link
-          key={b.id}
-          href={`/beans/${b.id}`}
-          className="rounded-full border border-warning/40 px-2.5 py-0.5 text-xs text-warning transition hover:bg-warning/15"
-        >
+        <Pill key={b.id} beanId={b.id} href={`/beans/${b.id}`}>
           {b.name} · green ({Math.round(b.remainingGrams * 10) / 10}g)
-        </Link>
+        </Pill>
       ))}
       {lowRoastedSessions.map((s) => (
-        <Link
-          key={s.id}
-          href={`/roasts/${s.id}`}
-          className="rounded-full border border-warning/40 px-2.5 py-0.5 text-xs text-warning transition hover:bg-warning/15"
-        >
+        <Pill key={s.id} beanId={s.bean.id} href={`/roasts/${s.id}`}>
           {s.bean.name} · roasted ({Math.round((s.roastedRemainingGrams ?? 0) * 10) / 10}g)
-        </Link>
+        </Pill>
       ))}
       {runningOutSoon.map(({ bean, daysLeft }) => (
-        <Link
-          key={`pace-${bean.id}`}
-          href={`/beans/${bean.id}`}
-          className="rounded-full border border-warning/40 px-2.5 py-0.5 text-xs text-warning transition hover:bg-warning/15"
-        >
+        <Pill key={`pace-${bean.id}`} beanId={bean.id} href={`/beans/${bean.id}`}>
           {bean.name} · ~{Math.round(daysLeft)}d left at current pace
-        </Link>
+        </Pill>
       ))}
     </div>
+  );
+}
+
+/**
+ * The × dismisses this bean's warning for good — Bean.lowStockDismissed,
+ * cleared automatically the next time this bean is restocked
+ * (adjustBeanStock's "add" case) rather than needing any manual undo. A
+ * plain `<form action={...}>` rather than a client component: the whole
+ * banner stays a server component this way, same pattern as NavClient's
+ * logout form.
+ */
+function Pill({ beanId, href, children }: { beanId: string; href: string; children: React.ReactNode }) {
+  return (
+    <span className="flex items-center overflow-hidden rounded-full border border-warning/40 text-xs text-warning">
+      <Link href={href} className="px-2.5 py-0.5 transition hover:bg-warning/15">
+        {children}
+      </Link>
+      <form action={dismissLowStock.bind(null, beanId)}>
+        <button
+          type="submit"
+          aria-label="Dismiss this warning"
+          title="Dismiss — reappears if this bean is restocked and runs low again"
+          className="flex h-full items-center border-l border-warning/40 px-1.5 py-0.5 transition hover:bg-warning/25"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </form>
+    </span>
   );
 }

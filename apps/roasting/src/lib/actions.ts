@@ -96,6 +96,12 @@ export async function updateBean(id: string, formData: FormData) {
   revalidatePath("/");
 }
 
+/** LowStockBanner's per-bean "×" — see the Bean.lowStockDismissed schema comment for why this is one flag, not one per warning reason. */
+export async function dismissLowStock(beanId: string) {
+  await prisma.bean.update({ where: { id: beanId }, data: { lowStockDismissed: true } });
+  revalidatePath("/");
+}
+
 export async function adjustBeanStock(beanId: string, direction: "add" | "remove", amount: number) {
   if (amount <= 0) throw new Error("Amount must be positive.");
 
@@ -118,6 +124,11 @@ export async function adjustBeanStock(beanId: string, direction: "add" | "remove
       data: {
         remainingGrams: Math.round(nextRemaining * 10) / 10,
         weightGrams: Math.round((bean.weightGrams + delta) * 10) / 10,
+        // A genuine restock is the one unambiguous signal that an earlier
+        // "yes, I know it's low" dismissal (LowStockBanner) no longer
+        // applies — only on "add" though, not "remove" (spoilage/loss
+        // isn't the roaster acknowledging anything new).
+        ...(direction === "add" ? { lowStockDismissed: false } : {}),
       },
     });
   });
