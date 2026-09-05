@@ -14,6 +14,7 @@
  * Windows/Linux yet, so the app path shape below isn't handled for those.
  */
 const path = require("node:path");
+const fs = require("node:fs");
 const { execFileSync } = require("node:child_process");
 
 // `cp -RL`, not fs.cpSync — both directories below are full of symlinks
@@ -45,4 +46,27 @@ module.exports = async function afterPack(context) {
 
   copyDereferenced(path.join(bundleSrc, "node_modules"), path.join(bundleDest, "node_modules"));
   copyDereferenced(path.join(bundleSrc, ".next", "node_modules"), path.join(bundleDest, ".next", "node_modules"));
+
+  // apps/desktop/.env holds the real OAuth/Turso secrets for this specific
+  // developer's own builds — deliberately never in `files`/`extraResources`
+  // (which would need it to exist for anyone building this app at all,
+  // and `files` globs are resolved before this hook runs, so a plain glob
+  // can't express "copy it if present, skip it otherwise" the way this
+  // plain fs check can). Without this, `dotenv.config()` in main.ts finds
+  // nothing at runtime — it looks relative to process.cwd(), which for a
+  // real packaged/double-clicked app is unpredictable and never
+  // apps/desktop itself the way a `electron .` dev run's cwd is. That
+  // silently left every sync-enabled real sign-in with empty
+  // TURSO_DATABASE_URL/TURSO_AUTH_TOKEN, throwing inside an unhandled
+  // promise rejection that never surfaced anywhere — confirmed live as the
+  // exact cause of the app hanging forever on startup with no window and
+  // no error. A general contributor building without their own .env still
+  // gets a working (local-only, no sign-in) app — this just skips silently.
+  const envSrc = path.resolve(__dirname, "..", ".env");
+  if (fs.existsSync(envSrc)) {
+    console.log(`[after-pack] copying ${envSrc} -> ${path.join(resourcesDir, ".env")}`);
+    fs.copyFileSync(envSrc, path.join(resourcesDir, ".env"));
+  } else {
+    console.log("[after-pack] no apps/desktop/.env found — shipping without one (local-only mode still works)");
+  }
 };

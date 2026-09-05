@@ -15,8 +15,20 @@ import { createSplashWindow } from "./splash";
 import { DOCK_ICON_PNG_BASE64 } from "./icon-assets";
 
 // Real credentials (GitHub/Google OAuth, Turso) live in a gitignored
-// apps/desktop/.env, never committed.
-dotenv.config();
+// apps/desktop/.env, never committed — bundled into a packaged build by
+// scripts/after-pack.js (see its own comment for why `files`/
+// `extraResources` can't express "copy this file if it happens to
+// exist"). Loaded from an explicit, packaging-aware path rather than bare
+// `dotenv.config()`: that resolves relative to process.cwd(), which is
+// apps/desktop for a `electron .` dev run but unpredictable for a real
+// double-clicked/Dock-launched app — confirmed live that this silently
+// found nothing in that case, leaving every sync-enabled real sign-in
+// with empty Turso credentials and the whole startup sequence below
+// throwing inside an unhandled rejection that never surfaced anywhere:
+// the app just sat there forever with a splash window and no error.
+dotenv.config({
+  path: app.isPackaged ? path.join(process.resourcesPath, ".env") : path.resolve(__dirname, "..", ".env"),
+});
 
 // Standard Electron convention this app had no reason to skip: without
 // it, launching the app a second time (double-clicking it again, or a
@@ -142,6 +154,43 @@ function resolveAppBundleDir(): string {
 
 function resolveUserDataDbPath(): string {
   return path.join(app.getPath("userData"), "app.db");
+}
+
+/**
+ * A local embedded-replica file can end up in a state a fresh
+ * databaseOpenWithSync() call refuses to resync — seen live as
+ * `SyncNotSupported("File")` even though the file's own `-info` sidecar
+ * proves this exact file synced successfully before (most plausibly left
+ * behind by an unclean shutdown: `serverProcess.kill()` in `before-quit`
+ * doesn't give libsql's Rust runtime the chance to flush/close the WAL
+ * the way `client.close()` below always does on the clean path). The
+ * replica is a disposable cache of the remote source of truth, never the
+ * other way around, so recovering from that by wiping it and pulling a
+ * completely fresh copy is always correct — it costs a one-time
+ * re-download, never any real risk of data loss the way retrying a write
+ * would. Without this, that native error was an unhandled rejection
+ * nothing ever caught, which is what made the app hang forever with a
+ * splash window and no visible failure.
+ */
+async function syncReplica(dbPath: string, syncUrl: string, authToken: string): Promise<void> {
+  async function attempt(): Promise<void> {
+    const client = createClient({ url: `file:${dbPath}`, syncUrl, authToken });
+    try {
+      await client.sync();
+    } finally {
+      client.close();
+    }
+  }
+
+  try {
+    await attempt();
+  } catch (err) {
+    console.error("[sync] initial sync failed, wiping local replica and retrying fresh:", err);
+    for (const suffix of ["", "-wal", "-shm", "-client_wal_index", "-info"]) {
+      fs.rmSync(`${dbPath}${suffix}`, { force: true });
+    }
+    await attempt();
+  }
 }
 
 let serverProcess: ChildProcess | null = null;
@@ -435,131 +484,132 @@ app.whenReady().then(async () => {
   // real window's loadURL below actually resolves.
   const splashWindow = createSplashWindow();
 
-  const appBundleDir = resolveAppBundleDir();
-  const dbPath = resolveUserDataDbPath();
-  // Just ensures the containing directory exists — runMigrations/the
-  // initial sync (below) does the real "is this fresh" check itself.
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-
-  const desktopConfig = readDesktopConfig();
-  const syncEnabled = desktopConfig.syncEnabled;
-
-  if (syncEnabled) {
-    // A libsql embedded replica's local file has its own metadata file
-    // (`<path>-info`) once it's actually been synced at least once — a
-    // plain local file (general/unsynced use, or a stale Phase-1-style
-    // file) doesn't have one. Its absence here means this is the first
-    // launch since src/auth.ts's signIn callback just flipped syncEnabled
-    // on. A libsql replica can only mirror the remote, not merge in rows
-    // that were created independently on both sides, so this local file
-    // still can't simply become the replica in place — but unlike the
-    // original version of this transition, nothing here is thrown away
-    // silently anymore: migrateLocalDataToRemote walks every local-only
-    // row (in dependency order — Bean before RoastSession before
-    // TemperatureReading, etc.) and pushes anything the remote doesn't
-    // already have, via a direct one-off libsql client, before this file
-    // gets wiped and replaced with an actual replica below.
-    if (!fs.existsSync(`${dbPath}-info`)) {
-      if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
-        throw new Error("Sync is on for this install but TURSO_DATABASE_URL/TURSO_AUTH_TOKEN is missing from apps/desktop/.env");
-      }
-
-      await migrateLocalDataToRemote(dbPath, process.env.TURSO_DATABASE_URL, process.env.TURSO_AUTH_TOKEN, desktopConfig.syncedEmail);
-
-      for (const suffix of ["", "-wal", "-shm", "-client_wal_index"]) {
-        fs.rmSync(`${dbPath}${suffix}`, { force: true });
-      }
-    }
-
-    // One explicit, awaited sync here, before the server (and its own
-    // Prisma connection) ever opens this file — not relying solely on
-    // "opening a client with syncUrl auto-syncs on first connect" the way
-    // an earlier version of this did. Confirmed live that racing a query
-    // against that automatic initial sync (the main window loading and
-    // immediately hitting the DB while the connection Prisma just opened
-    // was still mid-sync) corrupts the local WAL state ("wal_insert_begin
-    // failed") — libsql's own docs warn that querying a replica while it's
-    // syncing isn't safe. Doing one full sync here, sequentially, with
-    // nothing else touching the file yet, then closing this client before
-    // the server process even starts, avoids that race entirely; this is
-    // a different situation from the two-*process* conflict below (this
-    // client is closed and gone before the server process opens the file
-    // at all, never concurrent with it).
-    const preSync = createClient({
-      url: `file:${dbPath}`,
-      syncUrl: process.env.TURSO_DATABASE_URL!,
-      authToken: process.env.TURSO_AUTH_TOKEN!,
-    });
-    try {
-      await preSync.sync();
-    } finally {
-      preSync.close();
-    }
-
-    // No separate pre-sync client alongside the running server — a libsql
-    // embedded replica can't have two different *processes* holding the
-    // same local file open at once (confirmed live: doing this threw "Can
-    // not sync a database without a wal_index" the moment the spawned Next
-    // server's own Prisma connection tried to open the same file a second
-    // client had already touched). Ongoing sync — the periodic background
-    // sync and the manual "sync now" trigger — happens entirely inside the
-    // server process from here on: apps/roasting/src/lib/prisma.ts
-    // (syncInterval) and src/lib/sync-actions.ts (on-demand), respectively.
-  } else {
-    // Migrations run before the server starts, directly against the libsql
-    // file — not through the Next server, and not through the Prisma CLI
-    // (see the plan's decision 5 for why: no schema-engine binary needed).
-    // Only meaningful for the local/unsynced case — the synced case's
-    // local file is a replica of an already-migrated database.
-    await runMigrations(dbPath, appBundleDir);
-  }
-
-  serverProcess = startNextServer(appBundleDir, dbPath, syncEnabled);
-
+  // Everything in this block used to be able to throw or reject with
+  // nothing catching it — an unhandled rejection inside this async
+  // callback, which Electron doesn't crash the process for by default.
+  // The visible symptom was the app just sitting there forever: splash
+  // window up, no error, no window, no way to tell what was wrong short
+  // of relaunching from a terminal to see stdout. Wrapping the whole
+  // sequence means any failure here — a bad .env, a sync that can't
+  // recover even after syncReplica's retry, the server never coming up —
+  // now shows a real dialog and quits instead of hanging invisibly.
   try {
-    await waitForServer(`http://${HOST}:${PORT}`, 30_000);
-  } catch (err) {
-    console.error("Next server never came up:", err);
-    splashWindow.destroy();
-    app.quit();
-    return;
-  }
+    const appBundleDir = resolveAppBundleDir();
+    const dbPath = resolveUserDataDbPath();
+    // Just ensures the containing directory exists — runMigrations/the
+    // initial sync (below) does the real "is this fresh" check itself.
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-  // Auto-starts and quietly retries if the meter isn't plugged in — no
-  // separate manual script/step anymore. Started after the server is
-  // confirmed up so its very first readings have somewhere to land
-  // instead of failing against a not-yet-ready port.
-  probeBridge = startProbeBridge({
-    path: PROBE_SERIAL_PATH,
-    apiBase: `http://${HOST}:${PORT}`,
-    token: PROBE_TOKEN,
-  });
+    const desktopConfig = readDesktopConfig();
+    const syncEnabled = desktopConfig.syncEnabled;
 
-  const apiBase = `http://${HOST}:${PORT}`;
-  statusPoller = startStatusPoller(apiBase);
-  tray = createTray(() => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+    if (syncEnabled) {
+      // A libsql embedded replica's local file has its own metadata file
+      // (`<path>-info`) once it's actually been synced at least once — a
+      // plain local file (general/unsynced use, or a stale Phase-1-style
+      // file) doesn't have one. Its absence here means this is the first
+      // launch since src/auth.ts's signIn callback just flipped syncEnabled
+      // on. A libsql replica can only mirror the remote, not merge in rows
+      // that were created independently on both sides, so this local file
+      // still can't simply become the replica in place — but unlike the
+      // original version of this transition, nothing here is thrown away
+      // silently anymore: migrateLocalDataToRemote walks every local-only
+      // row (in dependency order — Bean before RoastSession before
+      // TemperatureReading, etc.) and pushes anything the remote doesn't
+      // already have, via a direct one-off libsql client, before this file
+      // gets wiped and replaced with an actual replica below.
+      if (!fs.existsSync(`${dbPath}-info`)) {
+        if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
+          throw new Error("Sync is on for this install but TURSO_DATABASE_URL/TURSO_AUTH_TOKEN is missing from apps/desktop/.env");
+        }
+
+        await migrateLocalDataToRemote(dbPath, process.env.TURSO_DATABASE_URL, process.env.TURSO_AUTH_TOKEN, desktopConfig.syncedEmail);
+
+        for (const suffix of ["", "-wal", "-shm", "-client_wal_index"]) {
+          fs.rmSync(`${dbPath}${suffix}`, { force: true });
+        }
+      }
+
+      // One explicit, awaited sync here, before the server (and its own
+      // Prisma connection) ever opens this file — not relying solely on
+      // "opening a client with syncUrl auto-syncs on first connect" the way
+      // an earlier version of this did. Confirmed live that racing a query
+      // against that automatic initial sync (the main window loading and
+      // immediately hitting the DB while the connection Prisma just opened
+      // was still mid-sync) corrupts the local WAL state ("wal_insert_begin
+      // failed") — libsql's own docs warn that querying a replica while it's
+      // syncing isn't safe. Doing one full sync here, sequentially, with
+      // nothing else touching the file yet, then closing this client before
+      // the server process even starts, avoids that race entirely; this is
+      // a different situation from the two-*process* conflict below (this
+      // client is closed and gone before the server process opens the file
+      // at all, never concurrent with it). syncReplica self-heals a stale
+      // local replica (see its own comment) rather than just throwing.
+      await syncReplica(dbPath, process.env.TURSO_DATABASE_URL!, process.env.TURSO_AUTH_TOKEN!);
+
+      // No separate pre-sync client alongside the running server — a libsql
+      // embedded replica can't have two different *processes* holding the
+      // same local file open at once (confirmed live: doing this threw "Can
+      // not sync a database without a wal_index" the moment the spawned Next
+      // server's own Prisma connection tried to open the same file a second
+      // client had already touched). Ongoing sync — the periodic background
+      // sync and the manual "sync now" trigger — happens entirely inside the
+      // server process from here on: apps/roasting/src/lib/prisma.ts
+      // (syncInterval) and src/lib/sync-actions.ts (on-demand), respectively.
     } else {
-      createMainWindow();
+      // Migrations run before the server starts, directly against the libsql
+      // file — not through the Next server, and not through the Prisma CLI
+      // (see the plan's decision 5 for why: no schema-engine binary needed).
+      // Only meaningful for the local/unsynced case — the synced case's
+      // local file is a replica of an already-migrated database.
+      await runMigrations(dbPath, appBundleDir);
     }
-  });
 
-  // Right-click quick actions on the dock icon — the same "jump straight
-  // to a page" convenience as the Go menu's Cmd+1-5, surfaced somewhere a
-  // browser tab has no equivalent of at all (a website can't add items to
-  // its own dock-icon right-click menu).
-  if (process.platform === "darwin") {
-    app.dock?.setMenu(
-      Menu.buildFromTemplate([
-        { label: "Start a Roast", click: () => navigateTo("/roasts") },
-        { label: "View Beans", click: () => navigateTo("/beans") },
-        { label: "View Roasts", click: () => navigateTo("/roasts") },
-      ]),
-    );
+    serverProcess = startNextServer(appBundleDir, dbPath, syncEnabled);
+    await waitForServer(`http://${HOST}:${PORT}`, 30_000);
+
+    // Auto-starts and quietly retries if the meter isn't plugged in — no
+    // separate manual script/step anymore. Started after the server is
+    // confirmed up so its very first readings have somewhere to land
+    // instead of failing against a not-yet-ready port.
+    probeBridge = startProbeBridge({
+      path: PROBE_SERIAL_PATH,
+      apiBase: `http://${HOST}:${PORT}`,
+      token: PROBE_TOKEN,
+    });
+
+    const apiBase = `http://${HOST}:${PORT}`;
+    statusPoller = startStatusPoller(apiBase);
+    tray = createTray(() => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      } else {
+        createMainWindow();
+      }
+    });
+
+    // Right-click quick actions on the dock icon — the same "jump straight
+    // to a page" convenience as the Go menu's Cmd+1-5, surfaced somewhere a
+    // browser tab has no equivalent of at all (a website can't add items to
+    // its own dock-icon right-click menu).
+    if (process.platform === "darwin") {
+      app.dock?.setMenu(
+        Menu.buildFromTemplate([
+          { label: "Start a Roast", click: () => navigateTo("/roasts") },
+          { label: "View Beans", click: () => navigateTo("/beans") },
+          { label: "View Roasts", click: () => navigateTo("/roasts") },
+        ]),
+      );
+    }
+
+    await createMainWindow();
+    splashWindow.destroy();
+  } catch (err) {
+    console.error("Cybar Coffee failed to start:", err);
+    splashWindow.destroy();
+    dialog.showErrorBox("Cybar Coffee couldn't start", err instanceof Error ? err.message : String(err));
+    serverProcess?.kill();
+    app.quit();
   }
-
-  await createMainWindow();
-  splashWindow.destroy();
 });
