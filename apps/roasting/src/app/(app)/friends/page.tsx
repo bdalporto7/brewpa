@@ -25,8 +25,8 @@ export default async function FriendsPage() {
         <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Drops</h1>
         <p className="text-sm text-muted">
-          Open a curated pre-order menu and share the link — visitors pick beans and a roast
-          style, no account needed — plus everyone who&apos;s ever gotten a drop.
+          Open a curated pre-order menu and share the code — visitors enter it at /drop, then
+          pick beans and a roast style, no account needed — plus everyone who&apos;s ever gotten a drop.
         </p>
       </div>
 

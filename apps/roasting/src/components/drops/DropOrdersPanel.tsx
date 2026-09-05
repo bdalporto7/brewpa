@@ -29,7 +29,7 @@ export default function DropOrdersPanel({
       <Eyebrow className="mb-3">Orders</Eyebrow>
 
       {orders.length === 0 ? (
-        <p className="text-sm text-muted">No orders yet — share the link above.</p>
+        <p className="text-sm text-muted">No orders yet — share the code above.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {orders.map((order) => (

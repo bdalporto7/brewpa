@@ -31,16 +31,20 @@
  * server binds to loopback only), so unlike api/probe it doesn't need a
  * bearer token either — see that route's own comment.
  *
- * `drop` is excluded because src/app/drop/[token]/page.tsx is the public
- * pre-order page — a real unauthenticated visitor, not signed in at all,
- * gated instead by a long random per-drop token baked into the URL itself
- * (see src/lib/drop-actions.ts's generateAccessToken). Unlike api/probe
- * and api/desktop above, this is a full *page* an outside person is meant
- * to load directly and submit a form from, not an API route with its own
- * bearer-token/localhost-only story — so this is the one route where the
- * token really is the entire access-control mechanism, and
- * submitDropOrder re-checks it server-side rather than trusting that the
- * page merely rendered.
+ * `drop` is excluded because src/app/drop/page.tsx is the public pre-order
+ * page — a real unauthenticated visitor, not signed in at all, gated
+ * instead by a short code typed by hand (see src/lib/drop-actions.ts's
+ * redeemDropCode/generateDropCode) that sets its own signed cookie rather
+ * than relying on a session. Unlike api/probe and api/desktop above, this
+ * is a full *page* an outside person is meant to load directly and submit
+ * a form from, not an API route with its own bearer-token/localhost-only
+ * story — so submitDropOrder re-checks the unlock cookie server-side
+ * rather than trusting that the page merely rendered. Written as
+ * `drop(?![a-zA-Z])` rather than a bare `drop` — the bare form is a
+ * prefix match, which also silently exempted `/drops` (the *admin*
+ * management page, very much meant to stay session-gated) from the auth
+ * check entirely; confirmed live that a bare `drop` let a signed-out
+ * request through to /drops without a redirect.
  *
  * Anything with a file extension (the trailing `.*\..*` alternative) is
  * excluded too — public/'s brand assets (cybar-mark.png, cybar-stamp.png,
@@ -55,5 +59,5 @@
 export { auth as proxy } from "@/auth";
 
 export const config = {
-  matcher: ["/((?!api/auth|api/probe|api/desktop|drop|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|api/probe|api/desktop|drop(?![a-zA-Z])|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

@@ -16,15 +16,7 @@ const fieldClass =
  * here: that component ties `id` to `name` 1:1, which breaks (duplicate
  * ids) once the same field name repeats across rows.
  */
-export default function DropOrderForm({
-  dropId,
-  accessToken,
-  beans,
-}: {
-  dropId: string;
-  accessToken: string;
-  beans: { id: string; name: string }[];
-}) {
+export default function DropOrderForm({ beans }: { beans: { id: string; name: string }[] }) {
   const [rowKeys, setRowKeys] = useState([0]);
   const [nextKey, setNextKey] = useState(1);
 
@@ -37,7 +29,7 @@ export default function DropOrderForm({
   }
 
   return (
-    <form action={submitDropOrder.bind(null, dropId, accessToken)} className="flex flex-col gap-4">
+    <form action={submitDropOrder} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted" htmlFor="name">
           Your name

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import DropHeaderControls from "@/components/drops/DropHeaderControls";
-import CopyDropLink from "@/components/drops/CopyDropLink";
+import DropCodeDisplay from "@/components/drops/DropCodeDisplay";
 import DropOrdersPanel from "@/components/drops/DropOrdersPanel";
 import Stat from "@/components/ui/Stat";
 
@@ -52,7 +52,7 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
         <DropHeaderControls dropId={drop.id} isClosed={!!drop.closedAt} />
       </div>
 
-      <CopyDropLink accessToken={drop.accessToken} />
+      <DropCodeDisplay code={drop.code} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Orders" value={String(drop.orders.length)} />

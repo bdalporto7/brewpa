@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { closeDrop, reopenDrop, deleteDrop, regenerateDropLink } from "@/lib/drop-actions";
+import { closeDrop, reopenDrop, deleteDrop, regenerateDropCode } from "@/lib/drop-actions";
 import DeleteButton from "@/components/DeleteButton";
 
 export default function DropHeaderControls({ dropId, isClosed }: { dropId: string; isClosed: boolean }) {
@@ -20,11 +20,11 @@ export default function DropHeaderControls({ dropId, isClosed }: { dropId: strin
   }
 
   function regenerate() {
-    if (!window.confirm("Regenerate the link? The old one will stop working immediately.")) return;
+    if (!window.confirm("Regenerate the code? The old one will stop working immediately.")) return;
     setError(null);
     startTransition(async () => {
       try {
-        await regenerateDropLink(dropId);
+        await regenerateDropCode(dropId);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong.");
       }
@@ -39,7 +39,7 @@ export default function DropHeaderControls({ dropId, isClosed }: { dropId: strin
         onClick={regenerate}
         className="text-xs font-medium text-muted transition hover:text-foreground disabled:opacity-50"
       >
-        Regenerate link
+        Regenerate code
       </button>
       <button
         type="button"
@@ -51,7 +51,7 @@ export default function DropHeaderControls({ dropId, isClosed }: { dropId: strin
       </button>
       <DeleteButton
         action={deleteDrop.bind(null, dropId)}
-        confirmText="Delete this drop? Its link stops working and every order on it is removed."
+        confirmText="Delete this drop? Its code stops working and every order on it is removed."
         label="Delete"
       />
       {error && <p className="text-xs text-danger">{error}</p>}

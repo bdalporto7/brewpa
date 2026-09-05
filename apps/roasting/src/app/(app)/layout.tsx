@@ -3,7 +3,7 @@ import { Bricolage_Grotesque, Geist_Mono, Permanent_Marker } from "next/font/goo
 import Nav from "@/components/Nav";
 import ToastProvider from "@/components/ui/ToastProvider";
 import SketchyFilterDefs from "@/components/ui/SketchyFilterDefs";
-import "./globals.css";
+import "../globals.css";
 
 const geistSans = Bricolage_Grotesque({
   variable: "--font-geist-sans",

@@ -1,10 +1,12 @@
 "use server";
 
 import crypto from "node:crypto";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DROP_ORDER_ROAST_STYLES } from "@/lib/constants";
+import { getUnlockedDrop, setDropUnlockCookie } from "@/lib/drop-session";
 
 function str(formData: FormData, key: string): string | null {
   const raw = formData.get(key);
@@ -20,16 +22,32 @@ function num(formData: FormData, key: string): number | null {
   return Number.isNaN(value) ? null : value;
 }
 
-/**
- * 24 random bytes, base64url-encoded — 32 URL-safe characters, ~144 bits
- * of entropy. This is the *entire* access-control mechanism for the
- * public drop page (src/app/drop/[token]/page.tsx): knowing it is
- * indistinguishable from being allowed in, so it has to be long enough
- * that guessing or brute-forcing it isn't practically feasible — a short,
- * human-typeable code wouldn't be.
- */
-function generateAccessToken(): string {
-  return crypto.randomBytes(24).toString("base64url");
+// Excludes 0/O/1/I/L — a human is typing this off a screen or hearing it
+// read aloud, so visually/verbally ambiguous characters cost real support
+// requests for no security benefit. 8 chars from this 32-symbol alphabet
+// is ~40 bits of entropy — not brute-forceable by hand, but a script
+// could grind through it quickly if given the chance, which is exactly
+// what redeemDropCode's rate limit (below) exists to prevent; unlike the
+// old URL-token design, entropy alone isn't this code's whole security
+// story.
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function generateDropCode(): string {
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+const RATE_LIMIT_MAX_ATTEMPTS = 8;
+const RATE_LIMIT_WINDOW_MINUTES = 15;
+
+async function getClientIp(): Promise<string> {
+  const h = await headers();
+  const forwardedFor = h.get("x-forwarded-for");
+  if (forwardedFor) return forwardedFor.split(",")[0].trim();
+  return "unknown";
 }
 
 // ===== Admin actions (reachable only from session-gated pages, same as every other action in this app) =====
@@ -46,7 +64,7 @@ export async function createDrop(formData: FormData) {
     data: {
       name,
       notes,
-      accessToken: generateAccessToken(),
+      code: generateDropCode(),
       beans: { connect: beanIds.map((id) => ({ id })) },
     },
   });
@@ -74,9 +92,14 @@ export async function reopenDrop(dropId: string) {
   revalidatePath(`/drops/${dropId}`);
 }
 
-/** Invalidates any previously shared link for this drop (a fresh token) — for when one leaked or was shared somewhere it shouldn't have been. */
-export async function regenerateDropLink(dropId: string) {
-  await prisma.drop.update({ where: { id: dropId }, data: { accessToken: generateAccessToken() } });
+/**
+ * Invalidates the previous code — and every browser's unlock cookie for
+ * it, since those are signed against the drop's code at the time it was
+ * entered (see drop-session.ts) — for when a code leaked or was shared
+ * somewhere it shouldn't have been.
+ */
+export async function regenerateDropCode(dropId: string) {
+  await prisma.drop.update({ where: { id: dropId }, data: { code: generateDropCode() } });
   revalidatePath(`/drops/${dropId}`);
 }
 
@@ -169,9 +192,45 @@ export async function unfulfillDropOrderItem(dropId: string, itemId: string) {
   revalidatePath("/roasts");
 }
 
-// ===== Public action — reachable from src/app/drop/[token]/page.tsx, which proxy.ts excludes from the session gate. accessToken is re-checked here, not just trusted because the page rendered. =====
+// ===== Public actions — reachable from src/app/drop/page.tsx, which proxy.ts excludes from the session gate. Neither action trusts anything the client sends about *which* drop this is: redeemDropCode looks a drop up by the code itself, and submitDropOrder re-derives the drop from the signed unlock cookie rather than taking a dropId/code from form fields a crafted request could forge. =====
 
-export async function submitDropOrder(dropId: string, accessToken: string, formData: FormData) {
+/**
+ * Every submission — right or wrong — counts against the rate limit
+ * before the code is even looked up, so a script can't dodge the counter
+ * by aborting requests that would fail some later check. The fixed delay
+ * after that is a cheap second layer: rate limiting alone still lets a
+ * burst of concurrent requests land before the count catches up, and the
+ * delay flattens the throughput of any scripted attempt regardless.
+ */
+export async function redeemDropCode(formData: FormData) {
+  const ip = await getClientIp();
+  await prisma.dropCodeAttempt.create({ data: { ip } });
+
+  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
+  const recentAttempts = await prisma.dropCodeAttempt.count({ where: { ip, attemptedAt: { gt: since } } });
+  if (recentAttempts > RATE_LIMIT_MAX_ATTEMPTS) {
+    throw new Error("Too many attempts — try again in a few minutes.");
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  const rawCode = str(formData, "code");
+  if (!rawCode) throw new Error("Enter a code.");
+  const code = rawCode.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+
+  const drop = await prisma.drop.findUnique({ where: { code } });
+  if (!drop || drop.closedAt) {
+    throw new Error("That code isn't valid.");
+  }
+
+  await setDropUnlockCookie(drop.id, drop.code);
+  revalidatePath("/drop");
+}
+
+export async function submitDropOrder(formData: FormData) {
+  const drop = await getUnlockedDrop();
+  if (!drop) throw new Error("Enter this drop's code first.");
+
   const name = str(formData, "name");
   const beanIds = formData.getAll("beanId").map(String);
   const roastStyles = formData.getAll("roastStyle").map(String);
@@ -186,15 +245,15 @@ export async function submitDropOrder(dropId: string, accessToken: string, formD
   }
 
   await prisma.$transaction(async (tx) => {
-    const drop = await tx.drop.findUniqueOrThrow({ where: { id: dropId }, include: { beans: true } });
-    if (drop.accessToken !== accessToken) {
-      throw new Error("Invalid or expired link.");
-    }
-    if (drop.closedAt) {
+    // Re-fetched inside the transaction (not just trusting the
+    // getUnlockedDrop() read above) so a drop closed or a bean removed in
+    // the instant between that read and this write still gets caught.
+    const current = await tx.drop.findUniqueOrThrow({ where: { id: drop.id }, include: { beans: true } });
+    if (current.closedAt) {
       throw new Error("This drop is closed.");
     }
 
-    const allowedBeanIds = new Set(drop.beans.map((b) => b.id));
+    const allowedBeanIds = new Set(current.beans.map((b) => b.id));
     for (const beanId of beanIds) {
       if (!allowedBeanIds.has(beanId)) throw new Error("That bean isn't part of this drop.");
     }
@@ -206,7 +265,7 @@ export async function submitDropOrder(dropId: string, accessToken: string, formD
 
     await tx.dropOrder.create({
       data: {
-        dropId,
+        dropId: drop.id,
         friendId: friend.id,
         name,
         items: {
@@ -216,5 +275,5 @@ export async function submitDropOrder(dropId: string, accessToken: string, formD
     });
   });
 
-  redirect(`/drop/${accessToken}?submitted=1`);
+  redirect("/drop?submitted=1");
 }

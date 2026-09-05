@@ -292,26 +292,45 @@ model Friend {
 
 // A curated pre-order menu — "here are N beans, pick what you want roasted
 // as, and I'll fulfill it when I roast next." Public, unauthenticated
-// visitors reach one via /drop/[accessToken] (src/app/drop/[token]/page.tsx)
-// — accessToken is the entire access-control mechanism (a long random
-// secret, not a short human-typed code — see createDrop in
-// src/lib/drop-actions.ts), so the link itself is what you share. Doesn't
-// reserve anything out of a bean's green stock at creation time (unlike the
-// old gram-reservation design this replaced) — beans here are just a menu;
+// visitors all reach the same static /drop page (src/app/drop/page.tsx)
+// and type in `code` by hand — a short spoken/texted code, not a link, so
+// this page has to defend against being guessed by brute force itself
+// (see DropCodeAttempt below) rather than relying on length/entropy alone
+// the way a URL-embedded token could. A correct code sets a signed,
+// httpOnly cookie (src/lib/drop-actions.ts's redeemDropCode) rather than
+// exposing the drop's id anywhere client-visible. Doesn't reserve anything
+// out of a bean's green stock at creation time (unlike the old
+// gram-reservation design this replaced) — beans here are just a menu;
 // stock only ever moves via actual roasting, and fulfilling an order item
 // (below) draws down *roasted* stock the same way selling any other roast
 // output already does.
 model Drop {
-  id          String    @id @default(cuid())
-  name        String
-  accessToken String    @unique
-  notes       String?
-  closedAt    DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  name      String
+  code      String    @unique
+  notes     String?
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   beans  Bean[]
   orders DropOrder[]
+}
+
+// A record of one code-entry attempt on the public /drop page, keyed by
+// the requester's IP — exists purely so redeemDropCode can count recent
+// attempts and lock out a source that's guessing codes faster than a
+// human plausibly would. Deliberately its own tiny table rather than
+// reusing AiSuggestionCall/SupplierExtractionCall's shape: those enforce a
+// global daily budget, this enforces a per-IP short-window lockout, a
+// different query pattern (WHERE ip = ? AND attemptedAt > ?) that wants
+// its own index rather than overloading calledAt's.
+model DropCodeAttempt {
+  id          String   @id @default(cuid())
+  ip          String
+  attemptedAt DateTime @default(now())
+
+  @@index([ip, attemptedAt])
 }
 
 // One person's submission against a Drop — one name, one or more

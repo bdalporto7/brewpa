@@ -127,6 +127,11 @@ export const DROP_ORDER_ROAST_STYLE_LABELS: Record<DropOrderRoastStyle, string> 
   ESPRESSO: "Espresso",
 };
 
+/** Cosmetic only — storage and lookups (drop-actions.ts) always use the plain 8-char code. */
+export function formatDropCode(code: string): string {
+  return `${code.slice(0, 4)}-${code.slice(4)}`;
+}
+
 /** Shared by the live event timeline and the static published page. */
 export function describeEvent(event: {
   type: string;
