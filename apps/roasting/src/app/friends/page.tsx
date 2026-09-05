@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import FriendCard from "@/components/friends/FriendCard";
-import StartDropToggle from "@/components/friends/StartDropToggle";
+import CreateDropToggle from "@/components/drops/CreateDropToggle";
 import DropCard from "@/components/friends/DropCard";
 import SectionHeading from "@/components/ui/SectionHeading";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
@@ -11,7 +11,7 @@ export default async function FriendsPage() {
     prisma.friend.findMany({ include: { sales: true }, orderBy: { name: "asc" } }),
     prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
     prisma.drop.findMany({
-      include: { bean: true, claims: true },
+      include: { beans: true, orders: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -25,12 +25,12 @@ export default async function FriendsPage() {
         <PageStamp />
         <h1 className="text-4xl font-black tracking-tight">Drops</h1>
         <p className="text-sm text-muted">
-          Open up green coffee for friends to claim, first-come-first-serve, plus everyone who&apos;s
-          ever gotten a drop.
+          Open a curated pre-order menu and share the link — visitors pick beans and a roast
+          style, no account needed — plus everyone who&apos;s ever gotten a drop.
         </p>
       </div>
 
-      <StartDropToggle beans={beans} />
+      <CreateDropToggle beans={beans} />
 
       {activeDrops.length > 0 && (
         <div>
@@ -64,8 +64,8 @@ export default async function FriendsPage() {
         </div>
         {friends.length === 0 ? (
           <DecoratedEmptyState>
-            No friends yet — they show up automatically the first time you log a drop for someone, on a
-            roast or a claim.
+            No friends yet — they show up automatically the first time you log a roast for someone, or
+            someone places a pre-order.
           </DecoratedEmptyState>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

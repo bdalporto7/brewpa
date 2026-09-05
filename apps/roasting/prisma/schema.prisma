@@ -67,8 +67,9 @@ model Bean {
   goldenRoastId String?       @unique
   goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
 
-  roastSessions RoastSession[] @relation("BeanRoasts")
-  drops         Drop[]
+  roastSessions  RoastSession[] @relation("BeanRoasts")
+  drops          Drop[]
+  dropOrderItems DropOrderItem[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
   // actually draws down) is tracked per roast, not per bean — see Brew.
 
@@ -233,7 +234,7 @@ model Sale {
   notes          String?
   createdAt      DateTime     @default(now())
 
-  fulfillsClaim DropClaim?
+  fulfillsOrderItem DropOrderItem?
 
   @@index([roastSessionId])
   @@index([friendId])
@@ -284,60 +285,82 @@ model Friend {
   updatedAt DateTime @updatedAt
 
   sales      Sale[]
-  dropClaims DropClaim[]
+  dropOrders DropOrder[]
 
   @@index([name])
 }
 
-// A green-coffee group buy: "we bought N grams of this bean, opening it up
-// to friends to claim portions of, first-come-first-serve." Distinct from
-// Sale (roasted coffee given away from a specific completed roast, after
-// the fact) — a Drop happens at purchase time, before any roasting, and a
-// claim is a pre-order against the eventual roast(s) of this bean, not a
-// literal share of raw green beans. Creating a Drop reserves totalGrams out
-// of the bean's remainingGrams immediately (same "decrement at commitment
-// time" pattern startRoast already uses), restored if the drop is deleted.
+// A curated pre-order menu — "here are N beans, pick what you want roasted
+// as, and I'll fulfill it when I roast next." Public, unauthenticated
+// visitors reach one via /drop/[accessToken] (src/app/drop/[token]/page.tsx)
+// — accessToken is the entire access-control mechanism (a long random
+// secret, not a short human-typed code — see createDrop in
+// src/lib/drop-actions.ts), so the link itself is what you share. Doesn't
+// reserve anything out of a bean's green stock at creation time (unlike the
+// old gram-reservation design this replaced) — beans here are just a menu;
+// stock only ever moves via actual roasting, and fulfilling an order item
+// (below) draws down *roasted* stock the same way selling any other roast
+// output already does.
 model Drop {
-  id           String    @id @default(cuid())
-  beanId       String
-  bean         Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
-  totalGrams   Float
-  portionGrams Float?
-  pricePerGram Float?
-  notes        String?
-  closedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  accessToken String    @unique
+  notes       String?
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  claims DropClaim[]
-
-  @@index([beanId])
+  beans  Bean[]
+  orders DropOrder[]
 }
 
-// One friend's claimed portion of a Drop — a pre-order against green
-// weight (gramsClaimed, out of the Drop's reservation). "Fulfilled" isn't
-// a checkbox: it means a real Sale exists (saleId), drawn from an actual
-// completed roast's roastedRemainingGrams once that roast happens — the
-// claim and the roasted-stock ledger stay reconciled through the same
-// Sale row rather than two disconnected trackers. paid is independent and
-// stays a plain boolean, since group-buy money often changes hands before
-// anything's even roasted.
-model DropClaim {
-  id           String   @id @default(cuid())
-  dropId       String
-  drop         Drop     @relation(fields: [dropId], references: [id], onDelete: Cascade)
-  friendId     String?
-  friend       Friend?  @relation(fields: [friendId], references: [id], onDelete: SetNull)
-  gramsClaimed Float
-  price        Float?
-  paid         Boolean  @default(false)
-  saleId       String?  @unique
-  sale         Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  notes        String?
-  claimedAt    DateTime @default(now())
+// One person's submission against a Drop — one name, one or more
+// DropOrderItem picks. friendId resolves the same case-insensitive
+// match-or-create-a-Friend pattern addDropClaim/recordSale already use
+// (src/lib/drop-actions.ts), so a pre-order shows up in that person's own
+// history alongside their other sales; `name` keeps what they actually
+// typed verbatim regardless of the match.
+model DropOrder {
+  id        String   @id @default(cuid())
+  dropId    String
+  drop      Drop     @relation(fields: [dropId], references: [id], onDelete: Cascade)
+  friendId  String?
+  friend    Friend?  @relation(fields: [friendId], references: [id], onDelete: SetNull)
+  name      String
+  createdAt DateTime @default(now())
+
+  items DropOrderItem[]
 
   @@index([dropId])
   @@index([friendId])
+}
+
+// One bean + roast-style pick within a DropOrder (see constants.ts's
+// DROP_ORDER_ROAST_STYLES for the roastStyle values — a plain string
+// scalar validated in code, same convention RoastEvent.type/EVENT_TYPES
+// already use rather than a Prisma enum). "Fulfilled" isn't a checkbox: it
+// means a real Sale exists (saleId), drawn from an actual completed
+// roast's roastedRemainingGrams once that roast happens — the item and the
+// roasted-stock ledger stay reconciled through the same Sale row rather
+// than two disconnected trackers, exactly like the old DropClaim this
+// replaced. paid is independent and stays a plain boolean, since pre-order
+// money often changes hands before anything's even roasted.
+model DropOrderItem {
+  id          String    @id @default(cuid())
+  dropOrderId String
+  dropOrder   DropOrder @relation(fields: [dropOrderId], references: [id], onDelete: Cascade)
+  beanId      String
+  bean        Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
+  roastStyle  String
+  price       Float?
+  paid        Boolean   @default(false)
+  saleId      String?   @unique
+  sale        Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([dropOrderId])
+  @@index([beanId])
 }
 
 // Who's allowed to sign in via OAuth (checked in auth.ts's signIn callback)

@@ -9,7 +9,7 @@ import { GreenBeanIcon, RoastedBeanIcon } from "@/components/ui/CoffeeIcons";
 import SteamWisp from "@/components/ui/SteamWisp";
 import PageStamp from "@/components/ui/PageStamp";
 import DropCard from "@/components/friends/DropCard";
-import StartDropToggle from "@/components/friends/StartDropToggle";
+import CreateDropToggle from "@/components/drops/CreateDropToggle";
 import SectionHeading from "@/components/ui/SectionHeading";
 import LowStockBanner from "@/components/beans/LowStockBanner";
 import Card from "@/components/ui/Card";
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
     }),
     prisma.drop.findMany({
       where: { closedAt: null },
-      include: { bean: true, claims: true },
+      include: { beans: true, orders: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -227,7 +227,7 @@ export default async function DashboardPage() {
             ))}
           </div>
         )}
-        <StartDropToggle beans={greenBeans} />
+        <CreateDropToggle beans={greenBeans} />
       </div>
 
       <div>

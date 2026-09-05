@@ -31,6 +31,17 @@
  * server binds to loopback only), so unlike api/probe it doesn't need a
  * bearer token either — see that route's own comment.
  *
+ * `drop` is excluded because src/app/drop/[token]/page.tsx is the public
+ * pre-order page — a real unauthenticated visitor, not signed in at all,
+ * gated instead by a long random per-drop token baked into the URL itself
+ * (see src/lib/drop-actions.ts's generateAccessToken). Unlike api/probe
+ * and api/desktop above, this is a full *page* an outside person is meant
+ * to load directly and submit a form from, not an API route with its own
+ * bearer-token/localhost-only story — so this is the one route where the
+ * token really is the entire access-control mechanism, and
+ * submitDropOrder re-checks it server-side rather than trusting that the
+ * page merely rendered.
+ *
  * Anything with a file extension (the trailing `.*\..*` alternative) is
  * excluded too — public/'s brand assets (cybar-mark.png, cybar-stamp.png,
  * etc.) aren't sensitive and were never meant to require a session, but
@@ -44,5 +55,5 @@
 export { auth as proxy } from "@/auth";
 
 export const config = {
-  matcher: ["/((?!api/auth|api/probe|api/desktop|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|api/probe|api/desktop|drop|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

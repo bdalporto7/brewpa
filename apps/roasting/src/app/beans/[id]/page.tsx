@@ -8,7 +8,7 @@ import BeanMeta from "@/components/beans/BeanMeta";
 import SupplierTastingNotes from "@/components/beans/SupplierTastingNotes";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DropCard from "@/components/friends/DropCard";
-import StartDropToggle from "@/components/friends/StartDropToggle";
+import CreateDropToggle from "@/components/drops/CreateDropToggle";
 import BrewCard from "@/components/brews/BrewCard";
 import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
@@ -25,7 +25,7 @@ import { estimateDaysUntilEmpty } from "@/lib/inventoryVelocity";
  */
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [bean, user] = await Promise.all([
+  const [bean, user, beansWithStock] = await Promise.all([
     prisma.bean.findUnique({
       where: { id },
       include: {
@@ -34,12 +34,13 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           orderBy: { startedAt: "desc" },
         },
         drops: {
-          include: { bean: true, claims: true },
+          include: { beans: true, orders: true },
           orderBy: { createdAt: "desc" },
         },
       },
     }),
     getCurrentAllowedUser(),
+    prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
   ]);
 
   if (!bean || !user) notFound();
@@ -95,7 +96,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
             ))}
           </div>
         )}
-        <StartDropToggle beans={bean.remainingGrams > 0 ? [bean] : []} lockedBeanId={bean.id} />
+        <CreateDropToggle beans={beansWithStock} />
       </div>
 
       <div>

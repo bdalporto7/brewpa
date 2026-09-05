@@ -907,7 +907,7 @@ export async function deleteFriend(id: string) {
 
 /**
  * Folds one friend's history into another (e.g. "Jake" typed once as
- * "Jake S." elsewhere) — reassigns every Sale/DropClaim from source to
+ * "Jake S." elsewhere) — reassigns every Sale/DropOrder from source to
  * target, then deletes source. Target keeps its own id/notes; nothing
  * about the target friend changes except now owning source's history too.
  */
@@ -922,7 +922,7 @@ export async function mergeFriend(sourceId: string, formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     await tx.sale.updateMany({ where: { friendId: sourceId }, data: { friendId: targetId } });
-    await tx.dropClaim.updateMany({ where: { friendId: sourceId }, data: { friendId: targetId } });
+    await tx.dropOrder.updateMany({ where: { friendId: sourceId }, data: { friendId: targetId } });
     await tx.friend.delete({ where: { id: sourceId } });
   });
 
@@ -931,189 +931,6 @@ export async function mergeFriend(sourceId: string, formData: FormData) {
   redirect(`/friends/${targetId}`);
 }
 
-/**
- * A green-coffee group buy: reserve totalGrams out of a bean's stock (same
- * "decrement at commitment time" pattern as startRoast) and open it up for
- * friends to claim portions of. See the Drop model's own doc comment for
- * why this is a different thing from Sale/recordSale.
- */
-export async function startDrop(formData: FormData) {
-  const beanId = str(formData, "beanId");
-  const totalGrams = num(formData, "totalGrams");
-  const portionGrams = num(formData, "portionGrams");
-  const pricePerGram = num(formData, "pricePerGram");
-  const notes = str(formData, "notes");
-
-  if (!beanId || totalGrams === null || totalGrams <= 0) {
-    throw new Error("Bean and a positive total weight are required.");
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const bean = await tx.bean.findUniqueOrThrow({ where: { id: beanId } });
-    if (bean.remainingGrams < totalGrams) {
-      throw new Error(`Only ${bean.remainingGrams}g of ${bean.name} left in stock.`);
-    }
-
-    await tx.bean.update({
-      where: { id: beanId },
-      data: { remainingGrams: bean.remainingGrams - totalGrams },
-    });
-
-    await tx.drop.create({
-      data: { beanId, totalGrams, portionGrams, pricePerGram, notes },
-    });
-  });
-
-  revalidatePath("/friends");
-  revalidatePath("/beans");
-  revalidatePath("/");
-}
-
-/** Cancels a drop entirely — restores its reserved grams back to the bean, cascades its claims. */
-export async function deleteDrop(dropId: string) {
-  await prisma.$transaction(async (tx) => {
-    const drop = await tx.drop.findUniqueOrThrow({ where: { id: dropId } });
-    await tx.bean.update({
-      where: { id: drop.beanId },
-      data: { remainingGrams: { increment: drop.totalGrams } },
-    });
-    await tx.drop.delete({ where: { id: dropId } });
-  });
-
-  revalidatePath("/friends");
-  revalidatePath("/beans");
-  revalidatePath("/");
-  redirect("/friends");
-}
-
-export async function closeDrop(dropId: string) {
-  await prisma.drop.update({ where: { id: dropId }, data: { closedAt: new Date() } });
-  revalidatePath("/friends");
-  revalidatePath(`/drops/${dropId}`);
-}
-
-export async function reopenDrop(dropId: string) {
-  await prisma.drop.update({ where: { id: dropId }, data: { closedAt: null } });
-  revalidatePath("/friends");
-  revalidatePath(`/drops/${dropId}`);
-}
-
-/** First-come-first-serve: rejects a claim that would exceed the drop's remaining (unclaimed) grams. */
-export async function addDropClaim(dropId: string, formData: FormData) {
-  const friendName = str(formData, "friendName");
-  const gramsClaimed = num(formData, "gramsClaimed");
-  const price = num(formData, "price");
-  const notes = str(formData, "notes");
-
-  if (gramsClaimed === null || gramsClaimed <= 0) {
-    throw new Error("A positive amount is required to claim a portion.");
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const drop = await tx.drop.findUniqueOrThrow({ where: { id: dropId }, include: { claims: true } });
-    if (drop.closedAt) {
-      throw new Error("This drop is closed — no more claims.");
-    }
-    const claimed = drop.claims.reduce((sum, c) => sum + c.gramsClaimed, 0);
-    const remaining = drop.totalGrams - claimed;
-    if (gramsClaimed > remaining) {
-      throw new Error(`Only ${Math.round(remaining * 10) / 10}g left unclaimed on this drop.`);
-    }
-
-    let friendId: string | null = null;
-    if (friendName) {
-      const existing = await tx.friend.findMany();
-      const match = existing.find((f) => f.name.toLowerCase() === friendName.toLowerCase());
-      const friend = match ?? (await tx.friend.create({ data: { name: friendName } }));
-      friendId = friend.id;
-    }
-
-    await tx.dropClaim.create({
-      data: { dropId, friendId, gramsClaimed, price, notes },
-    });
-  });
-
-  revalidatePath("/friends");
-  revalidatePath(`/drops/${dropId}`);
-}
-
-export async function deleteDropClaim(dropId: string, claimId: string) {
-  await prisma.dropClaim.delete({ where: { id: claimId } });
-  revalidatePath("/friends");
-  revalidatePath(`/drops/${dropId}`);
-}
-
-export async function setDropClaimPaid(dropId: string, claimId: string, paid: boolean) {
-  await prisma.dropClaim.update({ where: { id: claimId }, data: { paid } });
-  revalidatePath(`/drops/${dropId}`);
-}
-
-/**
- * Fulfilling a claim means real roasted coffee actually changed hands — so
- * this creates a real Sale (drawn from a specific completed roast of the
- * same bean) rather than flipping a flag, keeping the claim and the
- * roasted-stock ledger reconciled through one row instead of two trackers
- * that could drift apart.
- */
-export async function fulfillDropClaim(dropId: string, claimId: string, formData: FormData) {
-  const roastSessionId = str(formData, "roastSessionId");
-  const roastedWeightGrams = num(formData, "roastedWeightGrams");
-
-  if (!roastSessionId || roastedWeightGrams === null || roastedWeightGrams <= 0) {
-    throw new Error("A roast and a positive roasted weight are required to fulfill a claim.");
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const claim = await tx.dropClaim.findUniqueOrThrow({ where: { id: claimId } });
-    if (claim.saleId) {
-      throw new Error("This claim is already fulfilled.");
-    }
-
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
-    const onHand = session.roastedRemainingGrams ?? 0;
-    if (onHand < roastedWeightGrams) {
-      throw new Error(`Only ${Math.round(onHand * 10) / 10}g of roasted coffee left from that roast.`);
-    }
-
-    await tx.roastSession.update({
-      where: { id: roastSessionId },
-      data: { roastedRemainingGrams: onHand - roastedWeightGrams },
-    });
-
-    const sale = await tx.sale.create({
-      data: {
-        roastSessionId,
-        friendId: claim.friendId,
-        weightGrams: roastedWeightGrams,
-        price: claim.price,
-        notes: claim.notes,
-      },
-    });
-
-    await tx.dropClaim.update({ where: { id: claimId }, data: { saleId: sale.id } });
-  });
-
-  revalidatePath(`/drops/${dropId}`);
-  revalidatePath("/roasts");
-  revalidatePath(`/roasts/${roastSessionId}`);
-}
-
-/** Undoes a fulfillment: restores the roasted weight and removes the Sale, unlinking the claim. */
-export async function unfulfillDropClaim(dropId: string, claimId: string) {
-  await prisma.$transaction(async (tx) => {
-    const claim = await tx.dropClaim.findUniqueOrThrow({ where: { id: claimId } });
-    if (!claim.saleId) return;
-
-    const sale = await tx.sale.findUniqueOrThrow({ where: { id: claim.saleId } });
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: sale.roastSessionId } });
-    await tx.roastSession.update({
-      where: { id: sale.roastSessionId },
-      data: { roastedRemainingGrams: (session.roastedRemainingGrams ?? 0) + sale.weightGrams },
-    });
-    // Deleting the Sale sets DropClaim.saleId to null automatically (onDelete: SetNull).
-    await tx.sale.delete({ where: { id: sale.id } });
-  });
-
-  revalidatePath(`/drops/${dropId}`);
-  revalidatePath("/roasts");
-}
+// Drop/DropOrder/DropOrderItem actions live in src/lib/drop-actions.ts —
+// a big enough, distinct enough feature area to warrant its own file,
+// matching the brew-actions.ts/profile-actions.ts convention.

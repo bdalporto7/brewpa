@@ -117,6 +117,16 @@ export const MILESTONE_ABBREVIATIONS: Partial<Record<EventType, string>> = {
   SECOND_CRACK_END: "2CE",
 };
 
+/** DropOrderItem.roastStyle's allowed values — a plain string column validated against this union, same convention as EventType/EVENT_TYPES above rather than a Prisma enum. */
+export const DROP_ORDER_ROAST_STYLES = ["FILTER", "OMNI", "ESPRESSO"] as const;
+export type DropOrderRoastStyle = (typeof DROP_ORDER_ROAST_STYLES)[number];
+
+export const DROP_ORDER_ROAST_STYLE_LABELS: Record<DropOrderRoastStyle, string> = {
+  FILTER: "Filter",
+  OMNI: "Omni",
+  ESPRESSO: "Espresso",
+};
+
 /** Shared by the live event timeline and the static published page. */
 export function describeEvent(event: {
   type: string;

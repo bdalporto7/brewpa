@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
 import SectionHeading from "@/components/ui/SectionHeading";
 import FriendHeader from "@/components/friends/FriendHeader";
+import { DROP_ORDER_ROAST_STYLE_LABELS } from "@/lib/constants";
 
 export default async function FriendPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,9 +18,9 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
           orderBy: { soldAt: "desc" },
           include: { roastSession: { include: { bean: true } } },
         },
-        dropClaims: {
-          orderBy: { claimedAt: "desc" },
-          include: { drop: { include: { bean: true } } },
+        dropOrders: {
+          orderBy: { createdAt: "desc" },
+          include: { drop: true, items: { include: { bean: true } } },
         },
       },
     }),
@@ -43,26 +44,30 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
 
       <div>
         <div className="mb-3">
-          <SectionHeading>Drop claims</SectionHeading>
+          <SectionHeading>Pre-orders</SectionHeading>
         </div>
-        {friend.dropClaims.length === 0 ? (
-          <p className="text-sm text-muted">No drop claims for {friend.name} yet.</p>
+        {friend.dropOrders.length === 0 ? (
+          <p className="text-sm text-muted">No pre-orders from {friend.name} yet.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {friend.dropClaims.map((claim) => (
-              <Link key={claim.id} href={`/drops/${claim.dropId}`}>
+            {friend.dropOrders.map((order) => (
+              <Link key={order.id} href={`/drops/${order.dropId}`}>
                 <Card className="p-4 transition hover:border-accent">
                   <div className="flex items-center justify-between gap-4">
-                    <h3 className="font-medium">{claim.drop.bean.name}</h3>
-                    <span className="font-mono text-sm">{Math.round(claim.gramsClaimed * 10) / 10}g</span>
+                    <h3 className="font-medium">{order.drop.name}</h3>
+                    <span className="text-xs text-muted">{format(order.createdAt, "MMM d, yyyy")}</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted">
-                    {format(claim.claimedAt, "MMM d, yyyy")}
-                    {claim.price != null && ` · $${claim.price.toFixed(2)}`}
-                    {claim.paid && " · Paid"}
-                    {claim.saleId && " · Fulfilled"}
-                  </p>
-                  {claim.notes && <p className="mt-2 text-sm text-foreground/80">{claim.notes}</p>}
+                  <ul className="mt-1 flex flex-col gap-0.5 text-sm text-foreground/80">
+                    {order.items.map((item) => (
+                      <li key={item.id}>
+                        {item.bean.name} ·{" "}
+                        {DROP_ORDER_ROAST_STYLE_LABELS[item.roastStyle as keyof typeof DROP_ORDER_ROAST_STYLE_LABELS] ??
+                          item.roastStyle}
+                        {item.paid && " · Paid"}
+                        {item.saleId && " · Fulfilled"}
+                      </li>
+                    ))}
+                  </ul>
                 </Card>
               </Link>
             ))}
