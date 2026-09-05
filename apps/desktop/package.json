@@ -11,7 +11,8 @@
     "dist": "npm run build && npm run prepare-app && electron-builder"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.4"
+    "@libsql/client": "^0.17.4",
+    "serialport": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -31,21 +32,32 @@
       "!src/**/*.ts"
     ],
     "extraResources": [
-      { "from": "app-bundle", "to": "app-bundle" }
+      {
+        "from": "app-bundle",
+        "to": "app-bundle"
+      }
     ],
     "asar": {
-      "unpack": ["**/*.node"]
+      "unpack": [
+        "**/*.node"
+      ]
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.productivity",
       "hardenedRuntime": true
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
-      "target": ["AppImage"]
+      "target": [
+        "AppImage"
+      ]
     }
   }
 }

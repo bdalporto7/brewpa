@@ -3,7 +3,19 @@ import { spawn, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as http from "node:http";
+import * as crypto from "node:crypto";
 import { runMigrations } from "./migrate";
+import { startProbeBridge, type ProbeBridge } from "./probe";
+
+/**
+ * Generated fresh per launch, not persisted — this only ever needs to
+ * match between two things running in the same process tree (the spawned
+ * Next server checking it, and the probe bridge sending it), both started
+ * by this same file a few lines apart. No separate secret-management step
+ * needed the way the old standalone script's PROBE_INGEST_TOKEN did.
+ */
+const PROBE_TOKEN = crypto.randomUUID();
+const PROBE_SERIAL_PATH = process.env.PROBE_SERIAL_PORT ?? "/dev/cu.usbserial-0001";
 
 /**
  * Fixed, not random — a real OAuth app (Phase 2's personal-synced build)
@@ -19,19 +31,23 @@ const PORT = 41823;
 const HOST = "127.0.0.1"; // loopback only — avoids macOS firewall/Local Network prompts entirely, see the plan's Q5 research
 
 /**
- * Dev: the real apps/roasting checkout, run via its own `next start` on
- * its own build output — lets `npm run dist` in apps/desktop build against
- * whatever's already in apps/roasting without a separate copy step during
- * development. Packaged: electron-builder's `extraResources` config
- * copies apps/roasting's production build + node_modules into
- * `app-bundle/` at build time (see scripts/prepare-app.js) — process.resourcesPath
- * only resolves correctly once actually packaged, not in `electron .` dev mode.
+ * Both dev and packaged runs point at the same built artifact:
+ * scripts/prepare-app.js's isolated copy at apps/desktop/app-bundle,
+ * never the raw apps/roasting checkout directly — that checkout has no
+ * reason to have its own `.next` production build sitting around (this
+ * app's actual dev workflow is `next dev`, not `next start`), so pointing
+ * dev mode at it directly fails with "Could not find a production build"
+ * the moment it hasn't been built in place — found by actually launching
+ * this, not by inspection. Packaged builds read from
+ * `process.resourcesPath` (electron-builder's `extraResources`); dev runs
+ * (`electron .`) read the same `app-bundle/` directly since there's no
+ * resourcesPath yet outside a real package.
  */
 function resolveAppBundleDir(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "app-bundle");
   }
-  return path.resolve(__dirname, "..", "..", "roasting");
+  return path.resolve(__dirname, "..", "app-bundle");
 }
 
 function resolveUserDataDbPath(): string {
@@ -40,6 +56,7 @@ function resolveUserDataDbPath(): string {
 
 let serverProcess: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
+let probeBridge: ProbeBridge | null = null;
 
 function waitForServer(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -81,6 +98,7 @@ function startNextServer(appBundleDir: string, dbPath: string): ChildProcess {
       AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID ?? "",
       AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET ?? "",
       AUTH_SECRET: process.env.AUTH_SECRET ?? "standalone-build-does-not-use-real-sessions",
+      PROBE_INGEST_TOKEN: PROBE_TOKEN,
     },
     stdio: "pipe",
   });
@@ -110,6 +128,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  probeBridge?.stop();
   serverProcess?.kill();
 });
 
@@ -136,6 +155,16 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+
+  // Auto-starts and quietly retries if the meter isn't plugged in — no
+  // separate manual script/step anymore. Started after the server is
+  // confirmed up so its very first readings have somewhere to land
+  // instead of failing against a not-yet-ready port.
+  probeBridge = startProbeBridge({
+    path: PROBE_SERIAL_PATH,
+    apiBase: `http://${HOST}:${PORT}`,
+    token: PROBE_TOKEN,
+  });
 
   await createMainWindow();
 });
