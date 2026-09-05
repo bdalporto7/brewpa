@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { auth, DESKTOP_GUEST_EMAIL } from "@/auth";
 import { getCurrentAllowedUser } from "@/lib/admin";
 import NavClient from "@/components/NavClient";
 
@@ -8,9 +8,24 @@ export default async function Nav() {
 
   const currentUser = await getCurrentAllowedUser();
 
+  const isDesktopApp = process.env.APP_MODE === "desktop";
+  const isSyncEnabled = process.env.DESKTOP_SYNC_ENABLED === "true";
+  // The desktop app always has *some* session (auth.ts's desktopAuth falls
+  // back to a fixed guest identity) — this is the only way to tell "still
+  // just the local guest" apart from "actually signed in for real," which
+  // decides between showing "Sign in to sync" vs. "restart to finish
+  // enabling sync" below.
+  const isGuestSession = session.user.email === DESKTOP_GUEST_EMAIL;
+
   return (
     <header className="bg-panel-bg" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-      <NavClient isAdmin={!!currentUser?.isAdmin} />
+      <NavClient
+        isAdmin={!!currentUser?.isAdmin}
+        isDesktopApp={isDesktopApp}
+        isSyncEnabled={isDesktopApp && isSyncEnabled}
+        showSignInToSync={isDesktopApp && !isSyncEnabled && isGuestSession}
+        showRestartToSync={isDesktopApp && !isSyncEnabled && !isGuestSession}
+      />
       {/* Torn-cardboard seam into the page below, instead of a straight
           border — same clip-path zigzag technique as DecoratedEmptyState's
           dashed border, just cut from the panel's own dark fill so the

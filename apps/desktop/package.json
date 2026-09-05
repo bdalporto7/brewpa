@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
+    "dotenv": "^17.4.2",
     "serialport": "^13.0.0"
   },
   "devDependencies": {
@@ -34,14 +35,19 @@
     "extraResources": [
       {
         "from": "app-bundle",
-        "to": "app-bundle"
+        "to": "app-bundle",
+        "filter": [
+          "**/*",
+          "!node_modules",
+          "!.next/node_modules"
+        ]
       }
     ],
-    "asar": {
-      "unpack": [
-        "**/*.node"
-      ]
-    },
+    "afterPack": "scripts/after-pack.js",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
     "mac": {
       "target": [
         "dmg"

@@ -18,7 +18,13 @@ const { execSync } = require("node:child_process");
 const ROASTING_DIR = path.resolve(__dirname, "..", "..", "roasting");
 const BUNDLE_DIR = path.resolve(__dirname, "..", "app-bundle");
 
-const EXCLUDE = new Set(["node_modules", ".next", ".git", ".env", ".env.local", "dev.db"]);
+// .gitignore is excluded too — confirmed live that electron-builder's
+// extraResources copy respects any .gitignore it finds *inside* the tree
+// it's copying, and apps/roasting's own .gitignore ignores /node_modules,
+// which silently dropped the entire (804MB) node_modules from a real
+// packaged build with no error, just a missing folder. This copy was
+// never a git repo of its own, so the file serves no purpose here anyway.
+const EXCLUDE = new Set(["node_modules", ".next", ".git", ".gitignore", ".env", ".env.local", "dev.db"]);
 
 function copyRecursive(src, dest) {
   const stat = fs.statSync(src);
@@ -64,5 +70,18 @@ execSync("npm run build", {
   env: { ...process.env, DATABASE_URL: "file:./build-placeholder.db" },
 });
 fs.rmSync(path.join(BUNDLE_DIR, "build-placeholder.db"), { force: true });
+
+// Next writes a build-trace symlink farm under .next/node_modules
+// (content-hash-suffixed dirs like "adapter-libsql-<hash>" pointing back
+// into the real node_modules a few levels up) for every package listed in
+// serverExternalPackages — turns out this is NOT dead weight the way it
+// looked at first: confirmed live that Turbopack's own runtime chunk
+// resolves each serverExternalPackages import through exactly this
+// hash-suffixed name at request time (removing this directory made a
+// packaged build throw "Cannot find package '@libsql/client-<hash>'" on
+// its very first request), so `next start` genuinely depends on it. It's
+// scripts/after-pack.js's job to get it into the packaged app intact
+// (electron-builder's own copy can't handle these symlinks — see that
+// file), not prepare-app.js's job to delete it.
 
 console.log("[prepare-app] done");

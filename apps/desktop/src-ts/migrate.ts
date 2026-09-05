@@ -6,12 +6,12 @@ import { randomUUID } from "node:crypto";
 
 /**
  * A fixed constant, not a real account — must stay in sync with
- * apps/roasting/src/auth.ts's STANDALONE_EMAIL. Duplicated here rather
+ * apps/roasting/src/auth.ts's DESKTOP_GUEST_EMAIL. Duplicated here rather
  * than imported since apps/desktop doesn't depend on apps/roasting as a
  * package (it copies its build output at package time, see
  * scripts/prepare-app.js) — there's no module boundary to import across.
  */
-const STANDALONE_EMAIL = "local@cybar.app";
+const DESKTOP_GUEST_EMAIL = "local@cybar.app";
 
 function sha256(content: string): string {
   return crypto.createHash("sha256").update(content).digest("hex");
@@ -82,13 +82,13 @@ export async function runMigrations(dbPath: string, appBundleDir: string): Promi
   if (isFreshDb) {
     const existing = await client.execute({
       sql: "SELECT id FROM AllowedUser WHERE email = ?",
-      args: [STANDALONE_EMAIL],
+      args: [DESKTOP_GUEST_EMAIL],
     });
     if (existing.rows.length === 0) {
-      console.log(`[migrate] seeding local admin user (${STANDALONE_EMAIL})`);
+      console.log(`[migrate] seeding local admin user (${DESKTOP_GUEST_EMAIL})`);
       await client.execute({
         sql: "INSERT INTO AllowedUser (id, email, isAdmin, createdAt) VALUES (?, ?, 1, ?)",
-        args: [randomUUID(), STANDALONE_EMAIL, new Date().toISOString()],
+        args: [randomUUID(), DESKTOP_GUEST_EMAIL, new Date().toISOString()],
       });
     }
   }

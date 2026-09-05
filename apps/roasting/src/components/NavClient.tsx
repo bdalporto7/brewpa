@@ -8,6 +8,9 @@ import { BrewedCupIcon, GreenBeanIcon } from "@/components/ui/CoffeeIcons";
 import CybarMark from "@/components/ui/CybarMark";
 import SteamWisp from "@/components/ui/SteamWisp";
 import WaterPour from "@/components/ui/WaterPour";
+import SyncNowButton from "@/components/SyncNowButton";
+import SignInToSyncLink from "@/components/SignInToSyncLink";
+import RestartToSyncButton from "@/components/RestartToSyncButton";
 
 const ROASTING_LINKS = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -28,14 +31,33 @@ function isBrewingPath(pathname: string) {
   return pathname.startsWith("/brews") || pathname.startsWith("/recipes");
 }
 
-export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
+export default function NavClient({
+  isAdmin,
+  isDesktopApp = false,
+  isSyncEnabled = false,
+  showSignInToSync = false,
+  showRestartToSync = false,
+}: {
+  isAdmin: boolean;
+  isDesktopApp?: boolean;
+  isSyncEnabled?: boolean;
+  showSignInToSync?: boolean;
+  showRestartToSync?: boolean;
+}) {
   const pathname = usePathname();
   const mode = isBrewingPath(pathname) ? "brewing" : "roasting";
   const links = mode === "brewing" ? BREWING_LINKS : ROASTING_LINKS;
 
   return (
     <>
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-panel-fg sm:px-6">
+      {/* Extra left clearance only in the desktop app: main.ts's
+          titleBarStyle: "hiddenInset" floats the native traffic lights
+          right over this bar instead of a separate OS title bar, so the
+          Cybar wordmark needs room to not sit underneath them. */}
+      <div
+        className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-panel-fg sm:px-6"
+        style={isDesktopApp ? { paddingLeft: "76px" } : undefined}
+      >
         <div className="flex items-center gap-3">
           <Link href={mode === "brewing" ? "/brews" : "/"} className="flex items-center gap-2">
             <CybarMark className="h-7 w-auto" />
@@ -90,6 +112,9 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
               {link.label}
             </Link>
           ))}
+          {isSyncEnabled && <SyncNowButton />}
+          {showSignInToSync && <SignInToSyncLink />}
+          {showRestartToSync && <RestartToSyncButton />}
           {isAdmin && (
             <Link href="/admin" className="text-panel-muted transition hover:text-panel-fg">
               Admin
@@ -106,6 +131,9 @@ export default function NavClient({ isAdmin }: { isAdmin: boolean }) {
             since these are rare actions that don't need their own bottom
             tab, unlike the links in `links` below. */}
         <div className="flex items-center gap-3 sm:hidden">
+          {isSyncEnabled && <SyncNowButton />}
+          {showSignInToSync && <SignInToSyncLink iconOnly />}
+          {showRestartToSync && <RestartToSyncButton />}
           {isAdmin && (
             <Link href="/admin" aria-label="Admin" className="text-panel-muted transition hover:text-panel-fg">
               <Shield className="h-5 w-5" />

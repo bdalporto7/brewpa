@@ -23,6 +23,14 @@
  * token instead of a session cookie — `authorized` would reject it outright
  * for having no session at all.
  *
+ * `api/desktop` is excluded for the same reason as api/probe: it's polled
+ * by Electron's *main* process (apps/desktop/src-ts/main.ts), which has no
+ * browser session/cookie jar at all, for live roast status to drive the
+ * tray icon, dock badge, and milestone notifications. It's read-only and
+ * only ever reachable from this same machine (the desktop app's Next
+ * server binds to loopback only), so unlike api/probe it doesn't need a
+ * bearer token either — see that route's own comment.
+ *
  * Anything with a file extension (the trailing `.*\..*` alternative) is
  * excluded too — public/'s brand assets (cybar-mark.png, cybar-stamp.png,
  * etc.) aren't sensitive and were never meant to require a session, but
@@ -36,5 +44,5 @@
 export { auth as proxy } from "@/auth";
 
 export const config = {
-  matcher: ["/((?!api/auth|api/probe|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|api/probe|api/desktop|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

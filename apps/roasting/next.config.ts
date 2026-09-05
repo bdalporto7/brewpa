@@ -18,7 +18,20 @@ const nextConfig: NextConfig = {
   // that mode's file tracing has a live, open issue missing Prisma/libsql's
   // native files on Next 16, and the size savings it exists for don't
   // matter for a desktop installer the way they do for a serverless bundle.
-  serverExternalPackages: ["@libsql/client"],
+  //
+  // @prisma/adapter-libsql and @prisma/client both have to stay external
+  // too, found live: bundled into the server chunks, reading a Bean's
+  // purchaseDate (stored, like several older rows are, as a raw SQLite
+  // integer rather than an ISO string) started throwing
+  // "Could not convert value ... to type DateTime" (P2023) — traced to
+  // @prisma/client/runtime's WASM query-compiler (the engine that decodes
+  // raw driver-adapter rows into typed results), not the adapter itself.
+  // The exact same Prisma Client + adapter + data, loaded via a plain
+  // unbundled require() in an isolated script outside Next entirely,
+  // converted every row correctly every time — pointing at Turbopack's
+  // bundling of this WASM-backed package specifically, not the data or
+  // Prisma's own conversion logic being wrong.
+  serverExternalPackages: ["@libsql/client", "@prisma/adapter-libsql", "@prisma/client"],
 };
 
 export default nextConfig;
