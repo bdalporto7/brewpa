@@ -1,9 +1,10 @@
-import { app, BrowserWindow, Menu, nativeImage, ipcMain, dialog, type Tray } from "electron";
+import { app, BrowserWindow, Menu, nativeImage, ipcMain, dialog, shell, type Tray } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as crypto from "node:crypto";
+import * as os from "node:os";
 import * as dotenv from "dotenv";
 import { runMigrations } from "./migrate";
 import { startProbeBridge, type ProbeBridge } from "./probe";
@@ -13,19 +14,14 @@ import { startSyncPoller } from "./sync-poller";
 import { createSplashWindow } from "./splash";
 import { DOCK_ICON_PNG_BASE64 } from "./icon-assets";
 
-// Real credentials (GitHub/Google OAuth, Turso) live in a gitignored
-// apps/desktop/.env, never committed and — critically — never bundled
-// into a build meant to be handed to anyone else: this app is built to
-// be given away for other people to run on their own, and shipping this
-// developer's real production DB token/OAuth secrets in every copy would
-// let every install that ever signed in read and write the *same* remote
-// database, not to mention just leaking the credentials outright. Only
-// `npm run dist:private`/`pack:private` (see package.json,
-// scripts/after-pack.js) opt into bundling `.env`, for a build kept on
-// this developer's own machine and never distributed; the normal
-// `dist`/`pack` ship with none, and main.ts's own fallbacks below (empty
-// OAuth id/secret, a placeholder AUTH_SECRET) make that a fully working
-// local-only app rather than a crash — exactly the general-user case.
+// apps/desktop/.env is a gitignored, purely optional dev convenience now
+// (e.g. overriding SYNC_API_BASE_URL to point a local build at a
+// disposable test server) — this app's own local server holds no OAuth
+// client secret or Turso credential at all anymore (see startNextServer's
+// env below, and src/auth.ts's desktopAuth): real sign-in happens
+// entirely on the hosted deployment, which hands this install a SyncToken
+// over a cybarcoffee:// deep link instead. Nothing here is sensitive
+// enough to need gating out of a distributed build the way it used to.
 // Loaded from an explicit, packaging-aware path rather than bare
 // `dotenv.config()`: that resolves relative to process.cwd(), which is
 // apps/desktop for a `electron .` dev run but unpredictable for a real
@@ -47,16 +43,54 @@ dotenv.config({
 // failure, not just wasted resources. The second launch attempt quits
 // immediately instead and just focuses the window the first instance
 // already has.
+//
+// This same lock is also what makes the cybarcoffee:// pairing callback
+// (see handlePairingCallback below) work on Windows/Linux: clicking a
+// cybarcoffee:// link launches a brand new process, which loses this race
+// and hands its argv (containing the URL) to the *first* instance via
+// 'second-instance' instead of ever creating its own window.
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, commandLine) => {
+    const url = commandLine.find((arg) => arg.startsWith(`${SYNC_CALLBACK_PROTOCOL}://`));
+    if (url) handlePairingCallback(url);
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
   });
+}
+
+/**
+ * Registered as early as possible (before app.whenReady) per Electron's
+ * own guidance for reliably catching a cold-start `open-url` event on
+ * macOS — a listener added later can miss one that arrived before it was
+ * attached. `electron .` dev runs register this against the Electron
+ * binary itself, which isn't meaningfully useful outside of quick local
+ * testing (a real double-click launch only ever happens from a packaged
+ * build, which is what this is actually for); Windows dev-mode argv
+ * quirks aren't handled here since this project doesn't build for Windows
+ * yet (see scripts/after-pack.js's own note on that).
+ */
+const SYNC_CALLBACK_PROTOCOL = "cybarcoffee";
+app.setAsDefaultProtocolClient(SYNC_CALLBACK_PROTOCOL);
+
+// macOS delivers a protocol launch as an Apple Event, not argv — this is
+// the only way to catch it there, cold-start or already-running.
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  handlePairingCallback(url);
+});
+
+// Windows/Linux instead put the URL in argv — the second-instance handler
+// above covers an already-running app; this covers a cold start (the
+// process that wins the single-instance-lock race sees its own launch
+// argv here, before app.whenReady even fires).
+{
+  const coldStartUrl = process.argv.find((arg) => arg.startsWith(`${SYNC_CALLBACK_PROTOCOL}://`));
+  if (coldStartUrl) app.whenReady().then(() => handlePairingCallback(coldStartUrl));
 }
 
 // Affects app.getName() (used below in the app-menu label and About panel)
@@ -79,16 +113,20 @@ app.setAboutPanelOptions({
 /**
  * One build for everyone — not two. A fresh install works fully offline,
  * local-only, no sign-in (general users never see a login screen). Sync
- * with the hosted DB is opt-in: a specific, allowlisted person can sign in
- * via the in-app "Sign in to sync" link (real GitHub/Google OAuth), and
- * once src/auth.ts's signIn callback confirms them against the *remote*
- * AllowedUser table, it writes syncEnabled: true to this file. That can't
- * take effect on the running server (hot-swapping its DB connection mid
- * request would race the redirect that same request is about to send), so
- * it takes effect on the next launch instead — this is read once here, at
- * startup, not watched live.
+ * with the hosted DB is opt-in: a specific, allowlisted person signs in on
+ * the *hosted* app (via the in-app "Sign in to sync" link, which opens
+ * that in the system browser — see handlePairingCallback below, since
+ * this app's own local server has no OAuth secrets to sign in with
+ * itself), which mints a SyncToken and hands it back over a
+ * cybarcoffee:// deep link. Taking effect requires a restart either way
+ * (hot-swapping the running server's config mid-request isn't safe), so
+ * this file is read once here, at startup, not watched live.
  */
 const DESKTOP_CONFIG_PATH = path.join(app.getPath("userData"), "desktop-config.json");
+
+function writeDesktopConfig(config: { syncEnabled: boolean; syncedEmail?: string; syncToken?: string }): void {
+  fs.writeFileSync(DESKTOP_CONFIG_PATH, JSON.stringify(config));
+}
 
 function readDesktopConfig(): { syncEnabled: boolean; syncedEmail?: string; syncToken?: string } {
   try {
@@ -172,6 +210,43 @@ let probeBridge: ProbeBridge | null = null;
 let tray: Tray | null = null;
 let statusPoller: ReturnType<typeof startStatusPoller> | null = null;
 let syncPoller: ReturnType<typeof startSyncPoller> | null = null;
+// Set the moment "Sign in to sync" opens the pairing page, cleared the
+// moment a callback is accepted (or on the next pairing attempt) — a
+// single in-memory value, not persisted, since it only ever needs to
+// outlive one browser round trip within this same running process.
+let pendingPairingState: string | null = null;
+
+/**
+ * The hosted app's /desktop/pair page (src/app/desktop/pair/page.tsx in
+ * apps/roasting) redirects here with `?state=...&token=...&email=...`
+ * once someone authorizes pairing. `state` has to match what this same
+ * process handed that page a moment ago in startSyncPairing's IPC handler
+ * — without that check, a stale link (an old email, a browser history
+ * entry, a link someone else generated) could hand this install a token
+ * that isn't the one it's actually waiting on. Writes the config and
+ * restarts immediately: unlike the old local-OAuth flow, there's no
+ * in-page session to race, so there's no reason to make someone click a
+ * separate "restart to finish syncing" button first.
+ */
+function handlePairingCallback(rawUrl: string): void {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return;
+  }
+  if (url.protocol !== `${SYNC_CALLBACK_PROTOCOL}:`) return;
+
+  const state = url.searchParams.get("state");
+  const token = url.searchParams.get("token");
+  const email = url.searchParams.get("email");
+  if (!state || !token || !email || state !== pendingPairingState) return;
+
+  pendingPairingState = null;
+  writeDesktopConfig({ syncEnabled: true, syncedEmail: email, syncToken: token });
+  app.relaunch();
+  app.exit(0);
+}
 
 /** Used by the dock menu and the Go menu's keyboard shortcuts — both just want "show me this page," nothing fancier. */
 function navigateTo(pagePath: string): void {
@@ -201,7 +276,7 @@ function waitForServer(url: string, timeoutMs: number): Promise<void> {
   });
 }
 
-function startNextServer(appBundleDir: string, dbPath: string, syncEnabled: boolean): ChildProcess {
+function startNextServer(appBundleDir: string, dbPath: string, syncEnabled: boolean, syncedEmail?: string): ChildProcess {
   // The real script, not node_modules/.bin/next — that's an npm-created
   // symlink (`.bin/next -> ../next/dist/bin/next`), and confirmed live
   // that electron-builder's extraResources copy silently drops it
@@ -218,42 +293,29 @@ function startNextServer(appBundleDir: string, dbPath: string, syncEnabled: bool
     NODE_ENV: "production",
     APP_MODE: "desktop",
     DESKTOP_SYNC_ENABLED: syncEnabled ? "true" : "false",
+    DESKTOP_SYNCED_EMAIL: syncedEmail ?? "",
     DESKTOP_CONFIG_PATH,
     DATABASE_URL: `file:${dbPath}`,
     NEXT_TELEMETRY_DISABLED: "1",
     PROBE_INGEST_TOKEN: PROBE_TOKEN,
+    // Where to reach the hosted app for pairing (shell.openExternal in the
+    // start-sync-pairing IPC handler) and for the ongoing sync itself
+    // (src/lib/sync-client.ts). Not a secret — just a URL — so this has a
+    // real, working default rather than the empty-string-fallback pattern
+    // this file used for actual credentials below: a genuine general-user
+    // install with no .env at all still needs this to make "Sign in to
+    // sync" work at all, unlike the OAuth/Turso credentials removed below,
+    // which this app's own local server no longer needs for anything (see
+    // src/auth.ts's desktopAuth — real sign-in happens entirely on the
+    // hosted side now, never against secrets bundled in this install).
+    SYNC_API_BASE_URL: process.env.SYNC_API_BASE_URL || "https://roasting-three.vercel.app",
+    // next-auth/providers reads these at import time regardless of
+    // whether desktop mode ever calls them (it doesn't, anymore) — an
+    // empty client id is harmless, but AUTH_SECRET specifically throws if
+    // genuinely unset once any code path touches next-auth's session
+    // machinery, so this keeps a placeholder rather than removing it.
+    AUTH_SECRET: process.env.AUTH_SECRET || "insecure-placeholder-unused-by-the-desktop-app",
   };
-
-  // Ideally present on every launch (real values, loaded from
-  // apps/desktop/.env above — the same hosted Turso database and the same
-  // OAuth apps the web deployment uses, with a second, local callback URL
-  // added to each — see the plan) so real sign-in works even before sync
-  // is turned on. But a genuine general-user install may have no .env at
-  // all — that has to still produce a working local-only app, not a
-  // crash, so these fall back to empty placeholders (next-auth/providers
-  // reads them at import time regardless of whether they're ever used;
-  // an empty client id just makes "Sign in to sync" fail harmlessly if
-  // clicked, same as the old standalone build's placeholders).
-  //
-  // TURSO_DATABASE_URL/TURSO_AUTH_TOKEN specifically only matter for the
-  // one-time bootstrap moment auth.ts's signIn callback handles (checking
-  // the remote allowlist and minting this install's SyncToken *before*
-  // syncEnabled flips on) — once already synced, ongoing sync goes
-  // through SYNC_API_BASE_URL + the token already sitting in
-  // desktop-config.json instead, so there's nothing left here to
-  // hard-require once syncEnabled is true.
-  for (const key of [
-    "TURSO_DATABASE_URL",
-    "TURSO_AUTH_TOKEN",
-    "AUTH_GITHUB_ID",
-    "AUTH_GITHUB_SECRET",
-    "AUTH_GOOGLE_ID",
-    "AUTH_GOOGLE_SECRET",
-    "SYNC_API_BASE_URL",
-  ]) {
-    env[key] = process.env[key] ?? "";
-  }
-  env.AUTH_SECRET = process.env.AUTH_SECRET ?? "insecure-placeholder-set-a-real-one-in-.env-to-enable-sign-in";
 
   // Run through Electron's own bundled Node runtime (ELECTRON_RUN_AS_NODE),
   // not whatever `node` a shebang line might find on the end user's PATH —
@@ -404,6 +466,36 @@ ipcMain.handle("restart-app", () => {
   app.exit(0);
 });
 
+// SignInToSyncLink.tsx's "Sign in to sync" — opens the hosted app's
+// pairing page in the *system* browser (shell.openExternal, not this
+// window's own loadURL: that page needs a real, secret-holding OAuth
+// flow this local server can't run itself). `state` is a fresh nonce
+// each attempt, checked back in handlePairingCallback so a stale link
+// can't complete a pairing this process isn't currently waiting on.
+// `label` just helps a person recognize this install later from
+// /admin's SyncToken list — os.hostname() is the closest thing to a
+// device name Electron has no dedicated API for.
+ipcMain.handle("start-sync-pairing", () => {
+  pendingPairingState = crypto.randomBytes(16).toString("hex");
+  const base = process.env.SYNC_API_BASE_URL || "https://roasting-three.vercel.app";
+  const url = new URL("/desktop/pair", base);
+  url.searchParams.set("state", pendingPairingState);
+  url.searchParams.set("label", `${os.hostname()} (desktop)`);
+  shell.openExternal(url.toString());
+});
+
+// DisableSyncButton.tsx's "Disable sync" — this install's equivalent of
+// logging out, since there's no real login session to sign out of (see
+// auth.ts's desktopAuth). Restarts back into the plain local guest
+// identity the same way enabling sync only takes effect on next launch.
+// Doesn't revoke the SyncToken remotely — that stays valid until someone
+// does it from /admin, same as before this existed.
+ipcMain.handle("disable-sync", () => {
+  writeDesktopConfig({ syncEnabled: false });
+  app.relaunch();
+  app.exit(0);
+});
+
 // A synchronous confirm, not the async dialog.showMessageBox + preventDefault
 // dance — before-quit can just block on the answer here. Doesn't interfere
 // with the restart-to-sync flow's app.exit() call (ipcMain.handle above):
@@ -486,7 +578,7 @@ app.whenReady().then(async () => {
     // the Prisma CLI (no schema-engine binary needed).
     await runMigrations(dbPath, appBundleDir);
 
-    serverProcess = startNextServer(appBundleDir, dbPath, syncEnabled);
+    serverProcess = startNextServer(appBundleDir, dbPath, syncEnabled, desktopConfig.syncedEmail);
     await waitForServer(`http://${HOST}:${PORT}`, 30_000);
 
     // Auto-starts and quietly retries if the meter isn't plugged in — no

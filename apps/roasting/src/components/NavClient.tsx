@@ -10,7 +10,7 @@ import SteamWisp from "@/components/ui/SteamWisp";
 import WaterPour from "@/components/ui/WaterPour";
 import SyncNowButton from "@/components/SyncNowButton";
 import SignInToSyncLink from "@/components/SignInToSyncLink";
-import RestartToSyncButton from "@/components/RestartToSyncButton";
+import DisableSyncButton from "@/components/DisableSyncButton";
 
 const ROASTING_LINKS = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -36,13 +36,11 @@ export default function NavClient({
   isDesktopApp = false,
   isSyncEnabled = false,
   showSignInToSync = false,
-  showRestartToSync = false,
 }: {
   isAdmin: boolean;
   isDesktopApp?: boolean;
   isSyncEnabled?: boolean;
   showSignInToSync?: boolean;
-  showRestartToSync?: boolean;
 }) {
   const pathname = usePathname();
   const mode = isBrewingPath(pathname) ? "brewing" : "roasting";
@@ -113,18 +111,24 @@ export default function NavClient({
             </Link>
           ))}
           {isSyncEnabled && <SyncNowButton />}
+          {isSyncEnabled && <DisableSyncButton />}
           {showSignInToSync && <SignInToSyncLink />}
-          {showRestartToSync && <RestartToSyncButton />}
           {isAdmin && (
             <Link href="/admin" className="text-panel-muted transition hover:text-panel-fg">
               Admin
             </Link>
           )}
-          <form action={logout}>
-            <button type="submit" className="text-panel-muted transition hover:text-panel-fg">
-              Log out
-            </button>
-          </form>
+          {/* The desktop app has no real login session to log out of — a
+              fabricated one always stands in (see auth.ts's desktopAuth) —
+              so this only makes sense for the hosted web app. Disabling
+              sync (above) is the desktop equivalent. */}
+          {!isDesktopApp && (
+            <form action={logout}>
+              <button type="submit" className="text-panel-muted transition hover:text-panel-fg">
+                Log out
+              </button>
+            </form>
+          )}
         </nav>
 
         {/* Mobile equivalent of the admin/logout pair above — icon-only
@@ -132,18 +136,20 @@ export default function NavClient({
             tab, unlike the links in `links` below. */}
         <div className="flex items-center gap-3 sm:hidden">
           {isSyncEnabled && <SyncNowButton />}
+          {isSyncEnabled && <DisableSyncButton iconOnly />}
           {showSignInToSync && <SignInToSyncLink iconOnly />}
-          {showRestartToSync && <RestartToSyncButton />}
           {isAdmin && (
             <Link href="/admin" aria-label="Admin" className="text-panel-muted transition hover:text-panel-fg">
               <Shield className="h-5 w-5" />
             </Link>
           )}
-          <form action={logout}>
-            <button type="submit" aria-label="Log out" className="text-panel-muted transition hover:text-panel-fg">
-              <LogOut className="h-5 w-5" />
-            </button>
-          </form>
+          {!isDesktopApp && (
+            <form action={logout}>
+              <button type="submit" aria-label="Log out" className="text-panel-muted transition hover:text-panel-fg">
+                <LogOut className="h-5 w-5" />
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

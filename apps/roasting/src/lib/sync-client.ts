@@ -99,9 +99,10 @@ function toDates(row: Row, fields: string[]): Row {
  * only ever holds one team's data, so there's no ownership check to make
  * the way /api/sync/push has to make one, but a full overwrite matters
  * for a specific reconciliation case — a row created locally before sign-
- * in still carries the local guest's own team id in its local copy until
- * this exact pull rewrites it to match what push (running just before
- * this, in the same sync cycle) just corrected on the remote.
+ * in still carries the local guest's own team id (or, for Brew, the local
+ * guest AllowedUser's own id) in its local copy until this exact pull
+ * rewrites it to match what push (running just before this, in the same
+ * sync cycle) just corrected on the remote.
  */
 async function upsertLocal(
   delegate: { findUnique: Function; create: Function; update: Function },
@@ -118,14 +119,17 @@ async function upsertLocal(
     return;
   }
 
-  // teamId is corrected unconditionally, never gated on the content
+  // Ownership is corrected unconditionally, never gated on the content
   // freshness check below — push (already run this same cycle) re-stamps
-  // teamId server-side without touching updatedAt, so a row's *content*
-  // can look unchanged (same-or-newer locally, nothing to merge) while
-  // its ownership still needs fixing. Skipping this for rows with no
-  // teamId at all (Brew, keyed on userId instead — never needs this).
-  if (typeof (existing as Row).teamId === "string" && row.teamId !== existing.teamId) {
-    await (delegate as any).update({ where: { id }, data: { teamId: row.teamId } });
+  // teamId/userId server-side without touching updatedAt, so a row's
+  // *content* can look unchanged (same-or-newer locally, nothing to
+  // merge) while its ownership still needs fixing. Checked generically
+  // since which of the two a given model even has varies (Brew has only
+  // userId; everything else synced here has only teamId).
+  for (const ownerField of ["teamId", "userId"] as const) {
+    if (typeof (existing as Row)[ownerField] === "string" && row[ownerField] !== existing[ownerField]) {
+      await (delegate as any).update({ where: { id }, data: { [ownerField]: row[ownerField] } });
+    }
   }
 
   if (hasUpdatedAt) {
@@ -138,7 +142,10 @@ async function upsertLocal(
 async function pull(apiBase: string, token: string): Promise<number> {
   const res = await fetch(`${apiBase}/api/sync/pull`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Pull failed: ${res.status} ${await res.text().catch(() => "")}`);
-  const snapshot = (await res.json()) as { team: { id: string; name: string } } & Record<string, Row[]>;
+  const snapshot = (await res.json()) as {
+    team: { id: string; name: string };
+    me: { id: string; email: string; isAdmin: boolean };
+  } & Record<string, Row[]>;
 
   // Every team-owned model below has a foreign key to Team — that row has
   // to exist locally before any of them can, and a fresh local install
@@ -148,6 +155,21 @@ async function pull(apiBase: string, token: string): Promise<number> {
     where: { id: snapshot.team.id },
     create: { id: snapshot.team.id, name: snapshot.team.name },
     update: { name: snapshot.team.name },
+  });
+
+  // Same deal for AllowedUser: Brew.userId is a real foreign key, and the
+  // local db has never heard of the remote person's AllowedUser row (pull
+  // never sends teammates' rows — see the route's own comment — only this
+  // caller's own `me`). By a fresh id, not the local guest row's id: they're
+  // different accounts that happen to share one laptop's local file, not
+  // the same account renamed, so nothing here deletes or repoints the
+  // guest row itself. Any Brews the guest created before sign-in get their
+  // own ownership corrected onto this new row below, same as team-owned
+  // rows get their teamId corrected — see upsertLocal.
+  await prisma.allowedUser.upsert({
+    where: { id: snapshot.me.id },
+    create: { id: snapshot.me.id, email: snapshot.me.email, isAdmin: snapshot.me.isAdmin, teamId: snapshot.team.id },
+    update: { email: snapshot.me.email, isAdmin: snapshot.me.isAdmin, teamId: snapshot.team.id },
   });
 
   for (const row of snapshot.friends ?? []) await upsertLocal(prisma.friend, row, ["createdAt", "updatedAt"], true);

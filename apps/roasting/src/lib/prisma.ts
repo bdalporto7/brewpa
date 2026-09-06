@@ -24,14 +24,12 @@ const globalForPrisma = globalThis as unknown as {
  * schema.prisma stays "sqlite" either way; libSQL is wire-compatible.
  *
  * The desktop app (APP_MODE=desktop) is its own case, checked first and
- * explicitly, never falling into the plain `url ?? url` branch below even
- * though it also sets TURSO_* vars: those vars are present there from the
- * very first launch (src/auth.ts's real-sign-in allowlist check needs to
- * reach the remote DB before sync is ever turned on), which would
- * otherwise make this branch connect straight to the remote database
- * instead of the local file the desktop app is supposed to read/write —
- * "both vars happen to be set" can't be trusted to mean "connect to Turso"
- * the way it can for the hosted deployment.
+ * explicitly: it never has TURSO_* vars at all (main.ts no longer passes
+ * them through — the desktop app doesn't talk to the remote DB directly
+ * for anything anymore, see src/auth.ts's desktopAuth), so this is really
+ * just "always the local file" for desktop, made explicit rather than
+ * relying on the fallthrough `url ?? url` below happening to do the right
+ * thing by omission.
  *
  * Within desktop mode, the local file is always plain SQLite now,
  * DESKTOP_SYNC_ENABLED or not — "sync" is an application-level operation

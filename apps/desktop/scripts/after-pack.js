@@ -47,28 +47,20 @@ module.exports = async function afterPack(context) {
   copyDereferenced(path.join(bundleSrc, "node_modules"), path.join(bundleDest, "node_modules"));
   copyDereferenced(path.join(bundleSrc, ".next", "node_modules"), path.join(bundleDest, ".next", "node_modules"));
 
-  // This app is meant to be handed to other people to run for their own
-  // needs — a general build must never carry *this* developer's real
-  // TURSO_AUTH_TOKEN (full read/write access to the production database
-  // every sign-in would otherwise all share), OAuth client secrets, or
-  // session-signing key. Bundling `.env` is opt-in via DESKTOP_BUNDLE_ENV,
-  // set only by `npm run dist:private` (see package.json) — a build kept
-  // on this developer's own machine, never distributed. The *default*
-  // `npm run dist`/`pack` ships with no `.env` at all: main.ts's own
-  // fallbacks (empty OAuth client id/secret, a placeholder AUTH_SECRET)
-  // already make that a fully working, local-only app rather than a
-  // crash — "Sign in to sync" just fails harmlessly if someone clicks it,
-  // exactly as intended for a copy that isn't this developer's own.
-  if (process.env.DESKTOP_BUNDLE_ENV !== "1") {
-    console.log("[after-pack] DESKTOP_BUNDLE_ENV not set — shipping without .env (safe to hand to anyone)");
-    return;
-  }
-
+  // apps/desktop/.env holds nothing sensitive anymore — no OAuth client
+  // secret, no Turso credential, no session-signing key (see main.ts's
+  // startNextServer for why: this app's own local server never performs
+  // OAuth or talks to the remote DB directly, real sign-in happens
+  // entirely on the hosted deployment). At most a SYNC_API_BASE_URL
+  // override for pointing a build at a non-default hosted URL, which is
+  // exactly as fine to ship in a build handed to someone else as it is to
+  // keep on this developer's own machine, so this always copies it if
+  // present rather than gating that on who's running the build.
   const envSrc = path.resolve(__dirname, "..", ".env");
   if (fs.existsSync(envSrc)) {
-    console.log(`[after-pack] DESKTOP_BUNDLE_ENV=1 — copying ${envSrc} -> ${path.join(resourcesDir, ".env")}`);
+    console.log(`[after-pack] copying ${envSrc} -> ${path.join(resourcesDir, ".env")}`);
     fs.copyFileSync(envSrc, path.join(resourcesDir, ".env"));
   } else {
-    console.log("[after-pack] DESKTOP_BUNDLE_ENV=1 but apps/desktop/.env doesn't exist — nothing to copy");
+    console.log("[after-pack] no apps/desktop/.env — nothing to copy (fine, SYNC_API_BASE_URL has a working default)");
   }
 };

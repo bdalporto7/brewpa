@@ -8,9 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "prepare-app": "node scripts/prepare-app.js",
     "pack": "npm run build && npm run prepare-app && electron-builder --dir",
-    "dist": "npm run build && npm run prepare-app && electron-builder",
-    "pack:private": "DESKTOP_BUNDLE_ENV=1 npm run build && DESKTOP_BUNDLE_ENV=1 npm run prepare-app && DESKTOP_BUNDLE_ENV=1 electron-builder --dir",
-    "dist:private": "DESKTOP_BUNDLE_ENV=1 npm run build && DESKTOP_BUNDLE_ENV=1 npm run prepare-app && DESKTOP_BUNDLE_ENV=1 electron-builder"
+    "dist": "npm run build && npm run prepare-app && electron-builder"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
@@ -46,6 +44,14 @@
       }
     ],
     "afterPack": "scripts/after-pack.js",
+    "protocols": [
+      {
+        "name": "Cybar Coffee Sync",
+        "schemes": [
+          "cybarcoffee"
+        ]
+      }
+    ],
     "asar": true,
     "asarUnpack": [
       "**/*.node"

@@ -2,97 +2,35 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import { NextResponse } from "next/server";
-import { createClient } from "@libsql/client";
-import * as fs from "node:fs";
 import { prisma } from "@/lib/prisma";
-import { generateSyncToken, hashSyncToken } from "@/lib/sync-tokens";
 
 /**
  * Real per-user OAuth (each person signs in with their own GitHub or Google
  * account) gated to an allowlist of emails stored in the AllowedUser table
  * — not open sign-up. Managed live from the /admin portal (isAdmin-gated)
  * instead of the old ALLOWED_EMAILS env var, so admitting someone no longer
- * needs a redeploy. Still deliberately not multi-tenant: there's no
- * Organization model, no invite flow, no per-org data. See AGENTS.md's
- * "Multi-device / sharing with a friend" section for why that's a
- * scoped-down first cut, not the full thing.
+ * needs a redeploy. Still deliberately not multi-tenant across companies:
+ * teams (Team model) share data internally, but there's no invite-across-
+ * teams flow or self-serve signup — a team's members are still added one
+ * at a time from /admin.
+ *
+ * This only ever runs on the hosted deployment now — the desktop app never
+ * performs OAuth itself (see desktopAuth below and src/lib/desktop-pair-
+ * actions.ts), so there's no loopback origin to trust and no reason for
+ * `trustHost` to vary by APP_MODE. Auth.js auto-trusts recognized hosting
+ * platforms (Vercel, etc.) when this is left `undefined`; an explicit
+ * `false` disables that and broke every sign-in in production once before
+ * (confirmed live) — left as `undefined` unconditionally.
  */
 const nextAuth = NextAuth({
   providers: [GitHub, Google],
   pages: {
     signIn: "/login",
   },
-  // Auth.js only auto-trusts recognized hosting platforms (Vercel, etc.)
-  // when this option is left `undefined` — passing an explicit `false`
-  // (which `=== "desktop"` evaluates to everywhere else) overrides and
-  // disables that auto-detection, breaking every sign-in on the hosted
-  // Vercel deployment with UntrustedHost (confirmed live in production).
-  // A fixed loopback origin like the desktop app's localhost:41823 needs
-  // an explicit `true` — Vercel doesn't, so it must get `undefined`, not
-  // `false`, to keep its own auto-trust. True for every desktop launch,
-  // synced or not — real sign-in has to work even before sync is turned
-  // on (see desktopAuth below).
-  trustHost: process.env.APP_MODE === "desktop" ? true : undefined,
   callbacks: {
     signIn: async ({ user }) => {
       const email = user.email?.toLowerCase();
       if (!email) return false;
-
-      // Before sync is turned on, the desktop app's local DB is just a
-      // plain local file — it has no AllowedUser rows except the guest one
-      // seeded at first launch (apps/desktop/src-ts/migrate.ts), so the
-      // real signed-in user's row genuinely isn't there yet. The whole
-      // point of signing in is to pull that data down, so the allowlist
-      // check itself has to reach the *remote* hosted DB directly instead
-      // of the local Prisma connection. Once sync is on, the local replica
-      // mirrors the remote and the normal `prisma` check below is
-      // equivalent and used instead.
-      if (process.env.APP_MODE === "desktop" && process.env.DESKTOP_SYNC_ENABLED !== "true") {
-        const url = process.env.TURSO_DATABASE_URL;
-        const authToken = process.env.TURSO_AUTH_TOKEN;
-        if (!url || !authToken) return false;
-        const remote = createClient({ url, authToken });
-        try {
-          const result = await remote.execute({
-            sql: "SELECT id FROM AllowedUser WHERE email = ?",
-            args: [email],
-          });
-          const remoteUserId = result.rows[0]?.id as string | undefined;
-          const allowed = remoteUserId != null;
-          // Signal main.ts to wipe the local file and switch this install
-          // to the embedded-replica config on the next launch — done here
-          // rather than hot-restarting the running server mid-request,
-          // which would race the redirect this same request is about to
-          // send back to the browser. See main.ts's readDesktopConfig.
-          // syncedEmail rides along so main.ts's local->remote migration
-          // (migrate-to-remote.ts) knows which remote AllowedUser to
-          // reassign this install's local guest-owned Brew rows to.
-          //
-          // A SyncToken is minted right here, in the same already-open,
-          // already-remote-authenticated request, rather than via a
-          // separate "generate a token" page main.ts's sync API calls
-          // would need someone to visit and copy/paste from — this moment
-          // already *is* that authentication. Only the hash is ever
-          // written to the remote table; the plaintext exists nowhere but
-          // this one response and the local desktop-config.json it's
-          // about to be written into.
-          if (allowed && process.env.DESKTOP_CONFIG_PATH) {
-            const syncToken = generateSyncToken();
-            await remote.execute({
-              sql: "INSERT INTO SyncToken (id, tokenHash, label, userId, createdAt) VALUES (lower(hex(randomblob(16))), ?, ?, ?, CURRENT_TIMESTAMP)",
-              args: [hashSyncToken(syncToken), `Desktop sync – ${new Date().toLocaleDateString()}`, remoteUserId],
-            });
-            fs.writeFileSync(
-              process.env.DESKTOP_CONFIG_PATH,
-              JSON.stringify({ syncEnabled: true, syncedEmail: email, syncToken })
-            );
-          }
-          return allowed;
-        } finally {
-          remote.close();
-        }
-      }
-
       const allowed = await prisma.allowedUser.findUnique({ where: { email } });
       return !!allowed;
     },
@@ -105,13 +43,25 @@ const nextAuth = NextAuth({
  * works fully offline/local with no sign-in by default — general users
  * never see a login screen — and lets one specific person sign in later to
  * turn on sync with the hosted DB. `desktopAuth` gives every page a session
- * unconditionally (this guest one, unless a real one exists) so nothing in
- * the app has to handle "no user" as a state; `proxy.ts` re-exports this
- * same symbol as Next's middleware (called with a request) and never
- * blocks a request itself — real auth is opt-in via visiting /login, not
- * enforced — while everywhere else in the app it's called as a plain
- * `await auth()` to read the current session. One export serving both
- * roles, so this has to handle both call shapes.
+ * unconditionally (a fabricated one, never a real NextAuth session) so
+ * nothing in the app has to handle "no user" as a state; `proxy.ts`
+ * re-exports this same symbol as Next's middleware (called with a request)
+ * and never blocks a request — the desktop app has no login wall at all,
+ * signed in or not — while everywhere else in the app it's called as a
+ * plain `await auth()` to read the current session. One export serving
+ * both roles, so this has to handle both call shapes.
+ *
+ * There is deliberately no local OAuth here anymore. Real sign-in happens
+ * entirely on the hosted deployment (src/app/desktop/pair/page.tsx +
+ * src/lib/desktop-pair-actions.ts), which hands a SyncToken back to the
+ * desktop app over a `cybarcoffee://` deep link — see
+ * apps/desktop/src-ts/main.ts. That's what makes a build with zero bundled
+ * secrets possible at all: this app's own local Next server never needs a
+ * GitHub/Google OAuth client secret or a Turso credential, because it
+ * never performs OAuth or talks to the remote DB directly. Once paired,
+ * main.ts passes the confirmed email through as DESKTOP_SYNCED_EMAIL — a
+ * plain env var, not a session cookie, since there's no real login request
+ * to attach a cookie to.
  *
  * DESKTOP_GUEST_EMAIL is a fixed constant, not a real account — the
  * desktop app's first-run migration runner (apps/desktop/src-ts/migrate.ts)
@@ -121,31 +71,29 @@ const nextAuth = NextAuth({
  * if either side changes.
  */
 export const DESKTOP_GUEST_EMAIL = "local@cybar.app";
-const DESKTOP_GUEST_SESSION = {
-  user: { email: DESKTOP_GUEST_EMAIL, name: "Local User" },
-  expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString(),
-};
+
+function fabricatedSession(email: string, name: string) {
+  return {
+    user: { email, name },
+    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString(),
+  };
+}
 
 function desktopAuth(...args: unknown[]) {
-  // Once sync is on, this install is tied to one specific real account —
-  // the guest identity has no AllowedUser row on the remote (deliberately
-  // never pushed there, see migrate-to-remote.ts) and no legitimate claim
-  // to that account's data, so falling back to it here would be silently
-  // wrong, not harmlessly permissive. Real auth applies exactly as it does
-  // for the hosted deployment: enforced by the middleware call (an
-  // anonymous visitor is redirected to /login), and `await auth()` returns
-  // the real session or nothing — never a guest stand-in.
-  if (process.env.DESKTOP_SYNC_ENABLED === "true") {
-    return (nextAuth.auth as (...args: unknown[]) => unknown)(...args);
-  }
   // Called as `proxy(request, event)` by Next's middleware runtime — let
-  // every request through. Real sign-in is reached by visiting /login,
-  // never enforced by redirecting anonymous visitors there.
+  // every request through, synced or not. There's no login wall in the
+  // desktop app; a locally-fabricated session (below) always stands in
+  // for a real one.
   if (args.length > 0) return NextResponse.next();
-  // Called as `await auth()` everywhere else in the app — prefer a real
-  // session (someone actually completed OAuth) and fall back to the fixed
-  // guest identity so the rest of the app never sees "no session" here.
-  return nextAuth.auth().then((session) => session ?? DESKTOP_GUEST_SESSION);
+  // Called as `await auth()` everywhere else in the app. Once paired, the
+  // synced person's real email (confirmed by the hosted pairing page, not
+  // by anything checkable locally) stands in for a session; before that,
+  // the fixed local guest identity does.
+  const syncedEmail = process.env.DESKTOP_SYNCED_EMAIL;
+  const session = syncedEmail
+    ? fabricatedSession(syncedEmail, "Synced User")
+    : fabricatedSession(DESKTOP_GUEST_EMAIL, "Local User");
+  return Promise.resolve(session);
 }
 
 export const handlers = nextAuth.handlers;

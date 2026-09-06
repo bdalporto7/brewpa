@@ -13,8 +13,13 @@ import { resolveSyncRequest } from "@/lib/sync-tokens";
  * Deliberately excludes TemperatureReading (no updatedAt, arrives every
  * few seconds during a live roast — fetched on demand instead, see
  * src/app/api/sync/roasts/[id]/temperature-readings/route.ts) and never
- * returns raw AllowedUser rows beyond { id, name } for the team itself —
- * no reason to put teammates' emails on someone's laptop.
+ * returns raw AllowedUser rows for teammates — no reason to put someone
+ * else's email on this install's laptop. `me` is the one exception: a
+ * caller's own identity, needed so sync-client.ts's pull() can create/
+ * update a matching local AllowedUser row — without it, Brew's userId
+ * foreign key has nothing local to point at once this identity's own
+ * Brews come down (see that file's own comment on why this can't just
+ * reuse the local guest row's id).
  */
 export async function GET(request: NextRequest) {
   const token = await resolveSyncRequest(request);
@@ -24,6 +29,7 @@ export async function GET(request: NextRequest) {
 
   const { teamId } = token.user;
   const userId = token.userId;
+  const me = { id: token.user.id, email: token.user.email, isAdmin: token.user.isAdmin };
 
   const [
     team,
@@ -57,6 +63,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     team,
+    me,
     beans,
     roastProfiles,
     friends,
