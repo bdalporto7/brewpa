@@ -18,7 +18,7 @@ export default async function AdminPage() {
   const [users, teams] = await Promise.all([
     prisma.allowedUser.findMany({
       orderBy: [{ isAdmin: "desc" }, { email: "asc" }],
-      include: { team: true },
+      include: { team: true, syncTokens: { orderBy: { createdAt: "desc" } } },
     }),
     prisma.team.findMany({ orderBy: { name: "asc" } }),
   ]);

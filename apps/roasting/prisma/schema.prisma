@@ -427,7 +427,33 @@ model AllowedUser {
   teamId String
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Restrict)
 
-  brews Brew[]
+  brews      Brew[]
+  syncTokens SyncToken[]
+}
+
+// A credential letting a desktop install pull/push this one person's team
+// data over the sync API (src/app/api/sync/*), without ever handing the
+// client a database credential directly — see src/lib/sync-tokens.ts.
+// Minted automatically inside auth.ts's signIn callback the moment a real
+// OAuth sign-in confirms someone's on the allowlist (no separate "generate
+// a token" UI to build or copy/paste to get wrong), but kept as its own
+// row — not just a bare secret in desktop-config.json — so it's visible
+// and individually revocable from /admin without having to remove the
+// person's whole account to cut off one compromised/lost device. Only
+// `tokenHash` (sha256 of the actual token) is ever stored; the plaintext
+// exists only at mint time, written straight into that install's own
+// desktop-config.json and never persisted here.
+model SyncToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  label      String?
+  userId     String
+  user       AllowedUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 // A team is the actual unit of data ownership — Bean/RoastSession/Friend/

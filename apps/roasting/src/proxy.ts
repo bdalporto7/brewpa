@@ -31,6 +31,12 @@
  * server binds to loopback only), so unlike api/probe it doesn't need a
  * bearer token either — see that route's own comment.
  *
+ * `api/sync` is excluded for the same reason as api/probe: it's called by
+ * the desktop app's own Next server process making outbound requests to
+ * the hosted deployment, not a signed-in browser — authenticated by a
+ * per-install SyncToken bearer token (src/lib/sync-tokens.ts) instead of
+ * a session cookie, since there's no browser/cookie jar involved at all.
+ *
  * `drop` is excluded because src/app/drop/page.tsx is the public pre-order
  * page — a real unauthenticated visitor, not signed in at all, gated
  * instead by a short code typed by hand (see src/lib/drop-actions.ts's
@@ -59,5 +65,5 @@
 export { auth as proxy } from "@/auth";
 
 export const config = {
-  matcher: ["/((?!api/auth|api/probe|api/desktop|drop(?![a-zA-Z])|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|api/probe|api/desktop|api/sync|drop(?![a-zA-Z])|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

@@ -67,3 +67,11 @@ export async function removeAllowedUser(id: string) {
   await prisma.allowedUser.delete({ where: { id } });
   revalidatePath("/admin");
 }
+
+/** Sets revokedAt rather than deleting the row — keeps the token's history (label, when it was minted/last used) visible after cutting it off, same reasoning DropOrderItem keeps a Sale record instead of just un-flagging it. */
+export async function revokeSyncToken(id: string) {
+  await requireAdmin();
+
+  await prisma.syncToken.update({ where: { id }, data: { revokedAt: new Date() } });
+  revalidatePath("/admin");
+}

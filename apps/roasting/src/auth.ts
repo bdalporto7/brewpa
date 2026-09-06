@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@libsql/client";
 import * as fs from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { generateSyncToken, hashSyncToken } from "@/lib/sync-tokens";
 
 /**
  * Real per-user OAuth (each person signs in with their own GitHub or Google
@@ -56,7 +57,8 @@ const nextAuth = NextAuth({
             sql: "SELECT id FROM AllowedUser WHERE email = ?",
             args: [email],
           });
-          const allowed = result.rows.length > 0;
+          const remoteUserId = result.rows[0]?.id as string | undefined;
+          const allowed = remoteUserId != null;
           // Signal main.ts to wipe the local file and switch this install
           // to the embedded-replica config on the next launch — done here
           // rather than hot-restarting the running server mid-request,
@@ -65,8 +67,25 @@ const nextAuth = NextAuth({
           // syncedEmail rides along so main.ts's local->remote migration
           // (migrate-to-remote.ts) knows which remote AllowedUser to
           // reassign this install's local guest-owned Brew rows to.
+          //
+          // A SyncToken is minted right here, in the same already-open,
+          // already-remote-authenticated request, rather than via a
+          // separate "generate a token" page main.ts's sync API calls
+          // would need someone to visit and copy/paste from — this moment
+          // already *is* that authentication. Only the hash is ever
+          // written to the remote table; the plaintext exists nowhere but
+          // this one response and the local desktop-config.json it's
+          // about to be written into.
           if (allowed && process.env.DESKTOP_CONFIG_PATH) {
-            fs.writeFileSync(process.env.DESKTOP_CONFIG_PATH, JSON.stringify({ syncEnabled: true, syncedEmail: email }));
+            const syncToken = generateSyncToken();
+            await remote.execute({
+              sql: "INSERT INTO SyncToken (id, tokenHash, label, userId, createdAt) VALUES (lower(hex(randomblob(16))), ?, ?, ?, CURRENT_TIMESTAMP)",
+              args: [hashSyncToken(syncToken), `Desktop sync – ${new Date().toLocaleDateString()}`, remoteUserId],
+            });
+            fs.writeFileSync(
+              process.env.DESKTOP_CONFIG_PATH,
+              JSON.stringify({ syncEnabled: true, syncedEmail: email, syncToken })
+            );
           }
           return allowed;
         } finally {
