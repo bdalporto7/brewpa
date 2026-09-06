@@ -240,8 +240,12 @@ function handlePairingCallback(rawUrl: string): void {
   const state = url.searchParams.get("state");
   const token = url.searchParams.get("token");
   const email = url.searchParams.get("email");
-  if (!state || !token || !email || state !== pendingPairingState) return;
+  if (!state || !token || !email || state !== pendingPairingState) {
+    console.log("[pairing] ignoring callback: missing fields or state mismatch");
+    return;
+  }
 
+  console.log(`[pairing] accepted callback for ${email}, restarting`);
   pendingPairingState = null;
   writeDesktopConfig({ syncEnabled: true, syncedEmail: email, syncToken: token });
   app.relaunch();
@@ -481,6 +485,7 @@ ipcMain.handle("start-sync-pairing", () => {
   const url = new URL("/desktop/pair", base);
   url.searchParams.set("state", pendingPairingState);
   url.searchParams.set("label", `${os.hostname()} (desktop)`);
+  console.log(`[pairing] opening ${url.toString()}`);
   shell.openExternal(url.toString());
 });
 
