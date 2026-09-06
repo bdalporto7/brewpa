@@ -145,13 +145,16 @@ export async function migrateLocalDataToRemote(dbPath: string, remoteUrl: string
       return;
     }
 
-    const localGuestRow = await local.execute({ sql: "SELECT id FROM AllowedUser WHERE email = ?", args: [DESKTOP_GUEST_EMAIL] });
+    const localGuestRow = await local.execute({ sql: "SELECT id, teamId FROM AllowedUser WHERE email = ?", args: [DESKTOP_GUEST_EMAIL] });
     const localGuestUserId = localGuestRow.rows[0]?.id as string | undefined;
+    const localGuestTeamId = localGuestRow.rows[0]?.teamId as string | undefined;
 
     let remoteRealUserId: string | undefined;
+    let remoteRealTeamId: string | undefined;
     if (syncedEmail) {
-      const remoteUserRow = await remote.execute({ sql: "SELECT id FROM AllowedUser WHERE email = ?", args: [syncedEmail] });
+      const remoteUserRow = await remote.execute({ sql: "SELECT id, teamId FROM AllowedUser WHERE email = ?", args: [syncedEmail] });
       remoteRealUserId = remoteUserRow.rows[0]?.id as string | undefined;
+      remoteRealTeamId = remoteUserRow.rows[0]?.teamId as string | undefined;
     }
 
     const summaryLines: string[] = [];
@@ -165,18 +168,35 @@ export async function migrateLocalDataToRemote(dbPath: string, remoteUrl: string
       return result;
     }
 
+    // Bean/RoastSession/Friend/Drop/RoastProfile/Recipe all carry a
+    // required `teamId` now — a row created locally (pre-sign-in) is
+    // always attributed to the local guest's own solo team (seeded by
+    // migrate.ts), which has no matching row on the remote at all. Reused
+    // per table via this helper rather than repeating the same three-line
+    // conditional six times. Distinct from Brew's own `userId`-based
+    // remap below — Brew stays owned by an individual account even inside
+    // a team, see schema.prisma's own comment on Brew for why.
+    function teamOwnerTransform(row: Record<string, unknown>): Record<string, unknown> | null {
+      if (row.teamId !== localGuestTeamId) return row;
+      if (!remoteRealTeamId) {
+        console.warn(`[migrate-to-remote] skipping row ${row.id}: it belongs to the local guest's own team, and the signed-in user's remote team couldn't be resolved`);
+        return null;
+      }
+      return { ...row, teamId: remoteRealTeamId };
+    }
+
     // Independent tables first.
-    await run("Friend");
-    await run("Recipe");
-    await run("RoastProfile");
+    await run("Friend", { transform: teamOwnerTransform });
+    await run("Recipe", { transform: teamOwnerTransform });
+    await run("RoastProfile", { transform: teamOwnerTransform });
 
     // Bean before RoastSession (required FK); goldenRoastId deferred (see
     // relinkDeferredSelfRef above).
-    const beanResult = await run("Bean", { transform: (row) => ({ ...row, goldenRoastId: null }) });
+    const beanResult = await run("Bean", { transform: (row) => teamOwnerTransform({ ...row, goldenRoastId: null }) });
 
     // RoastSession's beanId/profileId are already resolvable (Bean and
     // RoastProfile above); compareToId is self-referential and deferred.
-    const sessionResult = await run("RoastSession", { transform: (row) => ({ ...row, compareToId: null }) });
+    const sessionResult = await run("RoastSession", { transform: (row) => teamOwnerTransform({ ...row, compareToId: null }) });
 
     const remoteSessionIds = await fetchKeySet(remote, "RoastSession", "id");
     const goldenRelinked = await relinkDeferredSelfRef(remote, "Bean", "goldenRoastId", beanResult.insertedRows, remoteSessionIds);
@@ -189,25 +209,30 @@ export async function migrateLocalDataToRemote(dbPath: string, remoteUrl: string
     await run("TemperatureReading");
     await run("Sale");
     await run("CuppingNote");
-    await run("Drop");
-    await run("DropClaim");
+    await run("Drop", { transform: teamOwnerTransform });
 
     // AllowedUser dedupes on email (its own unique constraint), not id —
     // and the local guest row is a placeholder seeded fresh into every
     // unsynced install (migrate.ts), never a real account, so it's
-    // deliberately never pushed to the remote.
+    // deliberately never pushed to the remote. A rare *second* local
+    // AllowedUser (only possible if the local admin portal was used to
+    // add one before ever syncing) still needs its `teamId` remapped off
+    // the local guest's team, the same as any other row — it was sharing
+    // that solo local team with the guest, which doesn't exist remotely.
     await run("AllowedUser", {
       dedupeKey: "email",
-      transform: (row) => (row.email === DESKTOP_GUEST_EMAIL ? null : row),
+      transform: (row) => (row.email === DESKTOP_GUEST_EMAIL ? null : teamOwnerTransform(row)),
     });
 
     // Brew rows logged locally, before sign-in, were attributed to that
     // same guest placeholder — reassign them to the real signed-in user's
-    // remote row so they show up as that person's own brew log instead of
-    // vanishing into an account nobody can see. A Brew owned by some other,
-    // real local AllowedUser (rare — only possible if the local admin
-    // portal was used to add one before ever syncing) is left as-is; that
-    // row's own AllowedUser was migrated above under the same id.
+    // own remote AllowedUser id (not a team — Brew stays individually
+    // owned even inside a team, see schema.prisma) so they show up as
+    // that person's own brew log instead of vanishing into an account
+    // nobody can see. A Brew owned by some other, real local AllowedUser
+    // (rare — only possible if the local admin portal was used to add one
+    // before ever syncing) is left as-is; that row's own AllowedUser was
+    // migrated above under the same id.
     await run("Brew", {
       transform: (row) => {
         if (row.userId !== localGuestUserId) return row;

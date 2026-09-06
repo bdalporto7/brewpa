@@ -8,9 +8,7 @@ import { computeRoastPhases } from "@/lib/phases";
 import { buildSettingChangesFromEvents, type PlanSettingChange, type PlanTargets } from "@/lib/curve";
 import { findDropTemp } from "@/lib/roastAdvisor";
 import { SR800_LEVEL_MIN, SR800_LEVEL_MAX } from "@/lib/constants";
-
-// RoastProfile is shared/global data (like Recipe), not per-user — no
-// requireUser() here, matching brew-actions.ts's Recipe actions.
+import { requireUser } from "@/lib/admin";
 
 function str(formData: FormData, key: string): string | null {
   const raw = formData.get(key);
@@ -92,7 +90,8 @@ function profileFields(formData: FormData) {
 }
 
 export async function createRoastProfile(formData: FormData) {
-  await prisma.roastProfile.create({ data: profileFields(formData) });
+  const user = await requireUser();
+  await prisma.roastProfile.create({ data: { ...profileFields(formData), teamId: user.teamId } });
   revalidatePath("/profiles");
 }
 
@@ -117,6 +116,7 @@ export async function toggleProfileFavorite(id: string, isFavorite: boolean) {
 /** Copies a roast's already-generated AI plan verbatim into a new,
  * standalone, bean-independent profile. */
 export async function saveProfileFromSuggestion(roastSessionId: string, formData: FormData) {
+  const user = await requireUser();
   const session = await prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
   if (!session.aiSuggestionPlan) throw new Error("No AI plan on this roast to save.");
 
@@ -130,6 +130,7 @@ export async function saveProfileFromSuggestion(roastSessionId: string, formData
       process: str(formData, "process"),
       brewTarget: str(formData, "brewTarget") ?? session.brewTarget,
       planJson: session.aiSuggestionPlan,
+      teamId: user.teamId,
     },
   });
   revalidatePath("/profiles");
@@ -140,6 +141,7 @@ export async function saveProfileFromSuggestion(roastSessionId: string, formData
  * FAN/HEAT/milestone events rather than any suggestion it may have
  * started from. */
 export async function saveProfileFromCompletedRoast(roastSessionId: string, formData: FormData) {
+  const user = await requireUser();
   const session = await prisma.roastSession.findUniqueOrThrow({
     where: { id: roastSessionId },
     include: {
@@ -197,6 +199,7 @@ export async function saveProfileFromCompletedRoast(roastSessionId: string, form
       process: str(formData, "process") ?? session.bean.process,
       brewTarget: str(formData, "brewTarget") ?? session.brewTarget,
       planJson,
+      teamId: user.teamId,
     },
   });
   revalidatePath("/profiles");

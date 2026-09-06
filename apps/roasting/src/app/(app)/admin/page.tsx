@@ -4,7 +4,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import { addAllowedUser } from "@/lib/admin-actions";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
-import { TextField } from "@/components/ui/Field";
+import { TextField, SelectField } from "@/components/ui/Field";
 import Card from "@/components/ui/Card";
 import Checkbox from "@/components/ui/Checkbox";
 import SectionHeading from "@/components/ui/SectionHeading";
@@ -15,9 +15,13 @@ export default async function AdminPage() {
   const currentUser = await getCurrentAllowedUser();
   if (!currentUser?.isAdmin) notFound();
 
-  const users = await prisma.allowedUser.findMany({
-    orderBy: [{ isAdmin: "desc" }, { email: "asc" }],
-  });
+  const [users, teams] = await Promise.all([
+    prisma.allowedUser.findMany({
+      orderBy: [{ isAdmin: "desc" }, { email: "asc" }],
+      include: { team: true },
+    }),
+    prisma.team.findMany({ orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -31,6 +35,15 @@ export default async function AdminPage() {
         <p className="mb-3 text-sm font-medium">Admit someone</p>
         <ActionForm action={addAllowedUser} className="flex flex-wrap items-end gap-3">
           <TextField label="Email" name="email" type="email" required placeholder="friend@example.com" />
+          <SelectField label="Team" name="teamId" defaultValue={teams[0]?.id ?? "__new__"}>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+            <option value="__new__">+ New team</option>
+          </SelectField>
+          <TextField label="New team name" name="newTeamName" placeholder="Only used for + New team" />
           <Checkbox name="isAdmin" label="Make admin" className="pb-1.5" />
           <Button type="submit">Admit</Button>
         </ActionForm>

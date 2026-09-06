@@ -73,8 +73,14 @@ model Bean {
   // Brews live on RoastSession, not here, since roasted stock (what a brew
   // actually draws down) is tracked per roast, not per bean — see Brew.
 
+  // A Bean belongs to the team that roasts it — shared by every member of
+  // that team (see Team's own doc comment), not an individual account.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
   @@index([origin])
   @@index([createdAt])
+  @@index([teamId])
 }
 
 model RoastSession {
@@ -150,9 +156,14 @@ model RoastSession {
   compareTo   RoastSession?  @relation("RoastComparison", fields: [compareToId], references: [id], onDelete: SetNull)
   comparedBy  RoastSession[] @relation("RoastComparison")
 
+  // Same team ownership as Bean above.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
   @@index([beanId])
   @@index([startedAt])
   @@index([profileId])
+  @@index([teamId])
 }
 
 // A reusable fan/heat dial schedule + phase targets — the roasting-side
@@ -178,7 +189,12 @@ model RoastProfile {
 
   roastSessions RoastSession[]
 
+  // Same team ownership as Bean/RoastSession above.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
   @@index([process])
+  @@index([teamId])
 }
 
 model RoastEvent {
@@ -287,7 +303,12 @@ model Friend {
   sales      Sale[]
   dropOrders DropOrder[]
 
+  // Same team ownership as Bean/RoastSession/RoastProfile above.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
   @@index([name])
+  @@index([teamId])
 }
 
 // A curated pre-order menu — "here are N beans, pick what you want roasted
@@ -315,6 +336,14 @@ model Drop {
 
   beans  Bean[]
   orders DropOrder[]
+
+  // Whichever team created this drop — a public order submitted against it
+  // (submitDropOrder) has no session of its own, so this is also what any
+  // Friend it matches/creates gets scoped to.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
 }
 
 // A record of one code-entry attempt on the public /drop page, keyed by
@@ -385,14 +414,45 @@ model DropOrderItem {
 // Who's allowed to sign in via OAuth (checked in auth.ts's signIn callback)
 // and, via isAdmin, who's allowed to manage this table through the /admin
 // portal. Replaces the old ALLOWED_EMAILS env var, which required a
-// redeploy to change.
+// redeploy to change. isAdmin is a platform-wide flag (manages the whole
+// allowlist across every team, via /admin) — separate from team
+// membership itself, which has no per-team roles yet (every member of a
+// team sees/edits the same team data equally; see Team's own comment).
 model AllowedUser {
   id        String   @id @default(cuid())
   email     String   @unique
   isAdmin   Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
   brews Brew[]
+}
+
+// A team is the actual unit of data ownership — Bean/RoastSession/Friend/
+// Drop/RoastProfile/Recipe all belong to a Team, not an individual
+// AllowedUser, and every member of a team sees/edits the exact same data
+// (no per-team roles yet — isAdmin on AllowedUser is a separate,
+// platform-wide concept, not a per-team one). This is the "Organization"
+// concept AGENTS.md's "Multi-device / sharing with a friend" section
+// anticipated and deliberately deferred until a second one actually
+// showed up — named Team here since that's the word actually used when
+// building it. onDelete: Restrict on AllowedUser.teamId (not Cascade)
+// means a team can't be silently orphaned/emptied as a side effect of
+// removing a person; team deletion itself isn't a feature yet.
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  members       AllowedUser[]
+  beans         Bean[]
+  roastSessions RoastSession[]
+  friends       Friend[]
+  drops         Drop[]
+  roastProfiles RoastProfile[]
+  recipes       Recipe[]
 }
 
 // A reusable brewing target — not tied to a bean, so the same "V60 4:6"
@@ -415,7 +475,12 @@ model Recipe {
 
   brews Brew[]
 
+  // Same team ownership as Bean/RoastSession/RoastProfile/Friend above.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
   @@index([method])
+  @@index([teamId])
 }
 
 // One actual brew. roastSessionId is optional — set when it's drawn from

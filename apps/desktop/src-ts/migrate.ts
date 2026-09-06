@@ -79,6 +79,11 @@ export async function runMigrations(dbPath: string, appBundleDir: string): Promi
   // requireAdmin()/getCurrentAllowedUser() (src/lib/admin.ts) work at all
   // — the standalone auth bypass provides a fake *session*, but
   // admin-gated code still does a real lookup against this table.
+  // AllowedUser.teamId is required (see the add_teams migration), and this
+  // guest row is seeded *after* migrations run — the add_teams migration
+  // itself only backfills a team for rows that already existed at
+  // migration time, which correctly excludes this one — so a fresh team
+  // has to be created here too, just for this one guest account.
   if (isFreshDb) {
     const existing = await client.execute({
       sql: "SELECT id FROM AllowedUser WHERE email = ?",
@@ -86,9 +91,14 @@ export async function runMigrations(dbPath: string, appBundleDir: string): Promi
     });
     if (existing.rows.length === 0) {
       console.log(`[migrate] seeding local admin user (${DESKTOP_GUEST_EMAIL})`);
+      const teamId = randomUUID();
       await client.execute({
-        sql: "INSERT INTO AllowedUser (id, email, isAdmin, createdAt) VALUES (?, ?, 1, ?)",
-        args: [randomUUID(), DESKTOP_GUEST_EMAIL, new Date().toISOString()],
+        sql: "INSERT INTO Team (id, name, createdAt) VALUES (?, ?, ?)",
+        args: [teamId, "My Roastery", new Date().toISOString()],
+      });
+      await client.execute({
+        sql: "INSERT INTO AllowedUser (id, email, isAdmin, createdAt, teamId) VALUES (?, ?, 1, ?, ?)",
+        args: [randomUUID(), DESKTOP_GUEST_EMAIL, new Date().toISOString(), teamId],
       });
     }
   }

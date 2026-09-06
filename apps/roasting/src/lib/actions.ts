@@ -7,6 +7,7 @@ import type { EventType } from "@/lib/constants";
 import { parseMMSS } from "@/lib/format";
 import { generateRoastAdvice, type RoastPlan } from "@/lib/roastAdvisor";
 import { extractSupplierInfo } from "@/lib/supplierExtractor";
+import { requireUser } from "@/lib/admin";
 
 function num(formData: FormData, key: string): number | null {
   const raw = formData.get(key);
@@ -23,6 +24,7 @@ function str(formData: FormData, key: string): string | null {
 }
 
 export async function createBean(formData: FormData) {
+  const user = await requireUser();
   const name = str(formData, "name");
   const origin = str(formData, "origin");
   const process = str(formData, "process");
@@ -47,6 +49,7 @@ export async function createBean(formData: FormData) {
       moisturePercent: num(formData, "moisturePercent"),
       densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
       notes: str(formData, "notes"),
+      teamId: user.teamId,
     },
   });
 
@@ -208,6 +211,7 @@ export async function deleteBean(id: string) {
 }
 
 export async function startRoast(formData: FormData) {
+  const user = await requireUser();
   const beanId = str(formData, "beanId");
   const greenWeightGrams = num(formData, "greenWeightGrams");
 
@@ -233,7 +237,7 @@ export async function startRoast(formData: FormData) {
       data: { remainingGrams: bean.remainingGrams - greenWeightGrams },
     });
 
-    return tx.roastSession.create({ data: { beanId, greenWeightGrams } });
+    return tx.roastSession.create({ data: { beanId, greenWeightGrams, teamId: user.teamId } });
   });
 
   revalidatePath("/roasts");
@@ -523,6 +527,7 @@ export async function updateRoastNotes(roastSessionId: string, formData: FormDat
 }
 
 export async function startPastRoast(formData: FormData) {
+  const user = await requireUser();
   const beanId = str(formData, "beanId");
   const greenWeightGrams = num(formData, "greenWeightGrams");
   const startedAtRaw = str(formData, "startedAt");
@@ -576,6 +581,7 @@ export async function startPastRoast(formData: FormData) {
         roastLevel,
         rating,
         notes,
+        teamId: user.teamId,
       },
     });
 
@@ -812,6 +818,7 @@ export async function setRoastedStock(roastSessionId: string, amount: number) {
 }
 
 export async function recordSale(roastSessionId: string, formData: FormData) {
+  const user = await requireUser();
   const weightGrams = num(formData, "weightGrams");
   const friendName = str(formData, "friendName");
   const price = num(formData, "price");
@@ -830,9 +837,9 @@ export async function recordSale(roastSessionId: string, formData: FormData) {
 
     let friendId: string | null = null;
     if (friendName) {
-      const existing = await tx.friend.findMany();
+      const existing = await tx.friend.findMany({ where: { teamId: user.teamId } });
       const match = existing.find((f) => f.name.toLowerCase() === friendName.toLowerCase());
-      const friend = match ?? (await tx.friend.create({ data: { name: friendName } }));
+      const friend = match ?? (await tx.friend.create({ data: { name: friendName, teamId: user.teamId } }));
       friendId = friend.id;
     }
 

@@ -5,9 +5,15 @@ import { format } from "date-fns";
 import { setAllowedUserAdmin, removeAllowedUser } from "@/lib/admin-actions";
 import DeleteButton from "@/components/DeleteButton";
 import Checkbox from "@/components/ui/Checkbox";
-import type { AllowedUser } from "@prisma/client";
+import type { AllowedUser, Team } from "@prisma/client";
 
-export default function AllowedUserRow({ user, isSelf }: { user: AllowedUser; isSelf: boolean }) {
+export default function AllowedUserRow({
+  user,
+  isSelf,
+}: {
+  user: AllowedUser & { team: Team };
+  isSelf: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -17,7 +23,9 @@ export default function AllowedUserRow({ user, isSelf }: { user: AllowedUser; is
           {user.email}
           {isSelf && <span className="ml-1.5 text-xs text-muted">(you)</span>}
         </span>
-        <p className="text-xs text-muted">Added {format(user.createdAt, "MMM d, yyyy")}</p>
+        <p className="text-xs text-muted">
+          {user.team.name} · Added {format(user.createdAt, "MMM d, yyyy")}
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <Checkbox

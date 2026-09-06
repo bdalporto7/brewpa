@@ -18,17 +18,34 @@ async function assertNotLastAdmin(id: string) {
   }
 }
 
+/**
+ * `teamId` of `"__new__"` means "give this person their own brand-new
+ * team" (e.g. a roaster friend starting their own separate business) —
+ * anything else is an existing Team's id to join instead (e.g. an
+ * employee joining a business that's already on here). `newTeamName`
+ * only matters in the `"__new__"` case.
+ */
 export async function addAllowedUser(formData: FormData) {
   await requireAdmin();
 
   const email = str(formData, "email")?.toLowerCase();
   const isAdmin = formData.get("isAdmin") === "on";
+  const teamChoice = str(formData, "teamId");
+  const newTeamName = str(formData, "newTeamName");
 
   if (!email) {
     throw new Error("Email is required.");
   }
+  if (!teamChoice) {
+    throw new Error("A team is required.");
+  }
 
-  await prisma.allowedUser.create({ data: { email, isAdmin } });
+  const teamId =
+    teamChoice === "__new__"
+      ? (await prisma.team.create({ data: { name: newTeamName ?? `${email}'s team` } })).id
+      : teamChoice;
+
+  await prisma.allowedUser.create({ data: { email, isAdmin, teamId } });
   revalidatePath("/admin");
 }
 

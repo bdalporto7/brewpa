@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DROP_ORDER_ROAST_STYLES } from "@/lib/constants";
 import { getUnlockedDrop, setDropUnlockCookie } from "@/lib/drop-session";
+import { requireUser } from "@/lib/admin";
 
 function str(formData: FormData, key: string): string | null {
   const raw = formData.get(key);
@@ -53,6 +54,7 @@ async function getClientIp(): Promise<string> {
 // ===== Admin actions (reachable only from session-gated pages, same as every other action in this app) =====
 
 export async function createDrop(formData: FormData) {
+  const user = await requireUser();
   const name = str(formData, "name");
   const notes = str(formData, "notes");
   const beanIds = formData.getAll("beanIds").map(String).filter(Boolean);
@@ -66,6 +68,7 @@ export async function createDrop(formData: FormData) {
       notes,
       code: generateDropCode(),
       beans: { connect: beanIds.map((id) => ({ id })) },
+      teamId: user.teamId,
     },
   });
 
@@ -258,10 +261,12 @@ export async function submitDropOrder(formData: FormData) {
       if (!allowedBeanIds.has(beanId)) throw new Error("That bean isn't part of this drop.");
     }
 
-    // Same case-insensitive match-or-create pattern addDropClaim/recordSale already used.
-    const existingFriends = await tx.friend.findMany();
+    // Same case-insensitive match-or-create pattern addDropClaim/recordSale
+    // already used — scoped to the drop's own owner, since the public
+    // submitter here has no session of their own to derive one from.
+    const existingFriends = await tx.friend.findMany({ where: { teamId: current.teamId } });
     const match = existingFriends.find((f) => f.name.toLowerCase() === name.toLowerCase());
-    const friend = match ?? (await tx.friend.create({ data: { name } }));
+    const friend = match ?? (await tx.friend.create({ data: { name, teamId: current.teamId } }));
 
     await tx.dropOrder.create({
       data: {

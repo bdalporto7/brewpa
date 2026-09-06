@@ -4,13 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { parseMMSS } from "@/lib/format";
-import { getCurrentAllowedUser } from "@/lib/admin";
-
-async function requireUser() {
-  const user = await getCurrentAllowedUser();
-  if (!user) throw new Error("Not signed in.");
-  return user;
-}
+import { requireUser } from "@/lib/admin";
 
 function str(formData: FormData, key: string): string | null {
   const raw = formData.get(key);
@@ -54,7 +48,8 @@ function recipeFields(formData: FormData) {
 }
 
 export async function createRecipe(formData: FormData) {
-  await prisma.recipe.create({ data: recipeFields(formData) });
+  const user = await requireUser();
+  await prisma.recipe.create({ data: { ...recipeFields(formData), teamId: user.teamId } });
   revalidatePath("/recipes");
 }
 
