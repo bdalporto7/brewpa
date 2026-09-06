@@ -33,33 +33,20 @@ const globalForPrisma = globalThis as unknown as {
  * "both vars happen to be set" can't be trusted to mean "connect to Turso"
  * the way it can for the hosted deployment.
  *
- * Within desktop mode, DESKTOP_SYNC_ENABLED (a separate flag main.ts flips
- * once a real, allowlisted sign-in has happened — see auth.ts) decides
- * between two very different local files: plain (general users, never
- * signed in) vs. a libsql *embedded replica* of the hosted Turso database
- * (reads local/instant, writes go straight to the same remote primary the
- * web app writes to — no second database to reconcile).
+ * Within desktop mode, the local file is always plain SQLite now,
+ * DESKTOP_SYNC_ENABLED or not — "sync" is an application-level operation
+ * (src/lib/sync-client.ts, over the /api/sync/pull|push HTTP endpoints)
+ * rather than a different *kind* of local database. Earlier versions of
+ * this app used a libsql *embedded replica* here instead (reads local,
+ * writes straight to the same remote primary the web app writes to) —
+ * replaced because a replica mirrors the entire remote database with no
+ * concept of team boundaries, which stopped being safe the moment a
+ * second team could exist.
  */
 function createPrismaClient(): PrismaClient {
   if (process.env.APP_MODE === "desktop") {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("desktop mode requires DATABASE_URL.");
-
-    if (process.env.DESKTOP_SYNC_ENABLED === "true") {
-      const syncUrl = process.env.TURSO_DATABASE_URL;
-      const authToken = process.env.TURSO_AUTH_TOKEN;
-      if (!syncUrl || !authToken) {
-        throw new Error("DESKTOP_SYNC_ENABLED requires TURSO_DATABASE_URL and TURSO_AUTH_TOKEN.");
-      }
-      // A floor for hands-off background sync — independent of, and in
-      // addition to, src/lib/sync-actions.ts's on-demand `.sync()` calls
-      // (that adapter is a plain factory with no handle back to the client
-      // it creates internally, so on-demand sync needs its own separate
-      // createClient() instance pointed at the same config — see that file).
-      const syncIntervalSeconds = Number(process.env.TURSO_SYNC_INTERVAL_SECONDS ?? "60");
-      const adapter = new PrismaLibSQL({ url, syncUrl, authToken, syncInterval: syncIntervalSeconds });
-      return new PrismaClient({ adapter });
-    }
 
     const adapter = new PrismaLibSQL({ url });
     return new PrismaClient({ adapter });
