@@ -9,9 +9,11 @@ import SectionHeading from "@/components/ui/SectionHeading";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [recipe, user] = await Promise.all([prisma.recipe.findUnique({ where: { id } }), getCurrentAllowedUser()]);
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
 
-  if (!recipe || !user) notFound();
+  const recipe = await prisma.recipe.findFirst({ where: { id, teamId: user.teamId } });
+  if (!recipe) notFound();
 
   const brews = await prisma.brew.findMany({
     where: { recipeId: id, userId: user.id },

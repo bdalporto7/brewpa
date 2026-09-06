@@ -1,5 +1,7 @@
 import { Plus } from "lucide-react";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import RecipeForm from "@/components/brews/RecipeForm";
 import RecipeCard from "@/components/brews/RecipeCard";
 import SectionHeading from "@/components/ui/SectionHeading";
@@ -7,7 +9,13 @@ import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
 import PageStamp from "@/components/ui/PageStamp";
 
 export default async function RecipesPage() {
-  const recipes = await prisma.recipe.findMany({ orderBy: [{ isFavorite: "desc" }, { name: "asc" }] });
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
+  const recipes = await prisma.recipe.findMany({
+    where: { teamId: user.teamId },
+    orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
+  });
 
   return (
     <div className="flex flex-col gap-8">

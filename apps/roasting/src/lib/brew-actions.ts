@@ -54,18 +54,24 @@ export async function createRecipe(formData: FormData) {
 }
 
 export async function updateRecipe(id: string, formData: FormData) {
+  const user = await requireUser();
+  await prisma.recipe.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.recipe.update({ where: { id }, data: recipeFields(formData) });
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);
 }
 
 export async function deleteRecipe(id: string) {
+  const user = await requireUser();
+  await prisma.recipe.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.recipe.delete({ where: { id } });
   revalidatePath("/recipes");
   redirect("/recipes");
 }
 
 export async function toggleRecipeFavorite(id: string, isFavorite: boolean) {
+  const user = await requireUser();
+  await prisma.recipe.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.recipe.update({ where: { id }, data: { isFavorite } });
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);

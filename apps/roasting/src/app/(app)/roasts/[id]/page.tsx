@@ -58,8 +58,8 @@ export default async function RoastSessionPage({
   if (!user) notFound();
 
   const [session, friends, compareCandidates, profiles] = await Promise.all([
-    prisma.roastSession.findUnique({
-      where: { id },
+    prisma.roastSession.findFirst({
+      where: { id, teamId: user.teamId },
       include: {
         bean: true,
         events: { orderBy: { atSeconds: "asc" } },
@@ -75,16 +75,17 @@ export default async function RoastSessionPage({
         profile: true,
       },
     }),
-    prisma.friend.findMany({ orderBy: { name: "asc" } }),
+    prisma.friend.findMany({ where: { teamId: user.teamId }, orderBy: { name: "asc" } }),
     // Only actually used while pending (the picker), but cheap enough (id/bean/date/level
     // only) to just fetch alongside everything else rather than branching the query shape.
     prisma.roastSession.findMany({
-      where: { endedAt: { not: null }, id: { not: id } },
+      where: { endedAt: { not: null }, id: { not: id }, teamId: user.teamId },
       include: { bean: true },
       orderBy: { startedAt: "desc" },
     }),
     // Same treatment — only used by RoastProfilePicker while pending, cheap enough to just always fetch.
     prisma.roastProfile.findMany({
+      where: { teamId: user.teamId },
       orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
       select: { id: true, name: true, process: true, brewTarget: true },
     }),
@@ -152,8 +153,10 @@ export default async function RoastSessionPage({
     });
     let baselineSessions = sameBeanCompleted;
     if (baselineSessions.length === 0) {
+      // Cross-bean fallback, scoped to this team — another team's roast
+      // curves aren't a meaningful "typical for this bean" baseline.
       baselineSessions = await prisma.roastSession.findMany({
-        where: { endedAt: { not: null } },
+        where: { endedAt: { not: null }, teamId: user.teamId },
         include: { events: true, temperatureReadings: true },
         take: 50,
       });

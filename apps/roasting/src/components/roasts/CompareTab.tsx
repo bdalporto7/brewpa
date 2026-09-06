@@ -50,15 +50,18 @@ export default async function CompareTab({
   selectedId: string | null;
 }) {
   const candidates = await prisma.roastSession.findMany({
-    where: { endedAt: { not: null }, id: { not: currentSession.id } },
+    where: { endedAt: { not: null }, id: { not: currentSession.id }, teamId: currentSession.teamId },
     include: { bean: true },
     orderBy: { startedAt: "desc" },
   });
 
+  // selectedId comes from a raw searchParam (`vs`) on the outer page — only
+  // trusted once it's confirmed to match one of the team-scoped candidates
+  // above, not passed straight into a fetch by id.
   const comparisonSummary = selectedId ? candidates.find((c) => c.id === selectedId) : null;
   const comparisonFull: FullSession | null = comparisonSummary
-    ? await prisma.roastSession.findUniqueOrThrow({
-        where: { id: comparisonSummary.id },
+    ? await prisma.roastSession.findFirstOrThrow({
+        where: { id: comparisonSummary.id, teamId: currentSession.teamId },
         include: { bean: true, events: true, temperatureReadings: true },
       })
     : null;

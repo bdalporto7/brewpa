@@ -15,7 +15,7 @@ export default async function BrewPage({ params }: { params: Promise<{ id: strin
       where: { id },
       include: { roastSession: { include: { bean: true } }, recipe: true },
     }),
-    prisma.recipe.findMany({ orderBy: { name: "asc" } }),
+    prisma.recipe.findMany({ where: { teamId: user.teamId }, orderBy: { name: "asc" } }),
   ]);
 
   if (!brew || brew.userId !== user.id) notFound();

@@ -58,6 +58,7 @@ export async function createBean(formData: FormData) {
 }
 
 export async function updateBean(id: string, formData: FormData) {
+  const user = await requireUser();
   const name = str(formData, "name");
   const origin = str(formData, "origin");
   const process = str(formData, "process");
@@ -70,7 +71,7 @@ export async function updateBean(id: string, formData: FormData) {
     throw new Error("Total purchased can't be negative.");
   }
 
-  const bean = await prisma.bean.findUniqueOrThrow({ where: { id } });
+  const bean = await prisma.bean.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   if (weightGrams < bean.remainingGrams) {
     throw new Error(
       `Total purchased can't be less than the ${bean.remainingGrams}g currently remaining.`
@@ -101,11 +102,14 @@ export async function updateBean(id: string, formData: FormData) {
 
 /** LowStockBanner's per-bean "×" — see the Bean.lowStockDismissed schema comment for why this is one flag, not one per warning reason. */
 export async function dismissLowStock(beanId: string) {
+  const user = await requireUser();
+  await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
   await prisma.bean.update({ where: { id: beanId }, data: { lowStockDismissed: true } });
   revalidatePath("/");
 }
 
 export async function adjustBeanStock(beanId: string, direction: "add" | "remove", amount: number) {
+  const user = await requireUser();
   if (amount <= 0) throw new Error("Amount must be positive.");
 
   // Add/remove shifts the total right along with the remaining amount — this
@@ -116,7 +120,7 @@ export async function adjustBeanStock(beanId: string, direction: "add" | "remove
   // "Set exact" (setBeanStock) is the other kind of correction — a recount
   // that only touches remainingGrams, deliberately not total.
   await prisma.$transaction(async (tx) => {
-    const bean = await tx.bean.findUniqueOrThrow({ where: { id: beanId } });
+    const bean = await tx.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
     const delta = direction === "add" ? amount : -amount;
     const nextRemaining = bean.remainingGrams + delta;
     if (nextRemaining < 0) {
@@ -141,8 +145,10 @@ export async function adjustBeanStock(beanId: string, direction: "add" | "remove
 }
 
 export async function setBeanStock(beanId: string, amount: number) {
+  const user = await requireUser();
   if (amount < 0) throw new Error("Remaining stock can't be negative.");
 
+  await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
   await prisma.bean.update({
     where: { id: beanId },
     data: { remainingGrams: Math.round(amount * 10) / 10 },
@@ -159,8 +165,13 @@ export async function setBeanStock(beanId: string, amount: number) {
  * that comparison surfaces live.
  */
 export async function setGoldenRoast(beanId: string, roastSessionId: string | null) {
+  const user = await requireUser();
+  await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
+
   if (roastSessionId) {
-    const session = await prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const session = await prisma.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     if (session.beanId !== beanId) {
       throw new Error("That roast isn't for this bean.");
     }
@@ -183,11 +194,15 @@ export async function setGoldenRoast(beanId: string, roastSessionId: string | nu
  * last-roast reference, which only ever drives text tips.
  */
 export async function setCompareRoast(roastSessionId: string, compareToId: string | null) {
+  const user = await requireUser();
   if (compareToId === roastSessionId) {
     throw new Error("A roast can't compare against itself.");
   }
+  await prisma.roastSession.findFirstOrThrow({ where: { id: roastSessionId, teamId: user.teamId } });
   if (compareToId) {
-    const target = await prisma.roastSession.findUniqueOrThrow({ where: { id: compareToId } });
+    const target = await prisma.roastSession.findFirstOrThrow({
+      where: { id: compareToId, teamId: user.teamId },
+    });
     if (!target.endedAt) {
       throw new Error("Only a completed roast can be picked as a comparison.");
     }
@@ -198,6 +213,9 @@ export async function setCompareRoast(roastSessionId: string, compareToId: strin
 }
 
 export async function deleteBean(id: string) {
+  const user = await requireUser();
+  await prisma.bean.findFirstOrThrow({ where: { id, teamId: user.teamId } });
+
   const sessionCount = await prisma.roastSession.count({ where: { beanId: id } });
   if (sessionCount > 0) {
     throw new Error(
@@ -220,12 +238,12 @@ export async function startRoast(formData: FormData) {
   }
 
   const session = await prisma.$transaction(async (tx) => {
-    const active = await tx.roastSession.findFirst({ where: { endedAt: null } });
+    const active = await tx.roastSession.findFirst({ where: { endedAt: null, teamId: user.teamId } });
     if (active) {
       throw new Error("A roast is already in progress — end it before starting another.");
     }
 
-    const bean = await tx.bean.findUniqueOrThrow({ where: { id: beanId } });
+    const bean = await tx.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
     if (bean.remainingGrams < greenWeightGrams) {
       throw new Error(
         `Only ${bean.remainingGrams}g of ${bean.name} left in stock — can't start a ${greenWeightGrams}g roast.`
@@ -261,8 +279,11 @@ export async function startRoast(formData: FormData) {
  * elsewhere (computeAdjustedPlan) meaningful in the first place.
  */
 export async function beginRoast(roastSessionId: string, fanLevel: number, heatLevel: number) {
+  const user = await requireUser();
   await prisma.$transaction(async (tx) => {
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     if (session.startedAt) {
       throw new Error("This roast has already begun.");
     }
@@ -319,6 +340,7 @@ const AI_SUGGESTION_DAILY_LIMIT = 20;
 const SUPPLIER_EXTRACTION_DAILY_LIMIT = 20;
 
 export async function fetchSupplierInfo(beanId: string) {
+  const user = await requireUser();
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const recentCalls = await prisma.supplierExtractionCall.count({ where: { calledAt: { gte: since } } });
   if (recentCalls >= SUPPLIER_EXTRACTION_DAILY_LIMIT) {
@@ -328,7 +350,7 @@ export async function fetchSupplierInfo(beanId: string) {
   }
   await prisma.supplierExtractionCall.create({ data: {} });
 
-  const bean = await prisma.bean.findUniqueOrThrow({ where: { id: beanId } });
+  const bean = await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
   if (!bean.supplierUrl) {
     throw new Error("This bean has no seller link set.");
   }
@@ -353,6 +375,8 @@ export async function fetchSupplierInfo(beanId: string) {
  * describes what's actually stored.
  */
 export async function updateBeanTastingNotes(beanId: string, tastingNotes: string) {
+  const user = await requireUser();
+  await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
   await prisma.bean.update({
     where: { id: beanId },
     data: { tastingNotes: tastingNotes || null, tastingNotesFetchedAt: null },
@@ -361,6 +385,8 @@ export async function updateBeanTastingNotes(beanId: string, tastingNotes: strin
 }
 
 export async function updateBeanQGrade(beanId: string, qGrade: number | null) {
+  const user = await requireUser();
+  await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
   await prisma.bean.update({
     where: { id: beanId },
     data: { qGrade },
@@ -374,6 +400,7 @@ export async function generateRoastSuggestion(
   roastGoal: string,
   brewTarget: string | null
 ) {
+  const user = await requireUser();
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const recentCalls = await prisma.aiSuggestionCall.count({ where: { calledAt: { gte: since } } });
   if (recentCalls >= AI_SUGGESTION_DAILY_LIMIT) {
@@ -383,8 +410,8 @@ export async function generateRoastSuggestion(
   }
   await prisma.aiSuggestionCall.create({ data: {} });
 
-  const session = await prisma.roastSession.findUniqueOrThrow({
-    where: { id: roastSessionId },
+  const session = await prisma.roastSession.findFirstOrThrow({
+    where: { id: roastSessionId, teamId: user.teamId },
     include: { bean: true },
   });
 
@@ -396,12 +423,14 @@ export async function generateRoastSuggestion(
   });
 
   // Machine-calibration data (src/lib/roastAdvisor.ts): every completed
-  // roast of ANY bean, but trimmed to just the handful of fields actually
-  // used — the charge-time FAN/HEAT events, the two milestone events, and
-  // one probe reading — rather than every event and every probe reading
-  // (which alone can be 80-100+ rows per roast) across 40+ roasts.
+  // roast of ANY bean *this team* has roasted, but trimmed to just the
+  // handful of fields actually used — the charge-time FAN/HEAT events, the
+  // two milestone events, and one probe reading — rather than every event
+  // and every probe reading (which alone can be 80-100+ rows per roast)
+  // across 40+ roasts. Scoped to teamId: a dial-timing quirk is a fact
+  // about *this team's* physical machine, not every team's.
   const calibration = await prisma.roastSession.findMany({
-    where: { endedAt: { not: null } },
+    where: { endedAt: { not: null }, teamId: user.teamId },
     select: {
       id: true,
       startedAt: true,
@@ -493,6 +522,8 @@ export async function generateRoastSuggestion(
  * generateRoastSuggestion resets this to null on every regeneration.
  */
 export async function acceptRoastSuggestion(roastSessionId: string) {
+  const user = await requireUser();
+  await prisma.roastSession.findFirstOrThrow({ where: { id: roastSessionId, teamId: user.teamId } });
   await prisma.roastSession.update({
     where: { id: roastSessionId },
     data: { aiSuggestionAcceptedAt: new Date() },
@@ -504,10 +535,13 @@ export async function acceptRoastSuggestion(roastSessionId: string) {
  * Records a correction on a past AI suggestion (e.g. "fan 8/heat 8 roasted
  * way faster than predicted") — plain DB write, no LLM call, so recording
  * feedback is free. Read back into every future generateRoastSuggestion
- * call for ANY bean via the calibration query, since a dial-timing
- * correction is a fact about the machine, not the one bean it happened on.
+ * call for ANY bean this team has roasted via the calibration query, since
+ * a dial-timing correction is a fact about the machine, not the one bean it
+ * happened on.
  */
 export async function recordSuggestionFeedback(roastSessionId: string, feedback: string) {
+  const user = await requireUser();
+  await prisma.roastSession.findFirstOrThrow({ where: { id: roastSessionId, teamId: user.teamId } });
   await prisma.roastSession.update({
     where: { id: roastSessionId },
     data: { aiSuggestionFeedback: feedback },
@@ -521,6 +555,8 @@ export async function recordSuggestionFeedback(roastSessionId: string, feedback:
  * it's live (a running note), with no completed-roast gate.
  */
 export async function updateRoastNotes(roastSessionId: string, formData: FormData) {
+  const user = await requireUser();
+  await prisma.roastSession.findFirstOrThrow({ where: { id: roastSessionId, teamId: user.teamId } });
   const notes = str(formData, "notes");
   await prisma.roastSession.update({ where: { id: roastSessionId }, data: { notes } });
   revalidatePath(`/roasts/${roastSessionId}`);
@@ -558,7 +594,7 @@ export async function startPastRoast(formData: FormData) {
   const endedAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
   const session = await prisma.$transaction(async (tx) => {
-    const bean = await tx.bean.findUniqueOrThrow({ where: { id: beanId } });
+    const bean = await tx.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
     if (bean.remainingGrams < greenWeightGrams) {
       throw new Error(
         `Only ${bean.remainingGrams}g of ${bean.name} left in stock — can't log a ${greenWeightGrams}g roast.`
@@ -606,6 +642,11 @@ export async function logEvent(input: {
   tempFahrenheit?: number;
   note?: string;
 }) {
+  const user = await requireUser();
+  await prisma.roastSession.findFirstOrThrow({
+    where: { id: input.roastSessionId, teamId: user.teamId },
+  });
+
   await prisma.roastEvent.create({
     data: {
       roastSessionId: input.roastSessionId,
@@ -622,6 +663,10 @@ export async function logEvent(input: {
 }
 
 export async function deleteEvent(roastSessionId: string, eventId: string) {
+  const user = await requireUser();
+  await prisma.roastEvent.findFirstOrThrow({
+    where: { id: eventId, roastSession: { teamId: user.teamId } },
+  });
   await prisma.roastEvent.delete({ where: { id: eventId } });
   revalidatePath(`/roasts/${roastSessionId}`);
 }
@@ -635,8 +680,11 @@ export async function deleteEvent(roastSessionId: string, eventId: string) {
  * in at whatever pace afterward without affecting anything already logged.
  */
 export async function dropRoast(roastSessionId: string) {
+  const user = await requireUser();
   await prisma.$transaction(async (tx) => {
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     if (session.endedAt) {
       throw new Error("This roast has already ended.");
     }
@@ -672,6 +720,7 @@ export async function dropRoast(roastSessionId: string) {
  * adjustBeanStock/updateBean's weightGrams field.
  */
 export async function updateRoastDetails(roastSessionId: string, formData: FormData) {
+  const user = await requireUser();
   const roastedWeightGrams = num(formData, "roastedWeightGrams");
   const roastLevel = str(formData, "roastLevel");
   const rating = num(formData, "rating");
@@ -682,7 +731,9 @@ export async function updateRoastDetails(roastSessionId: string, formData: FormD
   }
 
   await prisma.$transaction(async (tx) => {
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     if (!session.endedAt) {
       throw new Error("This roast hasn't been dropped yet.");
     }
@@ -733,7 +784,10 @@ function cuppingScoresFromForm(formData: FormData) {
 }
 
 export async function addCuppingNote(roastSessionId: string, formData: FormData) {
-  const session = await prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+  const user = await requireUser();
+  const session = await prisma.roastSession.findFirstOrThrow({
+    where: { id: roastSessionId, teamId: user.teamId },
+  });
   if (!session.endedAt) {
     throw new Error("Only a completed roast can be cupped.");
   }
@@ -756,6 +810,10 @@ export async function addCuppingNote(roastSessionId: string, formData: FormData)
 }
 
 export async function updateCuppingNote(cuppingNoteId: string, formData: FormData) {
+  const user = await requireUser();
+  await prisma.cuppingNote.findFirstOrThrow({
+    where: { id: cuppingNoteId, roastSession: { teamId: user.teamId } },
+  });
   const note = await prisma.cuppingNote.update({
     where: { id: cuppingNoteId },
     data: cuppingScoresFromForm(formData),
@@ -765,6 +823,10 @@ export async function updateCuppingNote(cuppingNoteId: string, formData: FormDat
 }
 
 export async function deleteCuppingNote(roastSessionId: string, cuppingNoteId: string) {
+  const user = await requireUser();
+  await prisma.cuppingNote.findFirstOrThrow({
+    where: { id: cuppingNoteId, roastSession: { teamId: user.teamId } },
+  });
   await prisma.cuppingNote.delete({ where: { id: cuppingNoteId } });
   revalidatePath(`/roasts/${roastSessionId}`);
 }
@@ -774,13 +836,16 @@ export async function adjustRoastedStock(
   direction: "add" | "remove",
   amount: number
 ) {
+  const user = await requireUser();
   if (amount <= 0) throw new Error("Amount must be positive.");
 
   // Same model as adjustBeanStock: add/remove shifts the total (roastedWeightGrams)
   // right along with the remaining amount, keeping "how much has been dropped"
   // unchanged. Set exact (setRoastedStock) only touches remaining.
   await prisma.$transaction(async (tx) => {
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     const currentRemaining = session.roastedRemainingGrams ?? 0;
     const currentTotal = session.roastedWeightGrams ?? 0;
     const delta = direction === "add" ? amount : -amount;
@@ -804,8 +869,10 @@ export async function adjustRoastedStock(
 }
 
 export async function setRoastedStock(roastSessionId: string, amount: number) {
+  const user = await requireUser();
   if (amount < 0) throw new Error("Remaining stock can't be negative.");
 
+  await prisma.roastSession.findFirstOrThrow({ where: { id: roastSessionId, teamId: user.teamId } });
   await prisma.roastSession.update({
     where: { id: roastSessionId },
     data: { roastedRemainingGrams: Math.round(amount * 10) / 10 },
@@ -829,7 +896,9 @@ export async function recordSale(roastSessionId: string, formData: FormData) {
   }
 
   await prisma.$transaction(async (tx) => {
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     const onHand = session.roastedRemainingGrams ?? 0;
     if (onHand < weightGrams) {
       throw new Error(`Only ${onHand}g of roasted coffee left from this roast.`);
@@ -859,9 +928,14 @@ export async function recordSale(roastSessionId: string, formData: FormData) {
 }
 
 export async function deleteSale(roastSessionId: string, saleId: string) {
+  const user = await requireUser();
   await prisma.$transaction(async (tx) => {
-    const sale = await tx.sale.findUniqueOrThrow({ where: { id: saleId } });
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    const sale = await tx.sale.findFirstOrThrow({
+      where: { id: saleId, roastSession: { teamId: user.teamId } },
+    });
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     await tx.roastSession.update({
       where: { id: roastSessionId },
       data: { roastedRemainingGrams: (session.roastedRemainingGrams ?? 0) + sale.weightGrams },
@@ -875,8 +949,9 @@ export async function deleteSale(roastSessionId: string, saleId: string) {
 }
 
 export async function deleteRoastSession(id: string) {
+  const user = await requireUser();
   await prisma.$transaction(async (tx) => {
-    const existing = await tx.roastSession.findUniqueOrThrow({ where: { id } });
+    const existing = await tx.roastSession.findFirstOrThrow({ where: { id, teamId: user.teamId } });
     await tx.bean.update({
       where: { id: existing.beanId },
       data: { remainingGrams: { increment: existing.greenWeightGrams } },
@@ -890,6 +965,7 @@ export async function deleteRoastSession(id: string) {
 }
 
 export async function updateFriend(id: string, formData: FormData) {
+  const user = await requireUser();
   const name = str(formData, "name");
   const notes = str(formData, "notes");
 
@@ -897,6 +973,7 @@ export async function updateFriend(id: string, formData: FormData) {
     throw new Error("Name is required.");
   }
 
+  await prisma.friend.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.friend.update({ where: { id }, data: { name, notes } });
 
   revalidatePath("/friends");
@@ -905,6 +982,8 @@ export async function updateFriend(id: string, formData: FormData) {
 }
 
 export async function deleteFriend(id: string) {
+  const user = await requireUser();
+  await prisma.friend.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.friend.delete({ where: { id } });
 
   revalidatePath("/friends");
@@ -919,6 +998,7 @@ export async function deleteFriend(id: string) {
  * about the target friend changes except now owning source's history too.
  */
 export async function mergeFriend(sourceId: string, formData: FormData) {
+  const user = await requireUser();
   const targetId = str(formData, "targetId");
   if (!targetId) {
     throw new Error("Pick who to merge into.");
@@ -926,6 +1006,9 @@ export async function mergeFriend(sourceId: string, formData: FormData) {
   if (sourceId === targetId) {
     throw new Error("Can't merge a friend into themselves.");
   }
+
+  await prisma.friend.findFirstOrThrow({ where: { id: sourceId, teamId: user.teamId } });
+  await prisma.friend.findFirstOrThrow({ where: { id: targetId, teamId: user.teamId } });
 
   await prisma.$transaction(async (tx) => {
     await tx.sale.updateMany({ where: { friendId: sourceId }, data: { friendId: targetId } });

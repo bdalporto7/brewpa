@@ -2,12 +2,21 @@ import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { buildRoastCsv } from "@/lib/csv";
+import { getCurrentAllowedUser } from "@/lib/admin";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const session = await prisma.roastSession.findUnique({
-    where: { id },
+  // proxy.ts's session gate already keeps out anyone signed out entirely,
+  // but never checked that the caller's *team* actually owns this roast —
+  // this route had no auth check of its own at all.
+  const user = await getCurrentAllowedUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+
+  const session = await prisma.roastSession.findFirst({
+    where: { id, teamId: user.teamId },
     include: { bean: true, events: { orderBy: { atSeconds: "asc" } } },
   });
 

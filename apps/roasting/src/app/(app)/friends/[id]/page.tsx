@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import Card from "@/components/ui/Card";
 import Stat from "@/components/ui/Stat";
 import SectionHeading from "@/components/ui/SectionHeading";
@@ -10,9 +11,12 @@ import { DROP_ORDER_ROAST_STYLE_LABELS } from "@/lib/constants";
 
 export default async function FriendPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   const [friend, otherFriends] = await Promise.all([
-    prisma.friend.findUnique({
-      where: { id },
+    prisma.friend.findFirst({
+      where: { id, teamId: user.teamId },
       include: {
         sales: {
           orderBy: { soldAt: "desc" },
@@ -24,7 +28,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
         },
       },
     }),
-    prisma.friend.findMany({ where: { id: { not: id } }, orderBy: { name: "asc" } }),
+    prisma.friend.findMany({ where: { id: { not: id }, teamId: user.teamId }, orderBy: { name: "asc" } }),
   ]);
 
   if (!friend) notFound();

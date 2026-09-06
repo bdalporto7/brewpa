@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { format, startOfMonth } from "date-fns";
 import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import Timer from "@/components/roasts/Timer";
 import Button from "@/components/ui/Button";
 import InventoryCard from "@/components/beans/InventoryCard";
@@ -19,6 +21,9 @@ import { estimateDaysUntilEmpty, REORDER_WARNING_DAYS } from "@/lib/inventoryVel
 const LOW_STOCK_PERCENT = 15;
 
 export default async function DashboardPage() {
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   // Down from 8 separate queries to 5. Measured (not assumed): Turso/the
   // libSQL adapter doesn't actually run Promise.all's queries concurrently
   // here — logging each query's resolve time showed a clean staircase
@@ -29,14 +34,15 @@ export default async function DashboardPage() {
   // recentSessions is just the first 5 of endedSessions once that query
   // also selects bean/startedAt instead of a narrower stats-only shape.
   const [activeSession, endedSessions, roastsThisMonth, beansWithRoasts, activeDrops] = await Promise.all([
-    prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),
+    prisma.roastSession.findFirst({ where: { endedAt: null, teamId: user.teamId }, include: { bean: true } }),
     prisma.roastSession.findMany({
-      where: { endedAt: { not: null } },
+      where: { endedAt: { not: null }, teamId: user.teamId },
       include: { bean: true },
       orderBy: { startedAt: "desc" },
     }),
-    prisma.roastSession.count({ where: { startedAt: { gte: startOfMonth(new Date()) } } }),
+    prisma.roastSession.count({ where: { startedAt: { gte: startOfMonth(new Date()) }, teamId: user.teamId } }),
     prisma.bean.findMany({
+      where: { teamId: user.teamId },
       include: {
         // startedAt/greenWeightGrams (every roast, not just completed ones
         // with a recorded yield) feed estimateDaysUntilEmpty below; the
@@ -55,7 +61,7 @@ export default async function DashboardPage() {
       },
     }),
     prisma.drop.findMany({
-      where: { closedAt: null },
+      where: { closedAt: null, teamId: user.teamId },
       include: { beans: true, orders: true },
       orderBy: { createdAt: "desc" },
     }),

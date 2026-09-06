@@ -96,18 +96,24 @@ export async function createRoastProfile(formData: FormData) {
 }
 
 export async function updateRoastProfile(id: string, formData: FormData) {
+  const user = await requireUser();
+  await prisma.roastProfile.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.roastProfile.update({ where: { id }, data: profileFields(formData) });
   revalidatePath("/profiles");
   revalidatePath(`/profiles/${id}`);
 }
 
 export async function deleteRoastProfile(id: string) {
+  const user = await requireUser();
+  await prisma.roastProfile.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.roastProfile.delete({ where: { id } });
   revalidatePath("/profiles");
   redirect("/profiles");
 }
 
 export async function toggleProfileFavorite(id: string, isFavorite: boolean) {
+  const user = await requireUser();
+  await prisma.roastProfile.findFirstOrThrow({ where: { id, teamId: user.teamId } });
   await prisma.roastProfile.update({ where: { id }, data: { isFavorite } });
   revalidatePath("/profiles");
   revalidatePath(`/profiles/${id}`);
@@ -117,7 +123,9 @@ export async function toggleProfileFavorite(id: string, isFavorite: boolean) {
  * standalone, bean-independent profile. */
 export async function saveProfileFromSuggestion(roastSessionId: string, formData: FormData) {
   const user = await requireUser();
-  const session = await prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+  const session = await prisma.roastSession.findFirstOrThrow({
+    where: { id: roastSessionId, teamId: user.teamId },
+  });
   if (!session.aiSuggestionPlan) throw new Error("No AI plan on this roast to save.");
 
   const name = str(formData, "name");
@@ -142,8 +150,8 @@ export async function saveProfileFromSuggestion(roastSessionId: string, formData
  * started from. */
 export async function saveProfileFromCompletedRoast(roastSessionId: string, formData: FormData) {
   const user = await requireUser();
-  const session = await prisma.roastSession.findUniqueOrThrow({
-    where: { id: roastSessionId },
+  const session = await prisma.roastSession.findFirstOrThrow({
+    where: { id: roastSessionId, teamId: user.teamId },
     include: {
       events: { orderBy: { atSeconds: "asc" } },
       bean: true,
@@ -211,9 +219,10 @@ export async function saveProfileFromCompletedRoast(roastSessionId: string, form
  * with zero changes regardless of source. Applying counts as accepting —
  * there's no separate "accept" step for a profile you deliberately chose. */
 export async function applyRoastProfile(roastSessionId: string, profileId: string) {
+  const user = await requireUser();
   const [session, profile] = await Promise.all([
-    prisma.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } }),
-    prisma.roastProfile.findUniqueOrThrow({ where: { id: profileId } }),
+    prisma.roastSession.findFirstOrThrow({ where: { id: roastSessionId, teamId: user.teamId } }),
+    prisma.roastProfile.findFirstOrThrow({ where: { id: profileId, teamId: user.teamId } }),
   ]);
   if (session.startedAt) {
     throw new Error("Can only apply a profile before the roast begins.");

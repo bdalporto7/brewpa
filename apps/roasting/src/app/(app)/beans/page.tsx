@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import BeanForm from "@/components/beans/BeanForm";
 import BeanCard from "@/components/beans/BeanCard";
 import BeanRoastedSummaryCard from "@/components/beans/BeanRoastedSummaryCard";
@@ -23,7 +25,11 @@ export default async function BeansPage({
 }) {
   const { origin, process, q } = await searchParams;
 
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   const allBeans = await prisma.bean.findMany({
+    where: { teamId: user.teamId },
     include: {
       roastSessions: {
         where: { endedAt: { not: null }, roastedWeightGrams: { not: null } },

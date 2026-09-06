@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import FriendCard from "@/components/friends/FriendCard";
 import CreateDropToggle from "@/components/drops/CreateDropToggle";
 import DropCard from "@/components/friends/DropCard";
@@ -7,10 +9,14 @@ import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
 import PageStamp from "@/components/ui/PageStamp";
 
 export default async function FriendsPage() {
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   const [friends, beans, drops] = await Promise.all([
-    prisma.friend.findMany({ include: { sales: true }, orderBy: { name: "asc" } }),
-    prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
+    prisma.friend.findMany({ where: { teamId: user.teamId }, include: { sales: true }, orderBy: { name: "asc" } }),
+    prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
     prisma.drop.findMany({
+      where: { teamId: user.teamId },
       include: { beans: true, orders: true },
       orderBy: { createdAt: "desc" },
     }),

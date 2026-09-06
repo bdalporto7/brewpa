@@ -17,17 +17,20 @@ import SectionHeading from "@/components/ui/SectionHeading";
 import { estimateDaysUntilEmpty } from "@/lib/inventoryVelocity";
 
 /**
- * `bean` and `user` are independent fetches, run in parallel — but `brews`
- * has to come after, since it needs `user.id` from that same Promise.all
- * (can't join the parallel batch, it depends on one of its results). Stats
- * below only count `completed` (endedAt set) roasts, since a pending/live
- * session has no final roasted weight or rating to average in yet.
+ * `user` has to resolve first — every other fetch below needs `user.teamId`
+ * to scope itself, so nothing here can join a single parallel `Promise.all`
+ * the way an unscoped version once could. Stats below only count
+ * `completed` (endedAt set) roasts, since a pending/live session has no
+ * final roasted weight or rating to average in yet.
  */
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [bean, user, beansWithStock] = await Promise.all([
-    prisma.bean.findUnique({
-      where: { id },
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
+  const [bean, beansWithStock] = await Promise.all([
+    prisma.bean.findFirst({
+      where: { id, teamId: user.teamId },
       include: {
         roastSessions: {
           include: { bean: true },
@@ -39,11 +42,10 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
         },
       },
     }),
-    getCurrentAllowedUser(),
-    prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
+    prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
   ]);
 
-  if (!bean || !user) notFound();
+  if (!bean) notFound();
 
   const brews = await prisma.brew.findMany({
     where: { userId: user.id, roastSession: { beanId: bean.id } },

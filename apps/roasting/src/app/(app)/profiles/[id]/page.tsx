@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import { formatMMSS } from "@/lib/format";
 import RoastProfileDetailsPanel from "@/components/roasts/RoastProfileDetailsPanel";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
@@ -19,11 +20,14 @@ import SectionHeading from "@/components/ui/SectionHeading";
  */
 export default async function RoastProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const profile = await prisma.roastProfile.findUnique({ where: { id } });
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
+  const profile = await prisma.roastProfile.findFirst({ where: { id, teamId: user.teamId } });
   if (!profile) notFound();
 
   const roasts = await prisma.roastSession.findMany({
-    where: { profileId: id },
+    where: { profileId: id, teamId: user.teamId },
     include: { bean: true },
     orderBy: { startedAt: "desc" },
   });

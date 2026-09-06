@@ -20,11 +20,11 @@ export default async function BrewsPage({
 
   const [sessions, recipes, brews] = await Promise.all([
     prisma.roastSession.findMany({
-      where: { endedAt: { not: null }, roastedRemainingGrams: { gt: 0 } },
+      where: { endedAt: { not: null }, roastedRemainingGrams: { gt: 0 }, teamId: user.teamId },
       include: { bean: true },
       orderBy: { startedAt: "desc" },
     }),
-    prisma.recipe.findMany({ orderBy: { name: "asc" } }),
+    prisma.recipe.findMany({ where: { teamId: user.teamId }, orderBy: { name: "asc" } }),
     prisma.brew.findMany({
       where: { userId: user.id },
       orderBy: { brewedAt: "desc" },

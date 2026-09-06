@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import { ROAST_LEVELS } from "@/lib/constants";
 import StartRoastForm from "@/components/roasts/StartRoastForm";
 import LogPastRoastForm from "@/components/roasts/LogPastRoastForm";
@@ -29,14 +31,17 @@ export default async function RoastsPage({
 }) {
   const { origin, level, stock, q } = await searchParams;
 
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   const [activeSession, allPastSessions, beans] = await Promise.all([
-    prisma.roastSession.findFirst({ where: { endedAt: null }, include: { bean: true } }),
+    prisma.roastSession.findFirst({ where: { endedAt: null, teamId: user.teamId }, include: { bean: true } }),
     prisma.roastSession.findMany({
-      where: { endedAt: { not: null } },
+      where: { endedAt: { not: null }, teamId: user.teamId },
       include: { bean: true },
       orderBy: { startedAt: "desc" },
     }),
-    prisma.bean.findMany({ where: { remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
+    prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
   ]);
 
   const origins = [...new Set(allPastSessions.map((s) => s.bean.origin))].sort();

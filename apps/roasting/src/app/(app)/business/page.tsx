@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import { roastMargin, type RoastMargin } from "@/lib/economics";
 import { formatCurrency } from "@/lib/format";
 import BeanEconomicsRow from "@/components/beans/BeanEconomicsRow";
@@ -18,7 +20,11 @@ import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
  * do and don't cover.
  */
 export default async function BusinessPage() {
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
   const beans = await prisma.bean.findMany({
+    where: { teamId: user.teamId },
     include: { roastSessions: { include: { sales: true } } },
     orderBy: { name: "asc" },
   });

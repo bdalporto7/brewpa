@@ -62,6 +62,14 @@ export async function createDrop(formData: FormData) {
   if (!name) throw new Error("A name is required.");
   if (beanIds.length === 0) throw new Error("Pick at least one bean.");
 
+  // Confirms every picked bean is actually this team's own before attaching
+  // it to the drop — otherwise a crafted request could point beanIds at
+  // another team's bean id.
+  const ownedBeans = await prisma.bean.count({ where: { id: { in: beanIds }, teamId: user.teamId } });
+  if (ownedBeans !== beanIds.length) {
+    throw new Error("One of those beans isn't yours.");
+  }
+
   const drop = await prisma.drop.create({
     data: {
       name,
@@ -78,18 +86,24 @@ export async function createDrop(formData: FormData) {
 
 /** No gram-restoration step (unlike the old startDrop/deleteDrop) — a drop never reserves anything out of a bean's stock; see the schema's Drop doc comment. */
 export async function deleteDrop(dropId: string) {
+  const user = await requireUser();
+  await prisma.drop.findFirstOrThrow({ where: { id: dropId, teamId: user.teamId } });
   await prisma.drop.delete({ where: { id: dropId } });
   revalidatePath("/friends");
   redirect("/friends");
 }
 
 export async function closeDrop(dropId: string) {
+  const user = await requireUser();
+  await prisma.drop.findFirstOrThrow({ where: { id: dropId, teamId: user.teamId } });
   await prisma.drop.update({ where: { id: dropId }, data: { closedAt: new Date() } });
   revalidatePath("/friends");
   revalidatePath(`/drops/${dropId}`);
 }
 
 export async function reopenDrop(dropId: string) {
+  const user = await requireUser();
+  await prisma.drop.findFirstOrThrow({ where: { id: dropId, teamId: user.teamId } });
   await prisma.drop.update({ where: { id: dropId }, data: { closedAt: null } });
   revalidatePath("/friends");
   revalidatePath(`/drops/${dropId}`);
@@ -102,22 +116,36 @@ export async function reopenDrop(dropId: string) {
  * somewhere it shouldn't have been.
  */
 export async function regenerateDropCode(dropId: string) {
+  const user = await requireUser();
+  await prisma.drop.findFirstOrThrow({ where: { id: dropId, teamId: user.teamId } });
   await prisma.drop.update({ where: { id: dropId }, data: { code: generateDropCode() } });
   revalidatePath(`/drops/${dropId}`);
 }
 
 export async function deleteDropOrder(dropId: string, orderId: string) {
+  const user = await requireUser();
+  await prisma.dropOrder.findFirstOrThrow({
+    where: { id: orderId, dropId, drop: { teamId: user.teamId } },
+  });
   await prisma.dropOrder.delete({ where: { id: orderId } });
   revalidatePath(`/drops/${dropId}`);
 }
 
 /** Removes one bean+style pick from an order without canceling the whole thing — e.g. a bean in someone's order ran out before it could be fulfilled. */
 export async function deleteDropOrderItem(dropId: string, itemId: string) {
+  const user = await requireUser();
+  await prisma.dropOrderItem.findFirstOrThrow({
+    where: { id: itemId, dropOrder: { dropId, drop: { teamId: user.teamId } } },
+  });
   await prisma.dropOrderItem.delete({ where: { id: itemId } });
   revalidatePath(`/drops/${dropId}`);
 }
 
 export async function setDropOrderItemPaid(dropId: string, itemId: string, paid: boolean) {
+  const user = await requireUser();
+  await prisma.dropOrderItem.findFirstOrThrow({
+    where: { id: itemId, dropOrder: { dropId, drop: { teamId: user.teamId } } },
+  });
   await prisma.dropOrderItem.update({ where: { id: itemId }, data: { paid } });
   revalidatePath(`/drops/${dropId}`);
 }
@@ -131,6 +159,7 @@ export async function setDropOrderItemPaid(dropId: string, itemId: string, paid:
  * (per-item instead of per-claim, since one order can span several beans).
  */
 export async function fulfillDropOrderItem(dropId: string, itemId: string, formData: FormData) {
+  const user = await requireUser();
   const roastSessionId = str(formData, "roastSessionId");
   const roastedWeightGrams = num(formData, "roastedWeightGrams");
 
@@ -139,12 +168,18 @@ export async function fulfillDropOrderItem(dropId: string, itemId: string, formD
   }
 
   await prisma.$transaction(async (tx) => {
-    const item = await tx.dropOrderItem.findUniqueOrThrow({ where: { id: itemId } });
+    const item = await tx.dropOrderItem.findFirstOrThrow({
+      where: { id: itemId, dropOrder: { dropId, drop: { teamId: user.teamId } } },
+    });
     if (item.saleId) {
       throw new Error("This pick is already fulfilled.");
     }
 
-    const session = await tx.roastSession.findUniqueOrThrow({ where: { id: roastSessionId } });
+    // roastSessionId comes from form data — confirm it's actually this
+    // team's own roast before drawing stock from it.
+    const session = await tx.roastSession.findFirstOrThrow({
+      where: { id: roastSessionId, teamId: user.teamId },
+    });
     const onHand = session.roastedRemainingGrams ?? 0;
     if (onHand < roastedWeightGrams) {
       throw new Error(`Only ${Math.round(onHand * 10) / 10}g of roasted coffee left from that roast.`);
@@ -177,8 +212,11 @@ export async function fulfillDropOrderItem(dropId: string, itemId: string, formD
 
 /** Undoes a fulfillment: restores the roasted weight and removes the Sale, unlinking the pick. */
 export async function unfulfillDropOrderItem(dropId: string, itemId: string) {
+  const user = await requireUser();
   await prisma.$transaction(async (tx) => {
-    const item = await tx.dropOrderItem.findUniqueOrThrow({ where: { id: itemId } });
+    const item = await tx.dropOrderItem.findFirstOrThrow({
+      where: { id: itemId, dropOrder: { dropId, drop: { teamId: user.teamId } } },
+    });
     if (!item.saleId) return;
 
     const sale = await tx.sale.findUniqueOrThrow({ where: { id: item.saleId } });

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { getCurrentAllowedUser } from "@/lib/admin";
 import DropHeaderControls from "@/components/drops/DropHeaderControls";
 import DropCodeDisplay from "@/components/drops/DropCodeDisplay";
 import DropOrdersPanel from "@/components/drops/DropOrdersPanel";
@@ -8,8 +9,11 @@ import Stat from "@/components/ui/Stat";
 
 export default async function DropPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const drop = await prisma.drop.findUnique({
-    where: { id },
+  const user = await getCurrentAllowedUser();
+  if (!user) notFound();
+
+  const drop = await prisma.drop.findFirst({
+    where: { id, teamId: user.teamId },
     include: {
       beans: { orderBy: { name: "asc" } },
       orders: {
