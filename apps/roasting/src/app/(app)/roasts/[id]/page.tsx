@@ -13,6 +13,7 @@ import { getCurveReadings, computeAdjustedPlan, type PlanSettingChange, type Pla
 import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
+import { parseControls } from "@/lib/roasters";
 import LiveRoastBars from "@/components/roasts/LiveRoastBars";
 import LiveRoastPoller from "@/components/roasts/LiveRoastPoller";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
@@ -57,7 +58,7 @@ export default async function RoastSessionPage({
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
-  const [session, friends, compareCandidates, profiles] = await Promise.all([
+  const [session, friends, profiles] = await Promise.all([
     prisma.roastSession.findFirst({
       where: { id, teamId: user.teamId },
       include: {
@@ -73,16 +74,10 @@ export default async function RoastSessionPage({
         },
         compareTo: { include: { bean: true, events: true, temperatureReadings: true } },
         profile: true,
+        roasterDefinition: true,
       },
     }),
     prisma.friend.findMany({ where: { teamId: user.teamId }, orderBy: { name: "asc" } }),
-    // Only actually used while pending (the picker), but cheap enough (id/bean/date/level
-    // only) to just fetch alongside everything else rather than branching the query shape.
-    prisma.roastSession.findMany({
-      where: { endedAt: { not: null }, id: { not: id }, teamId: user.teamId },
-      include: { bean: true },
-      orderBy: { startedAt: "desc" },
-    }),
     // Same treatment — only used by RoastProfilePicker while pending, cheap enough to just always fetch.
     prisma.roastProfile.findMany({
       where: { teamId: user.teamId },
@@ -92,6 +87,23 @@ export default async function RoastSessionPage({
   ]);
 
   if (!session) notFound();
+
+  const controls = parseControls(session.roasterDefinition.controlsJson);
+  // Only an SR800 roast can ever have an AI-suggested plan to compare
+  // against in the first place — see roasterDefinition's own doc comment
+  // on why the AI advisor stays scoped to that one machine.
+  const showAiFeatures = session.roasterDefinition.supportsAiSuggestions;
+
+  // Depends on session.roasterDefinitionId, so it can't join the Promise.all
+  // above — never offer comparing against a roast run on a different
+  // machine, whose controls/scale wouldn't line up on the comparison chart.
+  // Only actually used while pending (the picker), but cheap enough
+  // (id/bean/date/level only) to just always fetch.
+  const compareCandidates = await prisma.roastSession.findMany({
+    where: { endedAt: { not: null }, id: { not: id }, teamId: user.teamId, roasterDefinitionId: session.roasterDefinitionId },
+    include: { bean: true },
+    orderBy: { startedAt: "desc" },
+  });
 
   const isPending = session.startedAt == null && session.endedAt == null;
   const isLive = session.startedAt != null && session.endedAt == null;
@@ -109,8 +121,14 @@ export default async function RoastSessionPage({
       ? (session.endedAt!.getTime() - session.startedAt.getTime()) / 1000
       : null;
 
-  const latestFan = [...session.events].reverse().find((e) => e.type === "FAN");
-  const latestHeat = [...session.events].reverse().find((e) => e.type === "HEAT");
+  // The currently-active level per control, for LiveRoastBars' initial
+  // display — the most recent logged event for each, falling back to the
+  // control's own default if it's never been logged yet this roast.
+  const currentLevels: Record<string, number> = {};
+  for (const control of controls) {
+    const latest = [...session.events].reverse().find((e) => e.type === control.key);
+    currentLevels[control.key] = latest?.controlValue ?? control.defaultValue;
+  }
   const loggedMilestoneTypes = Array.from(new Set(session.events.map((e) => e.type))).filter(
     (t): t is EventType => (MILESTONE_EVENT_TYPES as string[]).includes(t)
   );
@@ -177,7 +195,10 @@ export default async function RoastSessionPage({
       label = "Last roast";
     }
     if (refSession) {
-      const readings = getCurveReadings(refSession.events, refSession.temperatureReadings);
+      // Reference roast can be on a different bean's history than the
+      // current session's own machine — only temp/RoR is read from these
+      // readings (see tips.ts), so controls are irrelevant here.
+      const readings = getCurveReadings(refSession.events, refSession.temperatureReadings, []);
       if (readings.length > 0) referenceRoast = { label, readings };
     }
 
@@ -189,7 +210,7 @@ export default async function RoastSessionPage({
     const projection = acceptedPlan
       ? projectNextMilestone({
           events: session.events,
-          curveReadings: getCurveReadings(session.events, session.temperatureReadings),
+          curveReadings: getCurveReadings(session.events, session.temperatureReadings, controls),
           elapsedSeconds: liveElapsedSeconds,
           milestoneTempBaseline,
           hasYellowingTarget: acceptedPlan.targets.yellowingEndSeconds != null,
@@ -245,12 +266,14 @@ export default async function RoastSessionPage({
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
               </a>
-              <SaveProfileForm
-                action={saveProfileFromCompletedRoast.bind(null, session.id)}
-                defaultName={`${session.bean.name}${session.roastLevel ? ` — ${session.roastLevel}` : ""}`}
-                defaultProcess={session.bean.process}
-                defaultBrewTarget={session.brewTarget}
-              />
+              {showAiFeatures && (
+                <SaveProfileForm
+                  action={saveProfileFromCompletedRoast.bind(null, session.id)}
+                  defaultName={`${session.bean.name}${session.roastLevel ? ` — ${session.roastLevel}` : ""}`}
+                  defaultProcess={session.bean.process}
+                  defaultBrewTarget={session.brewTarget}
+                />
+              )}
             </>
           )}
           <DeleteButton
@@ -270,11 +293,19 @@ export default async function RoastSessionPage({
       {isPending && (
         <>
           <LiveProbePanel roastSessionId={session.id} />
-          <RoastProfilePicker profiles={profiles} roastSessionId={session.id} beanProcess={session.bean.process} />
+          {showAiFeatures && (
+            <RoastProfilePicker profiles={profiles} roastSessionId={session.id} beanProcess={session.bean.process} />
+          )}
           <RoastSetupPanel
             roastSessionId={session.id}
-            initialFanLevel={session.suggestedFanLevel ?? undefined}
-            initialHeatLevel={session.suggestedHeatLevel ?? undefined}
+            controls={controls}
+            initialLevels={Object.fromEntries(
+              controls.map((c) => [
+                c.key,
+                (c.key === "FAN" ? session.suggestedFanLevel : c.key === "HEAT" ? session.suggestedHeatLevel : null) ??
+                  c.defaultValue,
+              ])
+            )}
           />
           <CompareRoastSelector
             roastSessionId={session.id}
@@ -287,29 +318,34 @@ export default async function RoastSessionPage({
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} />
           {/* Collapsed by default and pushed to the bottom — still useful
               when wanted, but no longer confident enough in its own
-              suggestions to earn the top-of-page spot it had before. */}
-          <details className="group">
-            <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted group-open:text-foreground">
-              <ChevronDown className="h-4 w-4 -rotate-90 transition-transform group-open:rotate-0" />
-              AI roast suggestion (optional)
-            </summary>
-            <div className="mt-2">
-              <AiSuggestionPanel
-                roastSessionId={session.id}
-                initialAmbientTempF={session.ambientTempF}
-                initialRoastGoal={session.roastGoal}
-                initialBrewTarget={session.brewTarget}
-                suggestedFanLevel={session.suggestedFanLevel}
-                suggestedHeatLevel={session.suggestedHeatLevel}
-                aiSuggestionSummary={session.aiSuggestionSummary}
-                aiSuggestionNotes={session.aiSuggestionNotes}
-                aiSuggestionPlan={session.aiSuggestionPlan}
-                aiSuggestionAcceptedAt={session.aiSuggestionAcceptedAt}
-                aiSuggestionFeedback={session.aiSuggestionFeedback}
-                profileName={session.profile?.name ?? null}
-              />
-            </div>
-          </details>
+              suggestions to earn the top-of-page spot it had before.
+              Hidden entirely on a non-SR800 roaster: the advisor's whole
+              prompt argues fluid-bed physics specifically (roastAdvisor.ts)
+              and would give actively wrong advice on anything else. */}
+          {showAiFeatures && (
+            <details className="group">
+              <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted group-open:text-foreground">
+                <ChevronDown className="h-4 w-4 -rotate-90 transition-transform group-open:rotate-0" />
+                AI roast suggestion (optional)
+              </summary>
+              <div className="mt-2">
+                <AiSuggestionPanel
+                  roastSessionId={session.id}
+                  initialAmbientTempF={session.ambientTempF}
+                  initialRoastGoal={session.roastGoal}
+                  initialBrewTarget={session.brewTarget}
+                  suggestedFanLevel={session.suggestedFanLevel}
+                  suggestedHeatLevel={session.suggestedHeatLevel}
+                  aiSuggestionSummary={session.aiSuggestionSummary}
+                  aiSuggestionNotes={session.aiSuggestionNotes}
+                  aiSuggestionPlan={session.aiSuggestionPlan}
+                  aiSuggestionAcceptedAt={session.aiSuggestionAcceptedAt}
+                  aiSuggestionFeedback={session.aiSuggestionFeedback}
+                  profileName={session.profile?.name ?? null}
+                />
+              </div>
+            </details>
+          )}
         </>
       )}
 
@@ -326,8 +362,8 @@ export default async function RoastSessionPage({
             startedAt={session.startedAt!.toISOString()}
             beanName={session.bean.name}
             roastSessionId={session.id}
-            initialFanLevel={latestFan?.fanLevel ?? 5}
-            initialHeatLevel={latestHeat?.heatLevel ?? 5}
+            controls={controls}
+            initialLevels={currentLevels}
             loggedMilestoneTypes={loggedMilestoneTypes}
             events={session.events}
             baseline={baseline}
@@ -345,7 +381,7 @@ export default async function RoastSessionPage({
               line, which used to silently kill the *entire* chart, live
               curve included, just because whatever past roast was picked
               to compare against had too little hand-logged temp data. */}
-          {session.compareTo && getCurveReadings(session.compareTo.events).length >= 2 ? (
+          {session.compareTo && getCurveReadings(session.compareTo.events, [], controls).length >= 2 ? (
             <LiveComparisonChart
               currentEvents={session.events}
               currentLabel={`${session.bean.name} (live)`}
@@ -357,6 +393,7 @@ export default async function RoastSessionPage({
                   ? (session.compareTo.endedAt.getTime() - session.compareTo.startedAt.getTime()) / 1000
                   : 0
               }
+              controls={controls}
               currentProbeReadings={session.temperatureReadings}
               comparisonProbeReadings={session.compareTo.temperatureReadings}
             />
@@ -364,6 +401,7 @@ export default async function RoastSessionPage({
             <RoastCurveChart
               events={session.events}
               totalSeconds={liveElapsedSeconds}
+              controls={controls}
               probeReadings={session.temperatureReadings}
               targets={projectedTargets}
             />
@@ -382,7 +420,7 @@ export default async function RoastSessionPage({
           )}
           <EventLogPanel roastSessionId={session.id} startedAt={session.startedAt!.toISOString()} />
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} collapsedByDefault />
-          <EventTimeline events={session.events} editable />
+          <EventTimeline events={session.events} controls={controls} editable />
           <div className="pb-24 sm:pb-28" />
         </>
       )}
@@ -470,6 +508,7 @@ export default async function RoastSessionPage({
           <RoastCurveChart
             events={session.events}
             totalSeconds={durationSeconds ?? 0}
+            controls={controls}
             probeReadings={session.temperatureReadings}
             title="Roast curve"
           />
@@ -505,10 +544,10 @@ export default async function RoastSessionPage({
             )}
           </SectionCard>
           <SectionCard icon={<PlusCircle className="h-3.5 w-3.5" />} label="Add event" collapsible defaultCollapsed>
-            <AddEventForm roastSessionId={session.id} />
+            <AddEventForm roastSessionId={session.id} controls={controls} />
           </SectionCard>
           <SectionCard icon={<History className="h-3.5 w-3.5" />} label="Event timeline" collapsible defaultCollapsed>
-            <EventTimeline events={session.events} editable bare />
+            <EventTimeline events={session.events} controls={controls} editable bare />
           </SectionCard>
         </>
       )}

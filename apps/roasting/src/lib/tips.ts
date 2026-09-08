@@ -66,7 +66,8 @@ export function computeMilestoneTempBaseline(
   const firstCrackTemps: number[] = [];
 
   for (const session of sessions) {
-    const readings = getCurveReadings(session.events, session.temperatureReadings);
+    // Only temp/milestone timing is used below — controls are irrelevant here.
+    const readings = getCurveReadings(session.events, session.temperatureReadings, []);
     if (readings.length === 0) continue;
 
     const collect = (type: string, bucket: number[]) => {

@@ -1,5 +1,6 @@
 import { formatMMSS } from "@/lib/format";
-import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, type EventType } from "@/lib/constants";
+import type { EventType } from "@/lib/constants";
+import type { RoasterControl } from "@/lib/roasters";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export const CHART_WIDTH = 760;
@@ -18,6 +19,19 @@ const MARGIN_RIGHT = 38;
 const MARGIN_TOP = 30;
 const AXIS_HEIGHT = 24;
 
+/**
+ * Cycled one per control (fan, heat, and whatever else a given roaster has)
+ * for the dial-change triangle markers on the curve chart — four is plenty
+ * for any real machine's control count, and reusing colors already defined
+ * for milestone markers keeps this from needing its own new CSS variables.
+ */
+export const DIAL_MARKER_COLORS: [color: string, opacity: number][] = [
+  ["var(--accent)", 1],
+  ["var(--foreground)", 0.7],
+  ["var(--mark-dry-end)", 1],
+  ["var(--mark-second-crack)", 1],
+];
+
 export const MILESTONE_MARKERS: { type: EventType; label: string; color: string }[] = [
   { type: "DRY_END", label: "DE", color: "var(--mark-dry-end)" },
   { type: "YELLOWING_END", label: "YE", color: "var(--mark-yellowing-end)" },
@@ -30,8 +44,8 @@ export const MILESTONE_MARKERS: { type: EventType; label: string; color: string 
 export interface CurveReading {
   atSeconds: number;
   temp: number;
-  fanLevel: number | null;
-  heatLevel: number | null;
+  /** Keyed by control key (RoasterControl["key"] — "FAN"/"HEAT" today, more for other machines). */
+  controlLevels: Record<string, number | null>;
   /** °F/min since the previous reading; null for the first (no prior point to measure from). */
   rorPerMin: number | null;
 }
@@ -89,7 +103,8 @@ function smoothedTempAt(points: { atSeconds: number; temp: number }[], i: number
 
 export function getCurveReadings(
   events: RoastEvent[],
-  probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = []
+  probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = [],
+  controls: RoasterControl[]
 ): CurveReading[] {
   const probePoints = probeReadings
     .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null)
@@ -105,14 +120,15 @@ export function getCurveReadings(
           .sort((a, b) => a.atSeconds - b.atSeconds);
   if (tempPoints.length < 2) return [];
 
-  const fanPoints = events
-    .filter((e) => e.type === "FAN" && e.fanLevel != null)
-    .map((e) => ({ atSeconds: e.atSeconds, level: e.fanLevel as number }))
-    .sort((a, b) => a.atSeconds - b.atSeconds);
-  const heatPoints = events
-    .filter((e) => e.type === "HEAT" && e.heatLevel != null)
-    .map((e) => ({ atSeconds: e.atSeconds, level: e.heatLevel as number }))
-    .sort((a, b) => a.atSeconds - b.atSeconds);
+  const pointsByControl = new Map(
+    controls.map((control) => [
+      control.key,
+      events
+        .filter((e) => e.type === control.key && e.controlValue != null)
+        .map((e) => ({ atSeconds: e.atSeconds, level: e.controlValue as number }))
+        .sort((a, b) => a.atSeconds - b.atSeconds),
+    ])
+  );
 
   return tempPoints.map((p, i) => {
     let rorPerMin: number | null = null;
@@ -123,11 +139,14 @@ export function getCurveReadings(
         rorPerMin = (smoothedTempAt(tempPoints, i) - smoothedTempAt(tempPoints, i - 1)) / minutesElapsed;
       }
     }
+    const controlLevels: Record<string, number | null> = {};
+    for (const control of controls) {
+      controlLevels[control.key] = levelAt(pointsByControl.get(control.key) ?? [], p.atSeconds);
+    }
     return {
       atSeconds: p.atSeconds,
       temp: p.temp,
-      fanLevel: levelAt(fanPoints, p.atSeconds),
-      heatLevel: levelAt(heatPoints, p.atSeconds),
+      controlLevels,
       rorPerMin,
     };
   });
@@ -274,6 +293,7 @@ export interface RoastCurveTargets {
 export function buildRoastCurveSvg(
   events: RoastEvent[],
   totalSeconds: number,
+  controls: RoasterControl[],
   options: {
     showRor?: boolean;
     probeReadings?: TemperatureReading[];
@@ -287,7 +307,7 @@ export function buildRoastCurveSvg(
     animateIn?: boolean;
   } = {}
 ): string | null {
-  const readings = getCurveReadings(events, options.probeReadings);
+  const readings = getCurveReadings(events, options.probeReadings, controls);
   if (readings.length < 2) return null;
 
   // Extend the axis to cover the furthest target time too — otherwise a
@@ -326,15 +346,6 @@ export function buildRoastCurveSvg(
   const tempTicks = [minTemp, (minTemp + maxTemp) / 2, maxTemp];
   const timeTickCount = duration > 600 ? 6 : 4;
   const timeTicks = Array.from({ length: timeTickCount + 1 }, (_, i) => (duration / timeTickCount) * i);
-
-  const fanPoints = events
-    .filter((e) => e.type === "FAN" && e.fanLevel != null)
-    .map((e) => ({ atSeconds: e.atSeconds, level: e.fanLevel as number }))
-    .sort((a, b) => a.atSeconds - b.atSeconds);
-  const heatPoints = events
-    .filter((e) => e.type === "HEAT" && e.heatLevel != null)
-    .map((e) => ({ atSeconds: e.atSeconds, level: e.heatLevel as number }))
-    .sort((a, b) => a.atSeconds - b.atSeconds);
 
   const markers = MILESTONE_MARKERS.map((m) => ({
     ...m,
@@ -485,8 +496,10 @@ export function buildRoastCurveSvg(
       );
     }
   }
-  dialChangeMarkers(fanPoints, "var(--accent)", 1, 10, "Fan");
-  dialChangeMarkers(heatPoints, "var(--foreground)", 0.7, 18, "Heat");
+  controls.forEach((control, i) => {
+    const [color, opacity] = DIAL_MARKER_COLORS[i % DIAL_MARKER_COLORS.length];
+    dialChangeMarkers(eventPoints(events, control.key), color, opacity, 10 + i * 8, control.label);
+  });
 
   parts.push("</svg>");
 
@@ -571,10 +584,10 @@ const LIVE_CMP_MARGIN_TOP = 20;
 const LIVE_CMP_TEMP_HEIGHT = 190;
 const LIVE_CMP_STRIP_HEIGHT = 32;
 
-function eventPoints(events: RoastEvent[], type: "FAN" | "HEAT") {
+function eventPoints(events: RoastEvent[], type: EventType) {
   return events
-    .filter((e) => e.type === type && (type === "FAN" ? e.fanLevel : e.heatLevel) != null)
-    .map((e) => ({ atSeconds: e.atSeconds, level: (type === "FAN" ? e.fanLevel : e.heatLevel) as number }))
+    .filter((e) => e.type === type && e.controlValue != null)
+    .map((e) => ({ atSeconds: e.atSeconds, level: e.controlValue as number }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
 }
 
@@ -588,12 +601,14 @@ export function getMilestoneEvents(
   }).sort((a, b) => a.atSeconds - b.atSeconds);
 }
 
-/** A roast's fan/heat dial changes, sorted by time — same reasoning as getMilestoneEvents: "at 2:15, heat -> 7" reads better as a table row than as a second step-line squeezed into a small strip. */
-export function getDialChangeEvents(events: RoastEvent[]): { type: "FAN" | "HEAT"; level: number; atSeconds: number }[] {
-  return [
-    ...eventPoints(events, "FAN").map((p) => ({ type: "FAN" as const, ...p })),
-    ...eventPoints(events, "HEAT").map((p) => ({ type: "HEAT" as const, ...p })),
-  ].sort((a, b) => a.atSeconds - b.atSeconds);
+/** A roast's dial changes, sorted by time — same reasoning as getMilestoneEvents: "at 2:15, heat -> 7" reads better as a table row than as a second step-line squeezed into a small strip. One entry per control this roast's machine actually has (see RoasterDefinition). */
+export function getDialChangeEvents(
+  events: RoastEvent[],
+  controls: RoasterControl[]
+): { type: EventType; level: number; atSeconds: number }[] {
+  return controls
+    .flatMap((control) => eventPoints(events, control.key).map((p) => ({ type: control.key, ...p })))
+    .sort((a, b) => a.atSeconds - b.atSeconds);
 }
 
 /**
@@ -614,6 +629,7 @@ export function buildLiveComparisonSvg(
   comparisonEvents: RoastEvent[],
   comparisonLabel: string,
   comparisonTotalSeconds: number,
+  controls: RoasterControl[],
   currentProbeReadings: TemperatureReading[] = [],
   // The comparison roast's own probe data — easy to forget since it wasn't
   // needed before probe tracking was reliable, but a past roast tracked
@@ -628,8 +644,8 @@ export function buildLiveComparisonSvg(
   // actually want to watch while roasting, which this option is for.
   showRor = false
 ): string | null {
-  const readingsA = getCurveReadings(currentEvents, currentProbeReadings);
-  const readingsB = getCurveReadings(comparisonEvents, comparisonProbeReadings);
+  const readingsA = getCurveReadings(currentEvents, currentProbeReadings, controls);
+  const readingsB = getCurveReadings(comparisonEvents, comparisonProbeReadings, controls);
   if (readingsA.length < 2 || readingsB.length < 2) return null;
 
   const duration = Math.max(currentElapsedSeconds, comparisonTotalSeconds, 1);
@@ -655,8 +671,13 @@ export function buildLiveComparisonSvg(
 
   const x = (seconds: number) => chartLeft + (seconds / duration) * (chartRight - chartLeft);
   const yTemp = (temp: number) => tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * LIVE_CMP_TEMP_HEIGHT;
-  const yLevelA = (level: number) =>
-    stripATop + (1 - (level - SR800_LEVEL_MIN) / (SR800_LEVEL_MAX - SR800_LEVEL_MIN)) * LIVE_CMP_STRIP_HEIGHT;
+  // Normalized 0-1 per control's own min/max, not one shared absolute
+  // scale — a gas valve's 0-100 range and a fan's 1-9 range have to share
+  // this one strip, so there's no single set of real units to draw ticks
+  // for; the step-lines' shape (when did it change, which direction) is
+  // what this strip is for, same reasoning as dialChangeMarkers above.
+  const yLevelA = (level: number, control: RoasterControl) =>
+    stripATop + (1 - (level - control.min) / (control.max - control.min)) * LIVE_CMP_STRIP_HEIGHT;
 
   const truncate = (s: string, max = 46) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
@@ -735,18 +756,19 @@ export function buildLiveComparisonSvg(
     );
   }
 
-  parts.push(
-    `<text x="${chartLeft}" y="${stripATop - 6}" style="fill:var(--muted)" class="marker-label">Fan</text>`,
-    `<text x="${chartLeft + 28}" y="${stripATop - 6}" style="fill:var(--foreground);opacity:0.6" class="marker-label">Heat</text>`
-  );
-  const fanA = eventPoints(currentEvents, "FAN");
-  const heatA = eventPoints(currentEvents, "HEAT");
-  if (fanA.length > 0) {
-    parts.push(`<path d="${buildStepPath(fanA, currentElapsedSeconds, x, yLevelA)}" fill="none" style="stroke:var(--accent);opacity:0.7" stroke-width="1.5" />`);
-  }
-  if (heatA.length > 0) {
-    parts.push(`<path d="${buildStepPath(heatA, currentElapsedSeconds, x, yLevelA)}" fill="none" style="stroke:var(--foreground);opacity:0.35" stroke-width="1.5" />`);
-  }
+  let labelX = chartLeft;
+  controls.forEach((control, i) => {
+    const [color, opacity] = DIAL_MARKER_COLORS[i % DIAL_MARKER_COLORS.length];
+    parts.push(`<text x="${labelX}" y="${stripATop - 6}" style="fill:${color};opacity:${opacity}" class="marker-label">${escapeXml(control.label)}</text>`);
+    labelX += control.label.length * 6 + 14;
+
+    const points = eventPoints(currentEvents, control.key);
+    if (points.length > 0) {
+      parts.push(
+        `<path d="${buildStepPath(points, currentElapsedSeconds, x, (level) => yLevelA(level, control))}" fill="none" style="stroke:${color};opacity:${opacity}" stroke-width="1.5" />`
+      );
+    }
+  });
   parts.push(`<line x1="${chartLeft}" x2="${chartRight}" y1="${stripABottom}" y2="${stripABottom}" style="stroke:var(--border)" stroke-width="1" />`);
 
   parts.push(

@@ -34,8 +34,9 @@ export default function LiveTipsPanel({
   const elapsed = useElapsedSeconds(startedAt);
   const phases = computeRoastPhases(events, elapsed);
   const probeReadings = useProbeReadings(roastSessionId);
+  // generateLiveTips only reads temp/RoR off these — controls irrelevant here.
   const curveReadings = useMemo(
-    () => getCurveReadings(events, probeReadings ?? []),
+    () => getCurveReadings(events, probeReadings ?? [], []),
     [events, probeReadings]
   );
   const tips = generateLiveTips({

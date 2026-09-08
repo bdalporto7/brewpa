@@ -8,6 +8,7 @@ import { parseMMSS } from "@/lib/format";
 import { generateRoastAdvice, type RoastPlan } from "@/lib/roastAdvisor";
 import { extractSupplierInfo } from "@/lib/supplierExtractor";
 import { requireUser } from "@/lib/admin";
+import { parseControls } from "@/lib/roasters";
 
 function num(formData: FormData, key: string): number | null {
   const raw = formData.get(key);
@@ -21,6 +22,17 @@ function str(formData: FormData, key: string): string | null {
   if (raw === null) return null;
   const value = raw.toString().trim();
   return value === "" ? null : value;
+}
+
+/**
+ * There's no "pick a roaster" step in starting a roast yet — every new
+ * session just uses the team's default machine (seeded per team, see the
+ * add_roaster_definitions migration and admin-actions.ts's addAllowedUser).
+ * A real picker is a later step once a team actually has more than one.
+ */
+async function getDefaultRoasterDefinitionId(teamId: string, tx: Pick<typeof prisma, "roasterDefinition"> = prisma) {
+  const definition = await tx.roasterDefinition.findFirstOrThrow({ where: { teamId, isDefault: true } });
+  return definition.id;
 }
 
 export async function createBean(formData: FormData) {
@@ -255,7 +267,8 @@ export async function startRoast(formData: FormData) {
       data: { remainingGrams: bean.remainingGrams - greenWeightGrams },
     });
 
-    return tx.roastSession.create({ data: { beanId, greenWeightGrams, teamId: user.teamId } });
+    const roasterDefinitionId = await getDefaultRoasterDefinitionId(user.teamId, tx);
+    return tx.roastSession.create({ data: { beanId, greenWeightGrams, teamId: user.teamId, roasterDefinitionId } });
   });
 
   revalidatePath("/roasts");
@@ -278,24 +291,32 @@ export async function startRoast(formData: FormData) {
  * dialed in at this exact moment, which is what makes the drift comparison
  * elsewhere (computeAdjustedPlan) meaningful in the first place.
  */
-export async function beginRoast(roastSessionId: string, fanLevel: number, heatLevel: number) {
+export async function beginRoast(roastSessionId: string, levels: Record<string, number>) {
   const user = await requireUser();
   await prisma.$transaction(async (tx) => {
     const session = await tx.roastSession.findFirstOrThrow({
       where: { id: roastSessionId, teamId: user.teamId },
+      include: { roasterDefinition: true },
     });
     if (session.startedAt) {
       throw new Error("This roast has already begun.");
     }
 
+    const controls = parseControls(session.roasterDefinition.controlsJson);
     await tx.roastSession.update({ where: { id: roastSessionId }, data: { startedAt: new Date() } });
     await tx.roastEvent.createMany({
-      data: [
-        { roastSessionId, type: "FAN", atSeconds: 0, fanLevel },
-        { roastSessionId, type: "HEAT", atSeconds: 0, heatLevel },
-      ],
+      data: controls.map((control) => ({
+        roastSessionId,
+        type: control.key,
+        atSeconds: 0,
+        controlValue: levels[control.key] ?? control.defaultValue,
+      })),
     });
 
+    // Only ever populated for an SR800 session (see the AI advisor's
+    // supportsAiSuggestions scope boundary) — still fan/heat-shaped here on
+    // purpose, since a non-SR800 roaster never has an accepted plan to
+    // prefill from.
     if (session.aiSuggestionAcceptedAt && session.aiSuggestionPlan) {
       let plan: RoastPlan | null = null;
       try {
@@ -305,8 +326,8 @@ export async function beginRoast(roastSessionId: string, fanLevel: number, heatL
       }
       const laterChanges = plan?.settingChanges.filter((c) => c.atSeconds > 0) ?? [];
       const prefilled = laterChanges.flatMap((c) => [
-        c.fanLevel != null ? { roastSessionId, type: "FAN" as const, atSeconds: c.atSeconds, fanLevel: c.fanLevel } : null,
-        c.heatLevel != null ? { roastSessionId, type: "HEAT" as const, atSeconds: c.atSeconds, heatLevel: c.heatLevel } : null,
+        c.fanLevel != null ? { roastSessionId, type: "FAN" as const, atSeconds: c.atSeconds, controlValue: c.fanLevel } : null,
+        c.heatLevel != null ? { roastSessionId, type: "HEAT" as const, atSeconds: c.atSeconds, controlValue: c.heatLevel } : null,
       ]).filter((e): e is NonNullable<typeof e> => e != null);
       if (prefilled.length > 0) {
         await tx.roastEvent.createMany({ data: prefilled });
@@ -449,7 +470,7 @@ export async function generateRoastSuggestion(
             { type: "FIRST_CRACK_START" },
           ],
         },
-        select: { type: true, atSeconds: true, fanLevel: true, heatLevel: true },
+        select: { type: true, atSeconds: true, controlValue: true },
       },
       temperatureReadings: {
         orderBy: { atSeconds: "desc" },
@@ -606,10 +627,12 @@ export async function startPastRoast(formData: FormData) {
       data: { remainingGrams: bean.remainingGrams - greenWeightGrams },
     });
 
+    const roasterDefinitionId = await getDefaultRoasterDefinitionId(user.teamId, tx);
     const created = await tx.roastSession.create({
       data: {
         beanId,
         greenWeightGrams,
+        roasterDefinitionId,
         startedAt,
         endedAt,
         roastedWeightGrams,
@@ -637,8 +660,7 @@ export async function logEvent(input: {
   roastSessionId: string;
   type: EventType;
   atSeconds: number;
-  fanLevel?: number;
-  heatLevel?: number;
+  controlValue?: number;
   tempFahrenheit?: number;
   note?: string;
 }) {
@@ -652,8 +674,7 @@ export async function logEvent(input: {
       roastSessionId: input.roastSessionId,
       type: input.type,
       atSeconds: input.atSeconds,
-      fanLevel: input.fanLevel,
-      heatLevel: input.heatLevel,
+      controlValue: input.controlValue,
       tempFahrenheit: input.tempFahrenheit,
       note: input.note,
     },

@@ -12,7 +12,7 @@ type PastRoast = RoastSession & { events: RoastEvent[]; cuppingNotes: CuppingNot
 // per roast). Deliberately a narrow shape (not `RoastSession & {...}`) —
 // the query in actions.ts uses `select`, not `include`, to fetch exactly
 // this across 40+ roasts instead of every column and every event/reading.
-type CalibrationEvent = Pick<RoastEvent, "type" | "atSeconds" | "fanLevel" | "heatLevel">;
+type CalibrationEvent = Pick<RoastEvent, "type" | "atSeconds" | "controlValue">;
 type CalibrationRoast = Pick<
   RoastSession,
   "id" | "startedAt" | "endedAt" | "ambientTempF" | "roastedWeightGrams" | "greenWeightGrams" | "aiSuggestionFeedback"
@@ -67,8 +67,8 @@ function summarizeMachineCalibration(
         roast.startedAt && roast.endedAt
           ? (roast.endedAt.getTime() - roast.startedAt.getTime()) / 1000
           : null;
-      const startFan = roast.events.find((e) => e.type === "FAN" && e.atSeconds === 0)?.fanLevel;
-      const startHeat = roast.events.find((e) => e.type === "HEAT" && e.atSeconds === 0)?.heatLevel;
+      const startFan = roast.events.find((e) => e.type === "FAN" && e.atSeconds === 0)?.controlValue;
+      const startHeat = roast.events.find((e) => e.type === "HEAT" && e.atSeconds === 0)?.controlValue;
       const dryEnd = roast.events.find((e) => e.type === "DRY_END")?.atSeconds;
       const firstCrack = roast.events.find((e) => e.type === "FIRST_CRACK_START")?.atSeconds;
 

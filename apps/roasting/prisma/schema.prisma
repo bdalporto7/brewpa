@@ -138,6 +138,14 @@ model RoastSession {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  // Which physical machine this roast was run on, and therefore which
+  // controls/probes it has — see RoasterDefinition. Restrict, not Cascade:
+  // deleting a roaster definition isn't a feature yet, and shouldn't be
+  // able to silently take roast history down with it (same reasoning as
+  // Bean above).
+  roasterDefinitionId String
+  roasterDefinition   RoasterDefinition @relation(fields: [roasterDefinitionId], references: [id], onDelete: Restrict)
+
   events              RoastEvent[]
   sales               Sale[]
   cuppingNotes        CuppingNote[]
@@ -163,6 +171,44 @@ model RoastSession {
   @@index([beanId])
   @@index([startedAt])
   @@index([profileId])
+  @@index([teamId])
+  @@index([roasterDefinitionId])
+}
+
+// A catalog entry describing one physical roasting machine's controls and
+// temperature probes — what makes the live-roast UI, event log, curve
+// chart, and CSV export generic across roasters that aren't the Fresh
+// Roast SR800 this app was originally built for (fluid-bed, two dials:
+// fan and heat). controlsJson/probesJson are JSON-stringified
+// RoasterControl[]/RoasterProbe[] (src/lib/roasters.ts) — a plain String
+// column, not Prisma's Json type, matching this schema's existing
+// convention for this exact shape of data (RoastProfile.planJson,
+// RoastSession.aiSuggestionPlan): a small, read-as-a-whole-document list
+// of typed settings, never filtered/queried on an individual field.
+// isDefault marks the one row auto-seeded per team (Fresh Roast SR800)
+// that roast setup falls back to — there's no "add your own roaster" UI
+// yet, so today every team only ever has the machines seeded for it.
+// supportsAiSuggestions is true only for that seeded SR800 row: the AI
+// roast advisor's entire prompt argues fluid-bed physics specifically
+// (src/lib/roastAdvisor.ts) and would give actively wrong advice on a
+// drum or gas roaster, so the profile picker / AI suggestion panel /
+// save-as-profile UI are hidden entirely (not just disabled) whenever
+// this is false, rather than trying to generalize that prompt too.
+model RoasterDefinition {
+  id                    String   @id @default(cuid())
+  name                  String
+  isDefault             Boolean  @default(false)
+  supportsAiSuggestions Boolean  @default(false)
+  controlsJson          String
+  probesJson            String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  roastSessions RoastSession[]
+
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
   @@index([teamId])
 }
 
@@ -203,8 +249,17 @@ model RoastEvent {
   roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
   atSeconds      Int
   type           String
+  // Frozen — every control-type event (FAN, HEAT, and now others) writes
+  // controlValue instead; these two are kept only as the historical
+  // backfill source (see the add_roast_event_control_value migration) and
+  // are never written to again. Not worth a migration to drop them.
   fanLevel       Int?
   heatLevel      Int?
+  // The value for whatever control `type` names — FAN/HEAT today, more to
+  // come as other roaster machines' controls get added (see
+  // RoasterDefinition below). `type` already doubles as the control's key,
+  // so no separate controlKey column is needed.
+  controlValue   Float?
   tempFahrenheit Float?
   note           String?
   createdAt      DateTime     @default(now())
@@ -472,13 +527,14 @@ model Team {
   name      String
   createdAt DateTime @default(now())
 
-  members       AllowedUser[]
-  beans         Bean[]
-  roastSessions RoastSession[]
-  friends       Friend[]
-  drops         Drop[]
-  roastProfiles RoastProfile[]
-  recipes       Recipe[]
+  members            AllowedUser[]
+  beans              Bean[]
+  roastSessions      RoastSession[]
+  friends            Friend[]
+  drops              Drop[]
+  roastProfiles      RoastProfile[]
+  recipes            Recipe[]
+  roasterDefinitions RoasterDefinition[]
 }
 
 // A reusable brewing target — not tied to a bean, so the same "V60 4:6"

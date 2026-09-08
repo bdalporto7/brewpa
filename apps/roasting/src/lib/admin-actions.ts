@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
+import { SR800_CONTROLS, SR800_PROBES } from "@/lib/roasters";
 
 function str(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -42,7 +43,26 @@ export async function addAllowedUser(formData: FormData) {
 
   const teamId =
     teamChoice === "__new__"
-      ? (await prisma.team.create({ data: { name: newTeamName ?? `${email}'s team` } })).id
+      ? (
+          await prisma.team.create({
+            data: {
+              name: newTeamName ?? `${email}'s team`,
+              // Every team needs a default roaster to start a roast at
+              // all — see RoasterDefinition's own doc comment. SR800 is
+              // the only machine this app knows about until someone adds
+              // a second one for their team.
+              roasterDefinitions: {
+                create: {
+                  name: "Fresh Roast SR800",
+                  isDefault: true,
+                  supportsAiSuggestions: true,
+                  controlsJson: JSON.stringify(SR800_CONTROLS),
+                  probesJson: JSON.stringify(SR800_PROBES),
+                },
+              },
+            },
+          })
+        ).id
       : teamChoice;
 
   await prisma.allowedUser.create({ data: { email, isAdmin, teamId } });

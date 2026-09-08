@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
 import { EVENT_LABELS, type EventType } from "@/lib/constants";
+import type { RoasterControl } from "@/lib/roasters";
 import type { Bean, RoastEvent, RoastSession } from "@prisma/client";
 
 function cell(value: string | number | null | undefined): string {
@@ -14,7 +15,8 @@ function row(values: (string | number | null | undefined)[]): string {
 }
 
 export function buildRoastCsv(
-  session: RoastSession & { bean: Bean; events: RoastEvent[] }
+  session: RoastSession & { bean: Bean; events: RoastEvent[] },
+  controls: RoasterControl[]
 ): string {
   const weightLoss =
     session.roastedWeightGrams != null
@@ -64,14 +66,20 @@ export function buildRoastCsv(
   csv += row(["Notes", session.notes]);
   csv += "\r\n";
 
-  csv += row(["Elapsed (mm:ss)", "Elapsed (sec)", "Event", "Fan level", "Heat level", "Temp (°F)", "Note"]);
+  csv += row([
+    "Elapsed (mm:ss)",
+    "Elapsed (sec)",
+    "Event",
+    ...controls.map((c) => `${c.label} level`),
+    "Temp (°F)",
+    "Note",
+  ]);
   for (const event of session.events) {
     csv += row([
       formatMMSS(event.atSeconds),
       event.atSeconds,
       EVENT_LABELS[event.type as EventType] ?? event.type,
-      event.fanLevel,
-      event.heatLevel,
+      ...controls.map((c) => (event.type === c.key ? event.controlValue : undefined)),
       event.tempFahrenheit,
       event.note,
     ]);

@@ -5,6 +5,8 @@ import { ChevronDown } from "lucide-react";
 import { deleteEvent } from "@/lib/actions";
 import { formatMMSS } from "@/lib/format";
 import { EVENT_LABELS, type EventType } from "@/lib/constants";
+import { DIAL_MARKER_COLORS } from "@/lib/curve";
+import type { RoasterControl } from "@/lib/roasters";
 import DeleteButton from "@/components/DeleteButton";
 import Card from "@/components/ui/Card";
 import type { RoastEvent } from "@prisma/client";
@@ -94,22 +96,26 @@ function NumberCell({
 
 function EventRow({
   group,
+  controls,
   editable,
 }: {
   group: RoastEvent[];
+  controls: RoasterControl[];
   editable: boolean;
 }) {
   const tempEvent = group.find((e) => e.type === "TEMP");
-  const fanEvent = group.find((e) => e.type === "FAN");
-  const heatEvent = group.find((e) => e.type === "HEAT");
-  const otherEvents = group.filter((e) => e.type !== "TEMP" && e.type !== "FAN" && e.type !== "HEAT");
+  const controlKeys = new Set(controls.map((c) => c.key));
+  const otherEvents = group.filter((e) => e.type !== "TEMP" && !controlKeys.has(e.type as EventType));
 
   return (
     <tr className="group hover:bg-background/60">
       <td className="px-2 py-1 font-mono text-xs text-muted">{formatMMSS(group[0].atSeconds)}</td>
       <NumberCell event={tempEvent} editable={editable} value={tempEvent?.tempFahrenheit} />
-      <NumberCell event={fanEvent} editable={editable} value={fanEvent?.fanLevel} color="var(--accent)" />
-      <NumberCell event={heatEvent} editable={editable} value={heatEvent?.heatLevel} />
+      {controls.map((control, i) => {
+        const event = group.find((e) => e.type === control.key);
+        const [color] = DIAL_MARKER_COLORS[i % DIAL_MARKER_COLORS.length];
+        return <NumberCell key={control.key} event={event} editable={editable} value={event?.controlValue} color={color} />;
+      })}
       <td className="px-2 py-1">
         {otherEvents.length > 0 && (
           <div className="flex flex-col gap-0.5">
@@ -134,10 +140,12 @@ function EventRow({
 
 export default function EventTimeline({
   events,
+  controls,
   editable = false,
   bare = false,
 }: {
   events: RoastEvent[];
+  controls: RoasterControl[];
   editable?: boolean;
   /** Skips this component's own bordered/shadowed box — for callers (the
    * completed view's SectionCard) that already provide one, so it doesn't
@@ -165,14 +173,17 @@ export default function EventTimeline({
           <tr className="border-b border-border text-xs text-muted">
             <th className="px-2 py-1 text-left font-normal">Time</th>
             <th className="px-2 py-1 text-right font-normal">Temp (°F)</th>
-            <th className="px-2 py-1 text-right font-normal">Fan</th>
-            <th className="px-2 py-1 text-right font-normal">Heat</th>
+            {controls.map((control) => (
+              <th key={control.key} className="px-2 py-1 text-right font-normal">
+                {control.label}
+              </th>
+            ))}
             <th className="px-2 py-1 text-left font-normal">Event</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {visibleGroups.map((group) => (
-            <EventRow key={group[0].atSeconds} group={group} editable={editable} />
+            <EventRow key={group[0].atSeconds} group={group} controls={controls} editable={editable} />
           ))}
         </tbody>
       </table>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Fan, Flame, Thermometer, Minus, Plus, Check, Square } from "lucide-react";
+import { Thermometer, Minus, Plus, Check, Square } from "lucide-react";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import { useServerSyncedState } from "@/lib/useServerSyncedState";
 import { useProbeReadings, type ProbeReading } from "@/lib/useProbeReadings";
@@ -9,7 +9,8 @@ import { getCurveReadings, type PlanTargets } from "@/lib/curve";
 import { generateLiveTips, type HistoricalBaseline, type MilestoneTempBaseline, type ReferenceRoast } from "@/lib/tips";
 import { formatMMSS } from "@/lib/format";
 import { logEvent, dropRoast } from "@/lib/actions";
-import { SR800_LEVEL_MIN, SR800_LEVEL_MAX, MILESTONE_ABBREVIATIONS, type EventType } from "@/lib/constants";
+import { MILESTONE_ABBREVIATIONS, type EventType } from "@/lib/constants";
+import { CONTROL_ICONS, type RoasterControl } from "@/lib/roasters";
 import type { RoastEvent } from "@prisma/client";
 
 const MILESTONE_BUTTONS: EventType[] = [
@@ -30,12 +31,16 @@ function BarStepper({
   icon,
   label,
   level,
+  min,
+  max,
   pending,
   onChange,
 }: {
   icon: React.ReactNode;
   label: string;
   level: number;
+  min: number;
+  max: number;
   pending: boolean;
   onChange: (next: number) => void;
 }) {
@@ -44,7 +49,7 @@ function BarStepper({
 
   function commit() {
     const raw = Number(inputRef.current?.value);
-    if (Number.isInteger(raw) && raw >= SR800_LEVEL_MIN && raw <= SR800_LEVEL_MAX) {
+    if (Number.isInteger(raw) && raw >= min && raw <= max) {
       onChange(raw);
     }
     setEditing(false);
@@ -55,7 +60,7 @@ function BarStepper({
       {icon}
       <button
         type="button"
-        disabled={pending || level <= SR800_LEVEL_MIN}
+        disabled={pending || level <= min}
         onClick={() => onChange(level - 1)}
         aria-label={`Decrease ${label}`}
         className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-foreground/10 text-accent-foreground transition hover:bg-accent-foreground/20 disabled:opacity-30"
@@ -74,8 +79,8 @@ function BarStepper({
             ref={inputRef}
             type="number"
             inputMode="numeric"
-            min={SR800_LEVEL_MIN}
-            max={SR800_LEVEL_MAX}
+            min={min}
+            max={max}
             defaultValue={level}
             autoFocus
             onBlur={commit}
@@ -96,7 +101,7 @@ function BarStepper({
       )}
       <button
         type="button"
-        disabled={pending || level >= SR800_LEVEL_MAX}
+        disabled={pending || level >= max}
         onClick={() => onChange(level + 1)}
         aria-label={`Increase ${label}`}
         className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-foreground/10 text-accent-foreground transition hover:bg-accent-foreground/20 disabled:opacity-30"
@@ -173,19 +178,17 @@ function MilestoneButton({
 function BottomActionBar({
   roastSessionId,
   elapsed,
-  fanLevel,
-  heatLevel,
+  controls,
+  levels,
   loggedMilestoneTypes,
-  setFanLevel,
-  setHeatLevel,
+  setLevels,
 }: {
   roastSessionId: string;
   elapsed: number;
-  fanLevel: number;
-  heatLevel: number;
+  controls: RoasterControl[];
+  levels: Record<string, number>;
   loggedMilestoneTypes: EventType[];
-  setFanLevel: (n: number) => void;
-  setHeatLevel: (n: number) => void;
+  setLevels: (next: Record<string, number>) => void;
 }) {
   const [isPending, startTransition] = useTransition();
 
@@ -198,26 +201,24 @@ function BottomActionBar({
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 bg-accent shadow-[0_-2px_8px_rgba(0,0,0,0.15)]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-4 gap-y-2 px-3 py-2 sm:px-4">
-        <BarStepper
-          icon={<Fan className="h-4 w-4 text-accent-foreground/80" />}
-          label="fan"
-          level={fanLevel}
-          pending={isPending}
-          onChange={(next) => {
-            setFanLevel(next);
-            fire({ type: "FAN", fanLevel: next });
-          }}
-        />
-        <BarStepper
-          icon={<Flame className="h-4 w-4 text-accent-foreground/80" />}
-          label="heat"
-          level={heatLevel}
-          pending={isPending}
-          onChange={(next) => {
-            setHeatLevel(next);
-            fire({ type: "HEAT", heatLevel: next });
-          }}
-        />
+        {controls.map((control) => {
+          const Icon = CONTROL_ICONS[control.icon];
+          return (
+            <BarStepper
+              key={control.key}
+              icon={<Icon className="h-4 w-4 text-accent-foreground/80" />}
+              label={control.label.toLowerCase()}
+              level={levels[control.key] ?? control.defaultValue}
+              min={control.min}
+              max={control.max}
+              pending={isPending}
+              onChange={(next) => {
+                setLevels({ ...levels, [control.key]: next });
+                fire({ type: control.key, controlValue: next });
+              }}
+            />
+          );
+        })}
         <BarTempForm pending={isPending} onSubmit={(value) => fire({ type: "TEMP", tempFahrenheit: value })} />
         <div className="flex flex-wrap items-center justify-center gap-1">
           {MILESTONE_BUTTONS.map((type) => (
@@ -333,8 +334,8 @@ export default function LiveRoastBars({
   startedAt,
   beanName,
   roastSessionId,
-  initialFanLevel,
-  initialHeatLevel,
+  controls,
+  initialLevels,
   loggedMilestoneTypes,
   events,
   baseline,
@@ -346,8 +347,8 @@ export default function LiveRoastBars({
   startedAt: string;
   beanName: string;
   roastSessionId: string;
-  initialFanLevel: number;
-  initialHeatLevel: number;
+  controls: RoasterControl[];
+  initialLevels: Record<string, number>;
   loggedMilestoneTypes: EventType[];
   events: RoastEvent[];
   baseline: HistoricalBaseline | null;
@@ -357,14 +358,16 @@ export default function LiveRoastBars({
   originalPlanTargets?: PlanTargets;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
-  // Shared by both bars so the fan/heat shown here never drifts from
+  // Shared by both bars so the levels shown here never drift from
   // EventLogPanel's own copy further down the page — same reasoning as
   // that panel's own comment.
-  const [fanLevel, setFanLevel] = useServerSyncedState(initialFanLevel);
-  const [heatLevel, setHeatLevel] = useServerSyncedState(initialHeatLevel);
+  const [levels, setLevels] = useServerSyncedState(initialLevels);
 
   const probeReadings = useProbeReadings(roastSessionId);
-  const curveReadings = useMemo(() => getCurveReadings(events, probeReadings ?? []), [events, probeReadings]);
+  const curveReadings = useMemo(
+    () => getCurveReadings(events, probeReadings ?? [], controls),
+    [events, probeReadings, controls]
+  );
   const hint = useMemo(() => {
     if (!baseline) return null;
     const tips = generateLiveTips({
@@ -392,11 +395,10 @@ export default function LiveRoastBars({
       <BottomActionBar
         roastSessionId={roastSessionId}
         elapsed={elapsed}
-        fanLevel={fanLevel}
-        heatLevel={heatLevel}
+        controls={controls}
+        levels={levels}
         loggedMilestoneTypes={loggedMilestoneTypes}
-        setFanLevel={setFanLevel}
-        setHeatLevel={setHeatLevel}
+        setLevels={setLevels}
       />
     </>
   );

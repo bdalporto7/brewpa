@@ -14,11 +14,13 @@ import {
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
+import type { RoasterControl } from "@/lib/roasters";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export default function RoastCurveChart({
   events,
   totalSeconds,
+  controls,
   probeReadings = [],
   targets,
   title,
@@ -27,6 +29,7 @@ export default function RoastCurveChart({
 }: {
   events: RoastEvent[];
   totalSeconds: number;
+  controls: RoasterControl[];
   probeReadings?: TemperatureReading[];
   /** Accepted AI-plan targets (AiSuggestionPanel) — rendered as ghosted
    * dashed reference lines alongside the actual curve. Only meaningful for
@@ -52,10 +55,10 @@ export default function RoastCurveChart({
     // animateIn tracks `title`: the same signal RoastCurveChart's own
     // callers already use to mean "this is the completed-roast view," not
     // the live one — see this component's `title` doc comment above.
-    () => buildRoastCurveSvg(events, totalSeconds, { showRor, probeReadings, targets, animateIn: !!title }),
-    [events, totalSeconds, showRor, probeReadings, targets, title]
+    () => buildRoastCurveSvg(events, totalSeconds, controls, { showRor, probeReadings, targets, animateIn: !!title }),
+    [events, totalSeconds, controls, showRor, probeReadings, targets, title]
   );
-  const readings = useMemo(() => getCurveReadings(events, probeReadings), [events, probeReadings]);
+  const readings = useMemo(() => getCurveReadings(events, probeReadings, controls), [events, probeReadings, controls]);
   const layout = useMemo(
     () => (readings.length > 0 ? getChartLayout(readings, totalSeconds) : null),
     [readings, totalSeconds]
@@ -192,7 +195,7 @@ export default function RoastCurveChart({
               </p>
             )}
             <p className="text-muted">
-              Fan {hovered.fanLevel ?? "—"} · Heat {hovered.heatLevel ?? "—"}
+              {controls.map((c) => `${c.label} ${hovered.controlLevels[c.key] ?? "—"}`).join(" · ")}
             </p>
           </div>
         </>

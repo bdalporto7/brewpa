@@ -4,23 +4,10 @@ import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { logEvent } from "@/lib/actions";
 import { parseMMSS } from "@/lib/format";
-import { EVENT_TYPES, EVENT_LABELS, SR800_LEVEL_MIN, SR800_LEVEL_MAX, type EventType } from "@/lib/constants";
+import { EVENT_TYPES, EVENT_LABELS, type EventType } from "@/lib/constants";
+import type { RoasterControl } from "@/lib/roasters";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField } from "@/components/ui/Field";
-
-const VALUE_FIELD: Record<EventType, "fan" | "heat" | "temp" | "note" | null> = {
-  FAN: "fan",
-  HEAT: "heat",
-  TEMP: "temp",
-  DRY_END: null,
-  YELLOWING_END: null,
-  FIRST_CRACK_START: null,
-  FIRST_CRACK_END: null,
-  SECOND_CRACK_START: null,
-  SECOND_CRACK_END: null,
-  NOTE: "note",
-  DROP: null,
-};
 
 /**
  * DROP is a real `EventType` but isn't offered here — ending a roast goes
@@ -28,14 +15,21 @@ const VALUE_FIELD: Record<EventType, "fan" | "heat" | "temp" | "note" | null> = 
  * `endedAt` in the same transaction as the event. Logging DROP through this
  * generic form would create the event without ever closing out the roast.
  */
-export default function AddEventForm({ roastSessionId }: { roastSessionId: string }) {
+export default function AddEventForm({
+  roastSessionId,
+  controls,
+}: {
+  roastSessionId: string;
+  controls: RoasterControl[];
+}) {
   const [type, setType] = useState<EventType>("TEMP");
   const [atInput, setAtInput] = useState("");
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const valueField = VALUE_FIELD[type];
+  const control = controls.find((c) => c.key === type);
+  const valueField = control ? "control" : type === "TEMP" ? "temp" : type === "NOTE" ? "note" : null;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,8 +49,7 @@ export default function AddEventForm({ roastSessionId }: { roastSessionId: strin
         roastSessionId,
         type,
         atSeconds,
-        fanLevel: valueField === "fan" ? Number(value) : undefined,
-        heatLevel: valueField === "heat" ? Number(value) : undefined,
+        controlValue: valueField === "control" ? Number(value) : undefined,
         tempFahrenheit: valueField === "temp" ? Number(value) : undefined,
         note: valueField === "note" ? value.trim() : undefined,
       });
@@ -90,13 +83,13 @@ export default function AddEventForm({ roastSessionId }: { roastSessionId: strin
         ))}
       </SelectField>
 
-      {valueField === "fan" || valueField === "heat" ? (
+      {valueField === "control" && control ? (
         <TextField
-          label={valueField === "fan" ? "Fan level" : "Heat level"}
+          label={`${control.label} level`}
           name="value"
           type="number"
-          min={SR800_LEVEL_MIN}
-          max={SR800_LEVEL_MAX}
+          min={control.min}
+          max={control.max}
           mono
           value={value}
           onChange={(e) => setValue(e.target.value)}

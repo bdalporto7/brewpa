@@ -100,6 +100,25 @@ export async function runMigrations(dbPath: string, appBundleDir: string): Promi
         sql: "INSERT INTO AllowedUser (id, email, isAdmin, createdAt, teamId) VALUES (?, ?, 1, ?, ?)",
         args: [randomUUID(), DESKTOP_GUEST_EMAIL, new Date().toISOString(), teamId],
       });
+      // Every team needs a default roaster to start a roast at all — see
+      // apps/roasting/prisma/schema.prisma's RoasterDefinition doc
+      // comment. Literal JSON here matches
+      // apps/roasting/src/lib/roasters.ts's SR800_CONTROLS/SR800_PROBES
+      // exactly — inlined rather than imported, same reasoning as
+      // DESKTOP_GUEST_EMAIL above: no module boundary between apps/desktop
+      // and apps/roasting to import across.
+      await client.execute({
+        sql: "INSERT INTO RoasterDefinition (id, name, isDefault, supportsAiSuggestions, controlsJson, probesJson, createdAt, updatedAt, teamId) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?)",
+        args: [
+          randomUUID(),
+          "Fresh Roast SR800",
+          '[{"key":"FAN","label":"Fan","min":1,"max":9,"defaultValue":5,"icon":"fan","widget":"stepper"},{"key":"HEAT","label":"Heat","min":1,"max":9,"defaultValue":5,"icon":"flame","widget":"stepper"}]',
+          '[{"key":"bean","label":"Bean"}]',
+          new Date().toISOString(),
+          new Date().toISOString(),
+          teamId,
+        ],
+      });
     }
   }
 

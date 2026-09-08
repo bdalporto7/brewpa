@@ -66,7 +66,8 @@ export default async function CompareTab({
       })
     : null;
 
-  const currentReadings = getCurveReadings(currentSession.events, currentSession.temperatureReadings);
+  // RoastComparisonChart only plots temp/RoR, never control levels — controls irrelevant here.
+  const currentReadings = getCurveReadings(currentSession.events, currentSession.temperatureReadings, []);
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,7 +85,7 @@ export default async function CompareTab({
           <RoastComparisonChart
             readingsA={currentReadings}
             labelA={roastLabel(currentSession)}
-            readingsB={getCurveReadings(comparisonFull.events, comparisonFull.temperatureReadings)}
+            readingsB={getCurveReadings(comparisonFull.events, comparisonFull.temperatureReadings, [])}
             labelB={roastLabel(comparisonFull)}
           />
 

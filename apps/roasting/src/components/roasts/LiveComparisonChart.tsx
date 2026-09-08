@@ -7,11 +7,13 @@ import {
   nearestCurveReading,
   getMilestoneEvents,
   getDialChangeEvents,
+  DIAL_MARKER_COLORS,
   CHART_WIDTH,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
 import { EVENT_LABELS } from "@/lib/constants";
+import type { RoasterControl } from "@/lib/roasters";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export default function LiveComparisonChart({
@@ -21,6 +23,7 @@ export default function LiveComparisonChart({
   comparisonEvents,
   comparisonLabel,
   comparisonTotalSeconds,
+  controls,
   currentProbeReadings = [],
   comparisonProbeReadings = [],
 }: {
@@ -30,6 +33,7 @@ export default function LiveComparisonChart({
   comparisonEvents: RoastEvent[];
   comparisonLabel: string;
   comparisonTotalSeconds: number;
+  controls: RoasterControl[];
   currentProbeReadings?: TemperatureReading[];
   comparisonProbeReadings?: TemperatureReading[];
 }) {
@@ -48,6 +52,7 @@ export default function LiveComparisonChart({
         comparisonEvents,
         comparisonLabel,
         comparisonTotalSeconds,
+        controls,
         currentProbeReadings,
         comparisonProbeReadings,
         showRor
@@ -59,18 +64,19 @@ export default function LiveComparisonChart({
       comparisonEvents,
       comparisonLabel,
       comparisonTotalSeconds,
+      controls,
       currentProbeReadings,
       comparisonProbeReadings,
       showRor,
     ]
   );
   const readingsA = useMemo(
-    () => getCurveReadings(currentEvents, currentProbeReadings),
-    [currentEvents, currentProbeReadings]
+    () => getCurveReadings(currentEvents, currentProbeReadings, controls),
+    [currentEvents, currentProbeReadings, controls]
   );
   const readingsB = useMemo(
-    () => getCurveReadings(comparisonEvents, comparisonProbeReadings),
-    [comparisonEvents, comparisonProbeReadings]
+    () => getCurveReadings(comparisonEvents, comparisonProbeReadings, controls),
+    [comparisonEvents, comparisonProbeReadings, controls]
   );
   const duration = Math.max(currentElapsedSeconds, comparisonTotalSeconds, 1);
 
@@ -81,12 +87,17 @@ export default function LiveComparisonChart({
   // only draws the current roast's own fan/heat strip and leaves these two
   // as tables instead.
   const comparisonMilestones = useMemo(() => getMilestoneEvents(comparisonEvents), [comparisonEvents]);
-  // Fan and heat in their own columns, not one merged list — two roughly
+  // One column per control, not one merged list — a couple of roughly
   // half-length lists side by side read faster and take less vertical room
   // than one list twice as long.
-  const comparisonDialChanges = useMemo(() => getDialChangeEvents(comparisonEvents), [comparisonEvents]);
-  const comparisonFanChanges = useMemo(() => comparisonDialChanges.filter((d) => d.type === "FAN"), [comparisonDialChanges]);
-  const comparisonHeatChanges = useMemo(() => comparisonDialChanges.filter((d) => d.type === "HEAT"), [comparisonDialChanges]);
+  const comparisonDialChanges = useMemo(
+    () => getDialChangeEvents(comparisonEvents, controls),
+    [comparisonEvents, controls]
+  );
+  const comparisonChangesByControl = controls.map((control) => ({
+    control,
+    changes: comparisonDialChanges.filter((d) => d.type === control.key),
+  }));
 
   if (!svg) return null;
 
@@ -158,7 +169,7 @@ export default function LiveComparisonChart({
           </div>
         )}
       </div>
-      {(comparisonMilestones.length > 0 || comparisonFanChanges.length > 0 || comparisonHeatChanges.length > 0) && (
+      {(comparisonMilestones.length > 0 || comparisonChangesByControl.some((c) => c.changes.length > 0)) && (
         <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-border pt-3 sm:grid-cols-3">
           {comparisonMilestones.length > 0 && (
             <div>
@@ -181,48 +192,33 @@ export default function LiveComparisonChart({
               </table>
             </div>
           )}
-          {comparisonFanChanges.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted">{comparisonLabel} — fan</p>
-              <table className="text-xs">
-                <tbody>
-                  {comparisonFanChanges.map((d, i) => (
-                    <tr key={`fan-${d.atSeconds}-${i}`}>
-                      <td className="py-0.5 pr-4">
-                        <span
-                          className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
-                          style={{ backgroundColor: "var(--ror)" }}
-                        />
-                        → {d.level}
-                      </td>
-                      <td className="py-0.5 text-right font-mono text-muted">{formatMMSS(d.atSeconds)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {comparisonHeatChanges.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted">{comparisonLabel} — heat</p>
-              <table className="text-xs">
-                <tbody>
-                  {comparisonHeatChanges.map((d, i) => (
-                    <tr key={`heat-${d.atSeconds}-${i}`}>
-                      <td className="py-0.5 pr-4">
-                        <span
-                          className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
-                          style={{ backgroundColor: "var(--foreground)" }}
-                        />
-                        → {d.level}
-                      </td>
-                      <td className="py-0.5 text-right font-mono text-muted">{formatMMSS(d.atSeconds)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {comparisonChangesByControl.map(({ control, changes }, i) => {
+            if (changes.length === 0) return null;
+            const [color] = DIAL_MARKER_COLORS[i % DIAL_MARKER_COLORS.length];
+            return (
+              <div key={control.key}>
+                <p className="mb-1.5 text-xs font-medium text-muted">
+                  {comparisonLabel} — {control.label.toLowerCase()}
+                </p>
+                <table className="text-xs">
+                  <tbody>
+                    {changes.map((d, j) => (
+                      <tr key={`${control.key}-${d.atSeconds}-${j}`}>
+                        <td className="py-0.5 pr-4">
+                          <span
+                            className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
+                            style={{ backgroundColor: color }}
+                          />
+                          → {d.level}
+                        </td>
+                        <td className="py-0.5 text-right font-mono text-muted">{formatMMSS(d.atSeconds)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       )}
       </Card>

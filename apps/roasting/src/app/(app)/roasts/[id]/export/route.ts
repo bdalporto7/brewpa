@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { buildRoastCsv } from "@/lib/csv";
 import { getCurrentAllowedUser } from "@/lib/admin";
+import { parseControls } from "@/lib/roasters";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const session = await prisma.roastSession.findFirst({
     where: { id, teamId: user.teamId },
-    include: { bean: true, events: { orderBy: { atSeconds: "asc" } } },
+    include: { bean: true, events: { orderBy: { atSeconds: "asc" } }, roasterDefinition: true },
   });
 
   if (!session) {
@@ -27,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This roast hasn't been completed yet." }, { status: 400 });
   }
 
-  const csv = buildRoastCsv(session);
+  const csv = buildRoastCsv(session, parseControls(session.roasterDefinition.controlsJson));
   const filename = `${session.bean.name}-${format(session.startedAt, "yyyy-MM-dd")}.csv`
     .toLowerCase()
     .replace(/[^a-z0-9.-]+/g, "-");
