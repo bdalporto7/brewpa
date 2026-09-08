@@ -62,7 +62,7 @@ export default async function CompareTab({
   const comparisonFull: FullSession | null = comparisonSummary
     ? await prisma.roastSession.findFirstOrThrow({
         where: { id: comparisonSummary.id, teamId: currentSession.teamId },
-        include: { bean: true, events: true, temperatureReadings: true },
+        include: { bean: true, events: true, temperatureReadings: { where: { probeType: "bean" } } },
       })
     : null;
 

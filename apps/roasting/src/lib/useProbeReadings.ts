@@ -7,6 +7,7 @@ export interface ProbeReading {
   tempFahrenheit: number;
   atSeconds: number | null;
   recordedAt: string;
+  probeType: string;
 }
 
 const POLL_MS = 5000;

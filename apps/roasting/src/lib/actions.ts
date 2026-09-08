@@ -481,6 +481,7 @@ export async function generateRoastSuggestion(
         select: { type: true, atSeconds: true, controlValue: true },
       },
       temperatureReadings: {
+        where: { probeType: "bean" },
         orderBy: { atSeconds: "desc" },
         take: 1,
         select: { tempFahrenheit: true },

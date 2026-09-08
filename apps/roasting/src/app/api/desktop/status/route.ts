@@ -32,6 +32,7 @@ export async function GET() {
         take: 1,
       },
       temperatureReadings: {
+        where: { probeType: "bean" },
         orderBy: { recordedAt: "desc" },
         take: 1,
       },

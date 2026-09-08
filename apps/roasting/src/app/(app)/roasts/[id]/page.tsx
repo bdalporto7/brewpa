@@ -67,13 +67,15 @@ export default async function RoastSessionPage({
         events: { orderBy: { atSeconds: "asc" } },
         sales: { orderBy: { soldAt: "desc" }, include: { friend: true } },
         cuppingNotes: { orderBy: { cuppedAt: "desc" } },
-        temperatureReadings: { orderBy: { atSeconds: "asc" } },
+        temperatureReadings: { where: { probeType: "bean" }, orderBy: { atSeconds: "asc" } },
         brews: {
           where: { userId: user.id },
           orderBy: { brewedAt: "desc" },
           include: { roastSession: { include: { bean: true } } },
         },
-        compareTo: { include: { bean: true, events: true, temperatureReadings: true } },
+        compareTo: {
+          include: { bean: true, events: true, temperatureReadings: { where: { probeType: "bean" } } },
+        },
         profile: true,
         roasterDefinition: true,
       },
@@ -168,7 +170,7 @@ export default async function RoastSessionPage({
   if (isLive) {
     const sameBeanCompleted = await prisma.roastSession.findMany({
       where: { beanId: session.beanId, endedAt: { not: null }, id: { not: session.id } },
-      include: { events: true, temperatureReadings: true },
+      include: { events: true, temperatureReadings: { where: { probeType: "bean" } } },
     });
     let baselineSessions = sameBeanCompleted;
     if (baselineSessions.length === 0) {
@@ -176,7 +178,7 @@ export default async function RoastSessionPage({
       // curves aren't a meaningful "typical for this bean" baseline.
       baselineSessions = await prisma.roastSession.findMany({
         where: { endedAt: { not: null }, teamId: user.teamId },
-        include: { events: true, temperatureReadings: true },
+        include: { events: true, temperatureReadings: { where: { probeType: "bean" } } },
         take: 50,
       });
     }

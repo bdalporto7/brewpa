@@ -364,9 +364,18 @@ export default function LiveRoastBars({
   const [levels, setLevels] = useServerSyncedState(initialLevels);
 
   const probeReadings = useProbeReadings(roastSessionId);
+  // Bean-only — a roaster with a second (e.g. environment) probe channel
+  // posts those under a different probeType, and every consumer here
+  // (the curve/RoR math and TopStatusBar's live readout) still assumes one
+  // undifferentiated bean series. See ModbusProbeConnector for where a
+  // second channel actually gets logged.
+  const beanReadings = useMemo(
+    () => (probeReadings ?? []).filter((r) => r.probeType === "bean"),
+    [probeReadings]
+  );
   const curveReadings = useMemo(
-    () => getCurveReadings(events, probeReadings ?? [], controls),
-    [events, probeReadings, controls]
+    () => getCurveReadings(events, beanReadings, controls),
+    [events, beanReadings, controls]
   );
   const hint = useMemo(() => {
     if (!baseline) return null;
@@ -390,7 +399,7 @@ export default function LiveRoastBars({
         elapsed={elapsed}
         roastSessionId={roastSessionId}
         hint={hint}
-        probeReadings={probeReadings}
+        probeReadings={beanReadings}
       />
       <BottomActionBar
         roastSessionId={roastSessionId}
