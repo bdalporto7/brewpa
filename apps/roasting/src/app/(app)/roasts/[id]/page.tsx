@@ -17,6 +17,7 @@ import { parseControls } from "@/lib/roasters";
 import LiveRoastBars from "@/components/roasts/LiveRoastBars";
 import LiveRoastPoller from "@/components/roasts/LiveRoastPoller";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
+import WebSerialProbeConnector from "@/components/roasts/WebSerialProbeConnector";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import AiSuggestionPanel from "@/components/roasts/AiSuggestionPanel";
 import RoastProfilePicker from "@/components/roasts/RoastProfilePicker";
@@ -289,6 +290,15 @@ export default async function RoastSessionPage({
           />
         </div>
       </div>
+
+      {/* Rendered once, outside the isPending/isLive branches below, so the
+          live connection it holds survives clicking "Begin Roast" — see
+          this component's own doc comment on the exact unmount/remount bug
+          confirmed live when this instead lived nested inside
+          LiveProbePanel (pending-only, and its own two return branches
+          swap element types on the first reading arriving, both of which
+          tear a nested connector down at exactly the wrong moment). */}
+      {!isCompleted && <WebSerialProbeConnector />}
 
       {isPending && (
         <>

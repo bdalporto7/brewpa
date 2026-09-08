@@ -21,23 +21,32 @@ purely from reading recency — no manual toggle — and a completed roast's
 curve chart prefers `TemperatureReading` rows over hand-logged `TEMP`
 events once there are at least two of them.
 
-**Why a local bridge script, not the Web Serial API.** A cloud-hosted
+**Two ways to get bytes off the probe, both supported.** A cloud-hosted
 Vercel deployment has no path to a USB device sitting on someone's laptop
 — that's not an architecture choice, a serverless function simply can't
-see local hardware, full stop. Given that, there are two ways to actually
-get bytes off the probe to the (hosted) app: a small always-local script
-that forwards over HTTP (what's implemented), or the browser's Web Serial
-API reading the port directly from the page. Web Serial was considered and
-rejected: it's Chromium-only (breaks in Safari/Firefox), and reading stops
-if that tab isn't open and foregrounded — a plain background script is
-more robust for something running unattended next to a hot roaster, and
-it lets the probe's host machine be different from whatever device you're
-actually viewing the live roast on (e.g. probe on an old laptop by the
-roaster, live page open on your phone across the room). This two-process
-shape — tiny local agent feeding a cloud app — is the standard pattern
-anywhere a web app needs to touch local hardware (same idea as e.g.
-Datadog's agent or Home Assistant's local integrations), not a workaround
-to clean up later.
+see local hardware, full stop. So there are two ways to actually get
+bytes off the probe to the (hosted) app:
+
+1. **The local bridge script** (`scripts/probe_bridge.py`, below) — a
+   small always-local script that forwards over HTTP. More robust for
+   something running unattended next to a hot roaster (survives losing
+   focus, keeps running if you close the tab), and lets the probe's host
+   machine be different from whatever device you're viewing the live
+   roast on (e.g. probe on an old laptop by the roaster, live page open on
+   your phone across the room). This two-process shape — tiny local agent
+   feeding a cloud app — is the standard pattern anywhere a web app needs
+   to touch local hardware (same idea as e.g. Datadog's agent or Home
+   Assistant's local integrations).
+2. **In-browser, via the Web Serial API**
+   (`src/components/roasts/WebSerialProbeConnector.tsx`) — no local
+   install needed, for the case where you can only use whatever computer
+   is sitting at a co-roastery. Chromium-only (breaks in Safari/Firefox),
+   and the reading stops if that exact tab is closed or navigated away
+   (backgrounded/unfocused is fine), so it's deliberately not a
+   replacement for the bridge script — just a lower-friction option for
+   when the bridge script's setup isn't worth it. Ingests through
+   `src/lib/probe-actions.ts`'s `logProbeReading` Server Action (a real
+   signed-in, team-scoped call), not the bearer-token route below.
 
 **The bridge script**: `scripts/probe_bridge.py`. Run manually before a
 roast (deliberately not an always-on background service — start manual,

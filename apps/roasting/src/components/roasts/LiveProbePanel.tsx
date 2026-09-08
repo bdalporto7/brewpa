@@ -9,13 +9,22 @@ const STALE_AFTER_SECONDS = 30;
 const NOW_TICK_MS = 5000;
 
 /**
- * No manual "connect a probe" step — connection is inferred entirely from
- * whether readings are actually arriving, polled (via useProbeReadings)
- * from /api/roasts/[id]/temperature. Works during setup (before startedAt
- * is set) and while live, since the ingest endpoint accepts readings
- * either way. If nothing ever shows up, this quietly stays in its empty
- * state — logging temps by hand in the panel below still works exactly as
- * before.
+ * No manual "connect a probe" step for the bridge-script/bearer-token
+ * path — connection is inferred entirely from whether readings are
+ * actually arriving, polled (via useProbeReadings) from
+ * /api/roasts/[id]/temperature. Works during setup (before startedAt is
+ * set) and while live, since the ingest endpoint accepts readings either
+ * way. If nothing ever shows up, this quietly stays in its empty state —
+ * logging temps by hand in the panel below still works exactly as before.
+ *
+ * WebSerialProbeConnector (the in-browser connect button) is deliberately
+ * NOT nested inside this component — confirmed live that the two return
+ * branches below swap parent element types (a bare div vs a Card) the
+ * instant readings.length crosses from 0 to 1, which unmounts and
+ * remounts anything nested inside at exactly the moment a connection
+ * starts succeeding, killing it. It's rendered once, by the roast page
+ * itself, in a spot that's stable across this component's own before/
+ * after states and across the pending-to-live transition.
  */
 export default function LiveProbePanel({ roastSessionId }: { roastSessionId: string }) {
   const readings = useProbeReadings(roastSessionId);
@@ -30,8 +39,7 @@ export default function LiveProbePanel({ roastSessionId }: { roastSessionId: str
     return (
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-muted">
         <Thermometer className="h-3.5 w-3.5" />
-        No probe connected — log temps by hand below, or connect one and readings will show up here
-        automatically.
+        No probe connected — log temps by hand below, run the bridge script, or connect one below.
       </div>
     );
   }
