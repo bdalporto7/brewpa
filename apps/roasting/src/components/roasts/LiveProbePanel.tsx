@@ -35,7 +35,14 @@ export default function LiveProbePanel({ roastSessionId }: { roastSessionId: str
     return () => clearInterval(id);
   }, []);
 
-  if (!readings || readings.length === 0) {
+  // Bean-only for the primary readout — a roaster with a second probe
+  // channel (e.g. a Modbus-connected SF-6's environment probe, see
+  // ModbusProbeConnector) posts those under a different probeType, and a
+  // misconfigured ET-only feed shouldn't get mistaken for "the bean probe
+  // is connected." The secondary line just below reads from every other
+  // probeType in the full, unfiltered feed instead.
+  const beanReadings = (readings ?? []).filter((r) => r.probeType === "bean");
+  if (beanReadings.length === 0) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-muted">
         <Thermometer className="h-3.5 w-3.5" />
@@ -44,21 +51,35 @@ export default function LiveProbePanel({ roastSessionId }: { roastSessionId: str
     );
   }
 
-  const latest = readings[readings.length - 1];
+  const latest = beanReadings[beanReadings.length - 1];
   const secondsSinceReading = (now - new Date(latest.recordedAt).getTime()) / 1000;
   const isLive = secondsSinceReading < STALE_AFTER_SECONDS;
 
+  // Only bean+environment exist today (see SF6_PROBES in roasters.ts), so
+  // "latest of any other probeType" reduces to "latest environment
+  // reading" — this doesn't bucket per-type or show more than one
+  // secondary line, which is fine until a third probe type exists.
+  const otherReadings = (readings ?? []).filter((r) => r.probeType !== "bean");
+  const latestOther = otherReadings.length > 0 ? otherReadings[otherReadings.length - 1] : null;
+
   return (
-    <Card interactive={false} className="flex items-center justify-between gap-3 p-3">
-      <div className="flex items-center gap-2">
-        <Thermometer className="h-3.5 w-3.5 text-accent" />
-        <span className="font-mono text-lg font-semibold">{Math.round(latest.tempFahrenheit)}°F</span>
-        <span className="text-xs text-muted">from probe · {readings.length} readings</span>
+    <Card interactive={false} className="flex flex-col gap-1 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Thermometer className="h-3.5 w-3.5 text-accent" />
+          <span className="font-mono text-lg font-semibold">{Math.round(latest.tempFahrenheit)}°F</span>
+          <span className="text-xs text-muted">from probe · {beanReadings.length} readings</span>
+        </div>
+        <span className={`flex items-center gap-1.5 text-xs font-medium ${isLive ? "text-accent" : "text-muted"}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "animate-pulse bg-accent" : "bg-muted"}`} />
+          {isLive ? "Connected" : "Probe quiet"}
+        </span>
       </div>
-      <span className={`flex items-center gap-1.5 text-xs font-medium ${isLive ? "text-accent" : "text-muted"}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "animate-pulse bg-accent" : "bg-muted"}`} />
-        {isLive ? "Connected" : "Probe quiet"}
-      </span>
+      {latestOther && (
+        <p className="text-xs text-muted">
+          {Math.round(latestOther.tempFahrenheit)}°F {latestOther.probeType}
+        </p>
+      )}
     </Card>
   );
 }
