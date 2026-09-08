@@ -14,6 +14,28 @@ import { startSyncPoller } from "./sync-poller";
 import { createSplashWindow } from "./splash";
 import { DOCK_ICON_PNG_BASE64 } from "./icon-assets";
 
+// Confirmed live that this has to run before *anything* that could touch
+// app.getPath('userData') — including app.requestSingleInstanceLock()
+// just below, which uses a lock file under userData internally, and does
+// so before any of our own code gets a chance to run. Called after
+// setName(), userData still correctly resolved to the (wrong)
+// package.json "name" field ("desktop") baked into the asar's root
+// package.json — the real "Cybar Coffee" folder existed from some earlier
+// build, but every actual launch since was silently reading and writing
+// desktop-config.json/app.db under ~/Library/Application Support/desktop
+// instead, orphaning whatever's in the "Cybar Coffee" folder. Doesn't
+// affect the bold app name macOS shows at the top of the screen next to
+// the Apple logo — that comes from the running executable's own
+// Info.plist (CFBundleName), baked in at build time by electron-builder
+// for a real packaged app, unrelated to this call.
+app.setName("Cybar Coffee");
+
+app.setAboutPanelOptions({
+  applicationName: "Cybar Coffee",
+  applicationVersion: app.getVersion(),
+  copyright: "Cybar Coffee",
+});
+
 // apps/desktop/.env is a gitignored, purely optional dev convenience now
 // (e.g. overriding SYNC_API_BASE_URL to point a local build at a
 // disposable test server) — this app's own local server holds no OAuth
@@ -92,23 +114,6 @@ app.on("open-url", (event, url) => {
   const coldStartUrl = process.argv.find((arg) => arg.startsWith(`${SYNC_CALLBACK_PROTOCOL}://`));
   if (coldStartUrl) app.whenReady().then(() => handlePairingCallback(coldStartUrl));
 }
-
-// Affects app.getName() (used below in the app-menu label and About panel)
-// — it does NOT change the bold app name macOS shows at the top of the
-// screen next to the Apple logo. That text comes from the running
-// executable's own Info.plist (CFBundleName), baked in at build time by
-// electron-builder for a real packaged app; a dev run via `electron .` is
-// always going to say "Electron" there, no matter what this call does.
-// There's no dev-mode workaround for that specific piece of chrome — a
-// real build (`npm run pack`, an unpacked Cybar Coffee.app) is the only
-// way to actually see this.
-app.setName("Cybar Coffee");
-
-app.setAboutPanelOptions({
-  applicationName: "Cybar Coffee",
-  applicationVersion: app.getVersion(),
-  copyright: "Cybar Coffee",
-});
 
 /**
  * One build for everyone — not two. A fresh install works fully offline,
@@ -248,8 +253,32 @@ function handlePairingCallback(rawUrl: string): void {
   console.log(`[pairing] accepted callback for ${email}, restarting`);
   pendingPairingState = null;
   writeDesktopConfig({ syncEnabled: true, syncedEmail: email, syncToken: token });
-  app.relaunch();
-  app.exit(0);
+  relaunchApp();
+}
+
+/**
+ * app.relaunch() + app.exit() only ever ends *this* process — the Next
+ * server child (`serverProcess`) is a separate OS process app.exit()
+ * doesn't touch, and confirmed live that it doesn't die on its own either:
+ * left running, it keeps holding port 41823, so the freshly relaunched
+ * instance's own server can't bind it and the UI keeps talking to the
+ * *old* server with the *old* env (pre-sign-in, sync still off) — every
+ * relaunch path silently failed to actually pick up the new config this
+ * way. Killing the child and waiting for it to actually exit before
+ * relaunching is what makes the new instance's server able to take the
+ * port at all.
+ */
+function relaunchApp(): void {
+  if (!serverProcess) {
+    app.relaunch();
+    app.exit(0);
+    return;
+  }
+  serverProcess.once("exit", () => {
+    app.relaunch();
+    app.exit(0);
+  });
+  serverProcess.kill();
 }
 
 /** Used by the dock menu and the Go menu's keyboard shortcuts — both just want "show me this page," nothing fancier. */
@@ -458,16 +487,11 @@ app.on("activate", () => {
   }
 });
 
-// The renderer's "Restart to finish syncing" control (SyncNowButton.tsx's
-// sibling in apps/roasting) calls this via preload.ts's contextBridge —
-// a real one-click relaunch instead of asking the user to figure out
-// themselves that closing the window isn't enough and they need Cmd+Q.
-// app.relaunch() queues a fresh launch; app.exit() (not app.quit(), which
-// can be intercepted or delayed by other handlers) ends this process
-// immediately so the new one starts clean.
+// A generic one-click relaunch, called directly from the renderer in a
+// couple of spots — a real relaunch instead of asking the user to figure
+// out themselves that closing the window isn't enough and they need Cmd+Q.
 ipcMain.handle("restart-app", () => {
-  app.relaunch();
-  app.exit(0);
+  relaunchApp();
 });
 
 // SignInToSyncLink.tsx's "Sign in to sync" — opens the hosted app's
@@ -497,8 +521,7 @@ ipcMain.handle("start-sync-pairing", () => {
 // does it from /admin, same as before this existed.
 ipcMain.handle("disable-sync", () => {
   writeDesktopConfig({ syncEnabled: false });
-  app.relaunch();
-  app.exit(0);
+  relaunchApp();
 });
 
 // A synchronous confirm, not the async dialog.showMessageBox + preventDefault
