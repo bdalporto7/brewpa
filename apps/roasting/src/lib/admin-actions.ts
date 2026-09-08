@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
-import { SR800_CONTROLS, SR800_PROBES } from "@/lib/roasters";
+import { ROASTER_PRESETS } from "@/lib/roasters";
 
 function str(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -47,18 +47,19 @@ export async function addAllowedUser(formData: FormData) {
           await prisma.team.create({
             data: {
               name: newTeamName ?? `${email}'s team`,
-              // Every team needs a default roaster to start a roast at
-              // all — see RoasterDefinition's own doc comment. SR800 is
-              // the only machine this app knows about until someone adds
-              // a second one for their team.
+              // Every team gets every roaster this app currently supports
+              // — which machines exist is a catalog we ship in code
+              // (ROASTER_PRESETS), never something a team adds/removes
+              // itself. The first preset is the default pre-selected when
+              // starting a roast; see RoasterDefinition's own doc comment.
               roasterDefinitions: {
-                create: {
-                  name: "Fresh Roast SR800",
-                  isDefault: true,
-                  supportsAiSuggestions: true,
-                  controlsJson: JSON.stringify(SR800_CONTROLS),
-                  probesJson: JSON.stringify(SR800_PROBES),
-                },
+                create: ROASTER_PRESETS.map((preset, i) => ({
+                  name: preset.name,
+                  isDefault: i === 0,
+                  supportsAiSuggestions: preset.supportsAiSuggestions,
+                  controlsJson: JSON.stringify(preset.controls),
+                  probesJson: JSON.stringify(preset.probes),
+                })),
               },
             },
           })

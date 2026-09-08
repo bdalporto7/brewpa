@@ -4,9 +4,15 @@ import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
 import { TextField, SelectField } from "@/components/ui/Field";
 import Card from "@/components/ui/Card";
-import type { Bean } from "@prisma/client";
+import type { Bean, RoasterDefinition } from "@prisma/client";
 
-export default function StartRoastForm({ beans }: { beans: Bean[] }) {
+export default function StartRoastForm({
+  beans,
+  roasterDefinitions,
+}: {
+  beans: Bean[];
+  roasterDefinitions: RoasterDefinition[];
+}) {
   if (beans.length === 0) {
     return (
       <Card interactive={false} className="px-4 py-3 text-sm text-muted">
@@ -15,10 +21,18 @@ export default function StartRoastForm({ beans }: { beans: Bean[] }) {
     );
   }
 
+  // A picker only makes sense once there's an actual choice — a single-
+  // machine team (still the common case) gets a hidden field instead, same
+  // effect with nothing to decide.
+  const defaultRoasterId = roasterDefinitions.find((r) => r.isDefault)?.id ?? roasterDefinitions[0]?.id;
+
   return (
     <Card interactive={false} className="p-4">
       <p className="mb-3 text-sm font-medium">Start a roast</p>
-      <ActionForm action={startRoast} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
+      <ActionForm
+        action={startRoast}
+        className={`grid grid-cols-1 gap-3 ${roasterDefinitions.length > 1 ? "sm:grid-cols-[1fr_1fr_auto_auto]" : "sm:grid-cols-[1fr_auto_auto]"}`}
+      >
         <SelectField label="Bean" name="beanId" required defaultValue="">
           <option value="" disabled>
             Select bean
@@ -29,6 +43,17 @@ export default function StartRoastForm({ beans }: { beans: Bean[] }) {
             </option>
           ))}
         </SelectField>
+        {roasterDefinitions.length > 1 ? (
+          <SelectField label="Roaster" name="roasterDefinitionId" defaultValue={defaultRoasterId}>
+            {roasterDefinitions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </SelectField>
+        ) : (
+          <input type="hidden" name="roasterDefinitionId" value={defaultRoasterId} />
+        )}
         <TextField
           label="Green weight (g)"
           name="greenWeightGrams"

@@ -59,3 +59,31 @@ export const SR800_CONTROLS: RoasterControl[] = [
 ];
 
 export const SR800_PROBES: RoasterProbe[] = [{ key: "bean", label: "Bean" }];
+
+/**
+ * San Franciscan (SF-6 and similar small-batch models) — a gas-fired drum
+ * roaster, structurally different from the SR800's fluid bed: one gas
+ * valve (the real heat lever) and an airflow damper instead of two dials,
+ * and two temperature probes (bean/BT, environment/ET) instead of one.
+ * Per Artisan's own device docs (artisan-scope.org/machines/sf/): "gas
+ * control on machines produced after 8/2019," MODBUS RTU via a Watlow PM6
+ * controller for BT/ET — no public spec gives exact dial ranges, so 0-10
+ * here is a reasonable placeholder pending confirmation against a real
+ * unit, same as the SR800's ranges would need adjusting for a variant that
+ * genuinely dialed differently.
+ */
+export const SF6_CONTROLS: RoasterControl[] = [
+  { key: "GAS", label: "Gas", min: 0, max: 10, defaultValue: 5, icon: "gauge", widget: "stepper" },
+  { key: "DAMPER", label: "Damper", min: 0, max: 10, defaultValue: 5, icon: "wind", widget: "stepper" },
+];
+
+export const SF6_PROBES: RoasterProbe[] = [
+  { key: "bean", label: "Bean (BT)" },
+  { key: "environment", label: "Environment (ET)" },
+];
+
+/** Fixed presets offered when adding a roaster to a team — see src/app/(app)/roasters/page.tsx. Not a general "define any machine" builder yet; add a new entry here as each additional machine gets real support. */
+export const ROASTER_PRESETS = [
+  { name: "Fresh Roast SR800", controls: SR800_CONTROLS, probes: SR800_PROBES, supportsAiSuggestions: true },
+  { name: "San Franciscan SF-6", controls: SF6_CONTROLS, probes: SF6_PROBES, supportsAiSuggestions: false },
+] as const;

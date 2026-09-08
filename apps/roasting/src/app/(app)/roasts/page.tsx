@@ -34,7 +34,7 @@ export default async function RoastsPage({
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
-  const [activeSession, allPastSessions, beans] = await Promise.all([
+  const [activeSession, allPastSessions, beans, roasterDefinitions] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null, teamId: user.teamId }, include: { bean: true } }),
     prisma.roastSession.findMany({
       where: { endedAt: { not: null }, teamId: user.teamId },
@@ -42,6 +42,7 @@ export default async function RoastsPage({
       orderBy: { startedAt: "desc" },
     }),
     prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
+    prisma.roasterDefinition.findMany({ where: { teamId: user.teamId }, orderBy: [{ isDefault: "desc" }, { name: "asc" }] }),
   ]);
 
   const origins = [...new Set(allPastSessions.map((s) => s.bean.origin))].sort();
@@ -90,7 +91,7 @@ export default async function RoastsPage({
           <span>{activeSession.startedAt == null ? "Finish setup →" : "Resume →"}</span>
         </Link>
       ) : (
-        <StartRoastForm beans={beans} />
+        <StartRoastForm beans={beans} roasterDefinitions={roasterDefinitions} />
       )}
 
       <LogPastRoastForm beans={beans} />

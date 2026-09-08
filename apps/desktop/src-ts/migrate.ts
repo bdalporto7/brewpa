@@ -100,25 +100,49 @@ export async function runMigrations(dbPath: string, appBundleDir: string): Promi
         sql: "INSERT INTO AllowedUser (id, email, isAdmin, createdAt, teamId) VALUES (?, ?, 1, ?, ?)",
         args: [randomUUID(), DESKTOP_GUEST_EMAIL, new Date().toISOString(), teamId],
       });
-      // Every team needs a default roaster to start a roast at all — see
-      // apps/roasting/prisma/schema.prisma's RoasterDefinition doc
-      // comment. Literal JSON here matches
-      // apps/roasting/src/lib/roasters.ts's SR800_CONTROLS/SR800_PROBES
-      // exactly — inlined rather than imported, same reasoning as
-      // DESKTOP_GUEST_EMAIL above: no module boundary between apps/desktop
-      // and apps/roasting to import across.
-      await client.execute({
-        sql: "INSERT INTO RoasterDefinition (id, name, isDefault, supportsAiSuggestions, controlsJson, probesJson, createdAt, updatedAt, teamId) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?)",
-        args: [
-          randomUUID(),
-          "Fresh Roast SR800",
-          '[{"key":"FAN","label":"Fan","min":1,"max":9,"defaultValue":5,"icon":"fan","widget":"stepper"},{"key":"HEAT","label":"Heat","min":1,"max":9,"defaultValue":5,"icon":"flame","widget":"stepper"}]',
-          '[{"key":"bean","label":"Bean"}]',
-          new Date().toISOString(),
-          new Date().toISOString(),
-          teamId,
-        ],
-      });
+      // Every team gets every roaster this app currently supports — which
+      // machines exist is a catalog shipped in code
+      // (apps/roasting/src/lib/roasters.ts's ROASTER_PRESETS), never
+      // something a team adds/removes itself. Literal JSON here matches
+      // that file's SR800/SF6 CONTROLS/PROBES constants exactly — inlined
+      // rather than imported, same reasoning as DESKTOP_GUEST_EMAIL above:
+      // no module boundary between apps/desktop and apps/roasting to
+      // import across. Keep this array in sync whenever ROASTER_PRESETS
+      // gains a new entry.
+      const roasterPresets = [
+        {
+          name: "Fresh Roast SR800",
+          isDefault: 1,
+          supportsAiSuggestions: 1,
+          controlsJson:
+            '[{"key":"FAN","label":"Fan","min":1,"max":9,"defaultValue":5,"icon":"fan","widget":"stepper"},{"key":"HEAT","label":"Heat","min":1,"max":9,"defaultValue":5,"icon":"flame","widget":"stepper"}]',
+          probesJson: '[{"key":"bean","label":"Bean"}]',
+        },
+        {
+          name: "San Franciscan SF-6",
+          isDefault: 0,
+          supportsAiSuggestions: 0,
+          controlsJson:
+            '[{"key":"GAS","label":"Gas","min":0,"max":10,"defaultValue":5,"icon":"gauge","widget":"stepper"},{"key":"DAMPER","label":"Damper","min":0,"max":10,"defaultValue":5,"icon":"wind","widget":"stepper"}]',
+          probesJson: '[{"key":"bean","label":"Bean (BT)"},{"key":"environment","label":"Environment (ET)"}]',
+        },
+      ];
+      for (const preset of roasterPresets) {
+        await client.execute({
+          sql: "INSERT INTO RoasterDefinition (id, name, isDefault, supportsAiSuggestions, controlsJson, probesJson, createdAt, updatedAt, teamId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          args: [
+            randomUUID(),
+            preset.name,
+            preset.isDefault,
+            preset.supportsAiSuggestions,
+            preset.controlsJson,
+            preset.probesJson,
+            new Date().toISOString(),
+            new Date().toISOString(),
+            teamId,
+          ],
+        });
+      }
     }
   }
 

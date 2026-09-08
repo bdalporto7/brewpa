@@ -244,6 +244,7 @@ export async function startRoast(formData: FormData) {
   const user = await requireUser();
   const beanId = str(formData, "beanId");
   const greenWeightGrams = num(formData, "greenWeightGrams");
+  const roasterDefinitionIdInput = str(formData, "roasterDefinitionId");
 
   if (!beanId || greenWeightGrams === null || greenWeightGrams <= 0) {
     throw new Error("Bean and a positive green weight are required.");
@@ -262,12 +263,19 @@ export async function startRoast(formData: FormData) {
       );
     }
 
+    // Only ever present when a team has more than one roaster to choose
+    // from (see StartRoastForm) — re-checked against this team regardless,
+    // never trusted just because the form sent it.
+    const roasterDefinitionId = roasterDefinitionIdInput
+      ? (await tx.roasterDefinition.findFirstOrThrow({ where: { id: roasterDefinitionIdInput, teamId: user.teamId } }))
+          .id
+      : await getDefaultRoasterDefinitionId(user.teamId, tx);
+
     await tx.bean.update({
       where: { id: beanId },
       data: { remainingGrams: bean.remainingGrams - greenWeightGrams },
     });
 
-    const roasterDefinitionId = await getDefaultRoasterDefinitionId(user.teamId, tx);
     return tx.roastSession.create({ data: { beanId, greenWeightGrams, teamId: user.teamId, roasterDefinitionId } });
   });
 

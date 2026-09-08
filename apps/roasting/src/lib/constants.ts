@@ -70,6 +70,13 @@ export const SR800_LEVEL_MAX = 9;
 export const EVENT_TYPES = [
   "FAN",
   "HEAT",
+  // Drum-roaster controls (San Franciscan and similar) — a gas valve
+  // (the real heat lever on a gas-fired drum roaster, unlike the SR800's
+  // heat dial) and an airflow damper. See RoasterDefinition/roasters.ts:
+  // which of these a given roast actually uses depends entirely on which
+  // machine it was run on, not on this list.
+  "GAS",
+  "DAMPER",
   "TEMP",
   "DRY_END",
   "YELLOWING_END",
@@ -86,6 +93,8 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export const EVENT_LABELS: Record<EventType, string> = {
   FAN: "Fan level",
   HEAT: "Heat level",
+  GAS: "Gas level",
+  DAMPER: "Damper level",
   TEMP: "Temp reading",
   DRY_END: "Dry end",
   YELLOWING_END: "Yellowing end",
