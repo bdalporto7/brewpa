@@ -61,16 +61,26 @@ export const SR800_CONTROLS: RoasterControl[] = [
 export const SR800_PROBES: RoasterProbe[] = [{ key: "bean", label: "Bean" }];
 
 /**
- * San Franciscan (SF-6 and similar small-batch models) — a gas-fired drum
- * roaster, structurally different from the SR800's fluid bed: one gas
- * valve (the real heat lever) and an airflow damper instead of two dials,
- * and two temperature probes (bean/BT, environment/ET) instead of one.
- * Per Artisan's own device docs (artisan-scope.org/machines/sf/): "gas
- * control on machines produced after 8/2019," MODBUS RTU via a Watlow PM6
- * controller for BT/ET — no public spec gives exact dial ranges, so 0-10
- * here is a reasonable placeholder pending confirmation against a real
- * unit, same as the SR800's ranges would need adjusting for a variant that
- * genuinely dialed differently.
+ * San Franciscan SF-6 — a gas-fired drum roaster, structurally different
+ * from the SR800's fluid bed. Confirmed directly from San Franciscan's own
+ * site (sanfranroaster.com), not just Artisan's docs:
+ * - Controls: "a manual gas valve that handles the heat of the drum and a
+ *   lever that allows for the control of airflow" (their blog, "The
+ *   Rhythm of the Roaster Drum") — one gas valve (the real heat lever, no
+ *   separate fan dial like the SR800) and an airflow damper lever.
+ * - No drum-speed control: the SF-6's own product page never mentions
+ *   drum RPM, while San Franciscan explicitly advertises "variable drum
+ *   rotation speed" as a feature of their larger SF-10/SF-25 — i.e. fixed
+ *   single-speed drum motor on the SF-6 specifically, so there's no third
+ *   control needed for it here.
+ * - Probes: "temperature probes for bean and environment temperatures...
+ *   displayed on a dual-digital meter" — confirms bean/BT + environment/ET,
+ *   matching Artisan's own device docs (artisan-scope.org/machines/sf/).
+ * Neither source gives an exact numeric gauge range for the gas valve or
+ * damper lever (a "gas pressure gauge" per the product page, likely PSI or
+ * similar depending on the installed regulator) — 0-10 here is a
+ * reasonable placeholder for "whatever a person reads off the gauge/lever
+ * position and logs," pending confirmation against a real unit.
  */
 export const SF6_CONTROLS: RoasterControl[] = [
   { key: "GAS", label: "Gas", min: 0, max: 10, defaultValue: 5, icon: "gauge", widget: "stepper" },
@@ -82,7 +92,7 @@ export const SF6_PROBES: RoasterProbe[] = [
   { key: "environment", label: "Environment (ET)" },
 ];
 
-/** Fixed presets offered when adding a roaster to a team — see src/app/(app)/roasters/page.tsx. Not a general "define any machine" builder yet; add a new entry here as each additional machine gets real support. */
+/** Fixed presets every team gets automatically — see admin-actions.ts's addAllowedUser and apps/desktop/src-ts/migrate.ts for where this list gets seeded. Not a general "define any machine" builder; add a new entry here (plus a migration backfilling it onto existing teams) as each additional machine gets real support. */
 export const ROASTER_PRESETS = [
   { name: "Fresh Roast SR800", controls: SR800_CONTROLS, probes: SR800_PROBES, supportsAiSuggestions: true },
   { name: "San Franciscan SF-6", controls: SF6_CONTROLS, probes: SF6_PROBES, supportsAiSuggestions: false },
