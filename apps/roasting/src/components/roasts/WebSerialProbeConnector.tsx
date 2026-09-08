@@ -63,12 +63,21 @@ const EMPTY_STATS: Stats = { bytes: 0, frames: 0, posts: 0, lastTemp: null, last
  * a guess.
  */
 export default function WebSerialProbeConnector() {
-  // Static for the life of this mount — a browser doesn't gain/lose Web
-  // Serial support mid-session — so this is a lazy initializer, not
-  // something an effect needs to set (setting state directly inside an
-  // effect body is exactly the cascading-render pattern React's own hooks
-  // lint warns about; this has no such effect to begin with).
-  const [supported] = useState(() => typeof navigator !== "undefined" && !!navigator.serial);
+  // Confirmed live: a lazy initializer here (`useState(() => typeof
+  // navigator !== "undefined" && ...)`) hydration-mismatches — SSR always
+  // evaluates with `navigator` undefined, so the server-rendered HTML has
+  // this component returning null, while the client's first render (real
+  // browser, `navigator.serial` exists) renders the actual button, and
+  // React flags the mismatch. Defaulting to `false` and setting the real
+  // value from an effect is the standard fix: SSR and the client's first
+  // render both render null, then this one-time effect corrects it
+  // immediately after mount — a normal post-hydration update, not a
+  // mismatch, at the cost of the button appearing one tick after paint
+  // instead of being present immediately.
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported(typeof navigator !== "undefined" && !!navigator.serial);
+  }, []);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
