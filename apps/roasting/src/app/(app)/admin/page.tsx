@@ -56,7 +56,7 @@ export default async function AdminPage() {
         <Card interactive={false}>
           <ul className="flex flex-col divide-y divide-border px-4">
             {users.map((user) => (
-              <AllowedUserRow key={user.id} user={user} isSelf={user.id === currentUser.id} />
+              <AllowedUserRow key={user.id} user={user} teams={teams} isSelf={user.id === currentUser.id} />
             ))}
           </ul>
         </Card>

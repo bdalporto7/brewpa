@@ -49,6 +49,23 @@ export async function addAllowedUser(formData: FormData) {
   revalidatePath("/admin");
 }
 
+/**
+ * Moves someone to a different *existing* team — not the "+ New team"
+ * flow (that's addAllowedUser's job, at signup time only). Takes effect
+ * immediately: getCurrentAllowedUser() is a fresh DB lookup on every
+ * request, not something baked into the session cookie, so there's no
+ * sign-out/re-auth step needed for the web app. A synced desktop install
+ * picks it up the same way push already re-stamps team-owned rows onto
+ * whatever team the token's owner currently has — no special-casing
+ * needed here, that reconciliation already exists for the guest-to-real-
+ * team case and works identically for team-to-team.
+ */
+export async function setAllowedUserTeam(id: string, teamId: string) {
+  await requireAdmin();
+  await prisma.allowedUser.update({ where: { id }, data: { teamId } });
+  revalidatePath("/admin");
+}
+
 export async function setAllowedUserAdmin(id: string, isAdmin: boolean) {
   await requireAdmin();
 

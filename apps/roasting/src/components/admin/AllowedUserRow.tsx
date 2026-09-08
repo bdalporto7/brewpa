@@ -2,16 +2,18 @@
 
 import { useTransition } from "react";
 import { format } from "date-fns";
-import { setAllowedUserAdmin, removeAllowedUser, revokeSyncToken } from "@/lib/admin-actions";
+import { setAllowedUserTeam, setAllowedUserAdmin, removeAllowedUser, revokeSyncToken } from "@/lib/admin-actions";
 import DeleteButton from "@/components/DeleteButton";
 import Checkbox from "@/components/ui/Checkbox";
 import type { AllowedUser, Team, SyncToken } from "@prisma/client";
 
 export default function AllowedUserRow({
   user,
+  teams,
   isSelf,
 }: {
   user: AllowedUser & { team: Team; syncTokens: SyncToken[] };
+  teams: Team[];
   isSelf: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -25,8 +27,21 @@ export default function AllowedUserRow({
             {user.email}
             {isSelf && <span className="ml-1.5 text-xs text-muted">(you)</span>}
           </span>
-          <p className="text-xs text-muted">
-            {user.team.name} · Added {format(user.createdAt, "MMM d, yyyy")}
+          <p className="flex items-center gap-1 text-xs text-muted">
+            <select
+              aria-label={`Team for ${user.email}`}
+              value={user.teamId}
+              disabled={isPending}
+              onChange={(e) => startTransition(() => setAllowedUserTeam(user.id, e.target.value))}
+              className="rounded border border-border bg-surface px-1 py-0.5 text-xs text-foreground disabled:opacity-50"
+            >
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+            · Added {format(user.createdAt, "MMM d, yyyy")}
           </p>
         </div>
         <div className="flex items-center gap-3">
