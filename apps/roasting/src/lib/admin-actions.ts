@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { ROASTER_PRESETS } from "@/lib/roasters";
+import { generateProbeToken, hashProbeToken } from "@/lib/probe-tokens";
 
 function str(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -111,5 +112,33 @@ export async function revokeSyncToken(id: string) {
   await requireAdmin();
 
   await prisma.syncToken.update({ where: { id }, data: { revokedAt: new Date() } });
+  revalidatePath("/admin");
+}
+
+/**
+ * Mints a new probe ingest token for a team (src/lib/probe-tokens.ts) and
+ * returns the plaintext once — only `tokenHash` is ever persisted, so this
+ * is the one and only moment the caller can see the actual value to copy
+ * into `PROBE_INGEST_TOKEN` for scripts/probe_bridge.py. Unlike SyncToken,
+ * which mints itself automatically at OAuth sign-in, there's no per-person
+ * sign-in step for a machine credential like this one — an admin has to
+ * explicitly generate it here.
+ */
+export async function mintProbeToken(teamId: string, label: string) {
+  await requireAdmin();
+
+  const token = generateProbeToken();
+  await prisma.probeToken.create({
+    data: { tokenHash: hashProbeToken(token), label: label || null, teamId },
+  });
+  revalidatePath("/admin");
+  return { token };
+}
+
+/** Same reasoning as revokeSyncToken — sets revokedAt rather than deleting so the token's history stays visible after cutting it off. */
+export async function revokeProbeToken(id: string) {
+  await requireAdmin();
+
+  await prisma.probeToken.update({ where: { id }, data: { revokedAt: new Date() } });
   revalidatePath("/admin");
 }

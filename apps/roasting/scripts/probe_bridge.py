@@ -30,8 +30,10 @@ Usage:
 Config (env vars, all optional except PROBE_INGEST_TOKEN):
     PROBE_SERIAL_PORT   default /dev/cu.usbserial-0001
     PROBE_API_BASE      default https://roasting-three.vercel.app
-    PROBE_INGEST_TOKEN  required — same value as PROBE_INGEST_TOKEN in
-                         the app's .env (or Vercel env for production)
+    PROBE_INGEST_TOKEN  required — a token minted for your team from
+                         /admin (each team has its own; this is not a
+                         flat app-wide secret, so don't reuse one team's
+                         token for another team's roast)
     PROBE_POST_INTERVAL default 5 (seconds between forwarded readings —
                          the meter streams much faster than this app's
                          chart needs, so most frames are just discarded)
@@ -91,7 +93,7 @@ def post_reading(temp_f: float) -> None:
 
 def main() -> None:
     if not TOKEN:
-        print("PROBE_INGEST_TOKEN is not set. Export it (same value as the app's .env) and re-run.")
+        print("PROBE_INGEST_TOKEN is not set. Export a token minted for your team from /admin and re-run.")
         sys.exit(1)
 
     print(f"Opening {SERIAL_PORT} at {BAUD} 8N1...")

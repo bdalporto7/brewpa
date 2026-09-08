@@ -511,6 +511,35 @@ model SyncToken {
   @@index([userId])
 }
 
+// A credential letting the local probe bridge script
+// (scripts/probe_bridge.py) post temperature readings into one specific
+// team's active roast — see src/lib/probe-tokens.ts. Scoped to a Team
+// rather than an AllowedUser like SyncToken above: the probe script is a
+// machine credential for whichever roaster/laptop sits next to the
+// hardware, not tied to one person signing in, and what it needs to
+// resolve is exactly "which team's active RoastSession does this reading
+// belong to" (api/probe/temperature/route.ts). Before this model existed,
+// every team shared one flat PROBE_INGEST_TOKEN env var and the ingest
+// endpoint picked whichever team's session had the most recent
+// createdAt — harmless with a single team in production, but silently
+// wrong the moment a second team's roast was live at the same time.
+// Minted from /admin per team (unlike SyncToken, which mints itself at
+// OAuth sign-in — there's no per-person sign-in step for a machine
+// credential like this one). Only tokenHash is ever stored; the plaintext
+// exists only at mint time.
+model ProbeToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  label      String?
+  teamId     String
+  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([teamId])
+}
+
 // A team is the actual unit of data ownership — Bean/RoastSession/Friend/
 // Drop/RoastProfile/Recipe all belong to a Team, not an individual
 // AllowedUser, and every member of a team sees/edits the exact same data
@@ -535,6 +564,7 @@ model Team {
   roastProfiles      RoastProfile[]
   recipes            Recipe[]
   roasterDefinitions RoasterDefinition[]
+  probeTokens        ProbeToken[]
 }
 
 // A reusable brewing target — not tied to a bean, so the same "V60 4:6"
