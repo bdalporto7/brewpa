@@ -9,6 +9,7 @@ import { generateRoastAdvice, type RoastPlan } from "@/lib/roastAdvisor";
 import { extractSupplierInfo } from "@/lib/supplierExtractor";
 import { requireUser } from "@/lib/admin";
 import { parseControls } from "@/lib/roasters";
+import { parseArtisanFile, buildArtisanImportResult } from "@/lib/artisanImport";
 
 function num(formData: FormData, key: string): number | null {
   const raw = formData.get(key);
@@ -656,6 +657,126 @@ export async function startPastRoast(formData: FormData) {
     await tx.roastEvent.create({
       data: { roastSessionId: created.id, type: "DROP", atSeconds: durationSeconds },
     });
+
+    return created;
+  });
+
+  revalidatePath("/roasts");
+  revalidatePath("/");
+  redirect(`/roasts/${session.id}`);
+}
+
+/**
+ * Imports a completed roast from an Artisan (artisan-roaster-scope/artisan)
+ * .alog file or JSON export — see src/lib/artisanImport.ts for the parser.
+ * Always creates a fully completed session (startedAt/endedAt both set),
+ * same as startPastRoast, never live/pending. Unlike startPastRoast,
+ * roasterDefinitionId is required with no default fallback — the imported
+ * file's own machine has no reliable mapping to this team's catalog, so the
+ * user explicitly picks which of their machines to file it under, same as
+ * starting a live roast does when a team has more than one.
+ */
+export async function importArtisanRoast(formData: FormData) {
+  const user = await requireUser();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Choose an Artisan .alog or .json file to import.");
+  }
+  const beanMode = str(formData, "beanMode");
+  const beanId = str(formData, "beanId");
+  const newBeanName = str(formData, "newBeanName");
+  const newBeanOrigin = str(formData, "newBeanOrigin");
+  const newBeanProcess = str(formData, "newBeanProcess");
+  const roasterDefinitionId = str(formData, "roasterDefinitionId");
+  const roastLevel = str(formData, "roastLevel");
+  const rating = num(formData, "rating");
+  const notes = str(formData, "notes");
+
+  if (beanMode !== "existing" && beanMode !== "new") {
+    throw new Error("Choose an existing bean or provide a new one.");
+  }
+  if (beanMode === "existing" && !beanId) {
+    throw new Error("Select a bean.");
+  }
+  if (beanMode === "new" && (!newBeanOrigin || !newBeanProcess)) {
+    throw new Error("New bean needs at least an origin and a process — name can be guessed from the file.");
+  }
+  if (!roasterDefinitionId) {
+    throw new Error("Select which roaster this was run on.");
+  }
+  if (!roastLevel) {
+    throw new Error("Roast level is required.");
+  }
+
+  const text = await file.text();
+  let profile;
+  try {
+    profile = parseArtisanFile(text);
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Couldn't read this Artisan file.");
+  }
+
+  const definition = await prisma.roasterDefinition.findFirstOrThrow({
+    where: { id: roasterDefinitionId, teamId: user.teamId },
+  });
+  const controls = parseControls(definition.controlsJson);
+  const result = buildArtisanImportResult(profile, controls);
+
+  const session = await prisma.$transaction(async (tx) => {
+    let resolvedBeanId: string;
+    if (beanMode === "existing") {
+      const bean = await tx.bean.findFirstOrThrow({ where: { id: beanId!, teamId: user.teamId } });
+      if (bean.remainingGrams < result.greenWeightGrams) {
+        throw new Error(
+          `Only ${bean.remainingGrams}g of ${bean.name} left in stock — can't import a ${result.greenWeightGrams}g roast.`
+        );
+      }
+      await tx.bean.update({
+        where: { id: bean.id },
+        data: { remainingGrams: bean.remainingGrams - result.greenWeightGrams },
+      });
+      resolvedBeanId = bean.id;
+    } else {
+      const created = await tx.bean.create({
+        data: {
+          name: newBeanName || result.beanNameGuess.name,
+          origin: newBeanOrigin!,
+          process: newBeanProcess!,
+          weightGrams: result.greenWeightGrams,
+          remainingGrams: 0,
+          teamId: user.teamId,
+        },
+      });
+      resolvedBeanId = created.id;
+    }
+
+    const created = await tx.roastSession.create({
+      data: {
+        beanId: resolvedBeanId,
+        greenWeightGrams: result.greenWeightGrams,
+        roastedWeightGrams: result.roastedWeightGrams,
+        roastedRemainingGrams: result.roastedWeightGrams,
+        roasterDefinitionId,
+        startedAt: result.startedAt,
+        endedAt: result.endedAt,
+        roastLevel,
+        rating,
+        notes,
+        teamId: user.teamId,
+      },
+    });
+
+    if (result.events.length > 0) {
+      await tx.roastEvent.createMany({
+        data: result.events.map((e) => ({ roastSessionId: created.id, ...e })),
+      });
+    }
+    if (result.temperatureReadings.length > 0) {
+      await tx.temperatureReading.createMany({
+        data: result.temperatureReadings.map((r) => ({ roastSessionId: created.id, ...r })),
+      });
+    }
 
     return created;
   });
