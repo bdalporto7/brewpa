@@ -249,7 +249,7 @@ export default async function RoastSessionPage({
             {session.startedAt
               ? format(session.startedAt, "MMM d, yyyy 'at' h:mm a")
               : "Not started yet"}{" "}
-            · {session.greenWeightGrams}g green
+            · {session.greenWeightGrams}g green · {session.roasterDefinition.name}
           </p>
         </div>
         {/* flex-wrap: three text-labeled actions (Export CSV, Save as

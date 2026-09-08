@@ -28,12 +28,12 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
-  const [bean, beansWithStock] = await Promise.all([
+  const [bean, beansWithStock, roasterCount] = await Promise.all([
     prisma.bean.findFirst({
       where: { id, teamId: user.teamId },
       include: {
         roastSessions: {
-          include: { bean: true },
+          include: { bean: true, roasterDefinition: true },
           orderBy: { startedAt: "desc" },
         },
         drops: {
@@ -43,6 +43,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       },
     }),
     prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
+    prisma.roasterDefinition.count({ where: { teamId: user.teamId } }),
   ]);
 
   if (!bean) notFound();
@@ -128,7 +129,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
         ) : (
           <div className="flex flex-col gap-3">
             {bean.roastSessions.map((session) => (
-              <RoastSessionCard key={session.id} session={session} />
+              <RoastSessionCard key={session.id} session={session} showRoaster={roasterCount > 1} />
             ))}
           </div>
         )}

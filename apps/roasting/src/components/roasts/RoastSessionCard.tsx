@@ -6,12 +6,15 @@ import { formatMMSS } from "@/lib/format";
 import LedgerRow from "@/components/ui/LedgerRow";
 import RatingBeans from "@/components/ui/RatingBeans";
 import TapCircleLink from "@/components/ui/TapCircleLink";
-import type { Bean, RoastSession } from "@prisma/client";
+import type { Bean, RoastSession, RoasterDefinition } from "@prisma/client";
 
 export default function RoastSessionCard({
   session,
+  showRoaster = false,
 }: {
-  session: RoastSession & { bean: Bean };
+  session: RoastSession & { bean: Bean; roasterDefinition?: RoasterDefinition };
+  /** Only worth a mention once a team actually has more than one machine — see the roasts list page, which only passes this true then. */
+  showRoaster?: boolean;
 }) {
   const router = useRouter();
   const durationSeconds =
@@ -54,6 +57,7 @@ export default function RoastSessionCard({
           {session.roastedWeightGrams != null && ` → ${session.roastedWeightGrams}g roasted`}
           {weightLoss != null && ` (${weightLoss.toFixed(1)}% loss)`}
           {durationSeconds != null && ` · ${formatMMSS(durationSeconds)}`}
+          {showRoaster && session.roasterDefinition && ` · ${session.roasterDefinition.name}`}
         </>
       }
     />

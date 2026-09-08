@@ -38,7 +38,7 @@ export default async function RoastsPage({
     prisma.roastSession.findFirst({ where: { endedAt: null, teamId: user.teamId }, include: { bean: true } }),
     prisma.roastSession.findMany({
       where: { endedAt: { not: null }, teamId: user.teamId },
-      include: { bean: true },
+      include: { bean: true, roasterDefinition: true },
       orderBy: { startedAt: "desc" },
     }),
     prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
@@ -73,7 +73,7 @@ export default async function RoastsPage({
         <p className="text-sm text-muted">
           {hasFilters
             ? `Showing ${pastSessions.length} of ${allPastSessions.length} roasts.`
-            : "Live roast sessions on the SR800, and your roast history."}
+            : "Live roast sessions, and your roast history."}
         </p>
       </div>
 
@@ -105,7 +105,7 @@ export default async function RoastsPage({
       ) : (
         <div className="divide-y divide-border border-t border-border">
           {pastSessions.map((session) => (
-            <RoastSessionCard key={session.id} session={session} />
+            <RoastSessionCard key={session.id} session={session} showRoaster={roasterDefinitions.length > 1} />
           ))}
         </div>
       )}
