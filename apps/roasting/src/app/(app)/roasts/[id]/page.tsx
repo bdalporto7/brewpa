@@ -13,11 +13,12 @@ import { getCurveReadings, computeAdjustedPlan, type PlanSettingChange, type Pla
 import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
 import type { EventType } from "@/lib/constants";
 import { MILESTONE_EVENT_TYPES } from "@/lib/constants";
-import { parseControls } from "@/lib/roasters";
+import { parseControls, parseProbes } from "@/lib/roasters";
 import LiveRoastBars from "@/components/roasts/LiveRoastBars";
 import LiveRoastPoller from "@/components/roasts/LiveRoastPoller";
 import LiveProbePanel from "@/components/roasts/LiveProbePanel";
 import WebSerialProbeConnector from "@/components/roasts/WebSerialProbeConnector";
+import ModbusProbeConnector from "@/components/roasts/ModbusProbeConnector";
 import RoastSetupPanel from "@/components/roasts/RoastSetupPanel";
 import AiSuggestionPanel from "@/components/roasts/AiSuggestionPanel";
 import RoastProfilePicker from "@/components/roasts/RoastProfilePicker";
@@ -96,6 +97,13 @@ export default async function RoastSessionPage({
   // against in the first place — see roasterDefinition's own doc comment
   // on why the AI advisor stays scoped to that one machine.
   const showAiFeatures = session.roasterDefinition.supportsAiSuggestions;
+  // Gates ModbusProbeConnector below — a second probe channel (bean +
+  // environment) only makes sense for a roaster whose catalog entry
+  // actually declares one, i.e. an SF-6-shaped machine. The Mastech Web
+  // Serial connector stays unconditional: it's a generic external meter,
+  // orthogonal to which machine it's clipped to.
+  const probes = parseProbes(session.roasterDefinition.probesJson);
+  const hasBuiltInMultiProbeController = probes.some((p) => p.key !== "bean");
 
   // Depends on session.roasterDefinitionId, so it can't join the Promise.all
   // above — never offer comparing against a roast run on a different
@@ -299,8 +307,16 @@ export default async function RoastSessionPage({
           confirmed live when this instead lived nested inside
           LiveProbePanel (pending-only, and its own two return branches
           swap element types on the first reading arriving, both of which
-          tear a nested connector down at exactly the wrong moment). */}
-      {!isCompleted && <WebSerialProbeConnector />}
+          tear a nested connector down at exactly the wrong moment). Plain
+          siblings, not a shared "pick your source" shell — that would
+          reintroduce the same conditional-type-swap risk for no benefit,
+          since only one hardware source is ever plugged in at a time. */}
+      {!isCompleted && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
+          <WebSerialProbeConnector />
+          {hasBuiltInMultiProbeController && <ModbusProbeConnector />}
+        </div>
+      )}
 
       {isPending && (
         <>
