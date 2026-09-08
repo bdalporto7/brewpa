@@ -21,10 +21,10 @@ purely from reading recency — no manual toggle — and a completed roast's
 curve chart prefers `TemperatureReading` rows over hand-logged `TEMP`
 events once there are at least two of them.
 
-**Two ways to get bytes off the probe, both supported.** A cloud-hosted
+**Three ways to get bytes off the probe, all supported.** A cloud-hosted
 Vercel deployment has no path to a USB device sitting on someone's laptop
 — that's not an architecture choice, a serverless function simply can't
-see local hardware, full stop. So there are two ways to actually get
+see local hardware, full stop. So there are three ways to actually get
 bytes off the probe to the (hosted) app:
 
 1. **The local bridge script** (`scripts/probe_bridge.py`, below) — a
@@ -47,6 +47,23 @@ bytes off the probe to the (hosted) app:
    when the bridge script's setup isn't worth it. Ingests through
    `src/lib/probe-actions.ts`'s `logProbeReading` Server Action (a real
    signed-in, team-scoped call), not the bearer-token route below.
+3. **In-browser, via Modbus RTU**
+   (`src/components/roasts/ModbusProbeConnector.tsx`) — for an SF-6-class
+   roaster's own built-in controller, instead of clipping on a separate
+   meter at all. Same Web Serial primitives as option 2 above, gated to
+   only render for a roaster whose probe catalog declares more than just
+   `bean` (see `RoasterDefinition`/`src/lib/roasters.ts`). Ships two
+   register-map presets (`src/lib/sfControllerPresets.ts`) since it's
+   unknown which controller a given SF-6 actually has until someone's in
+   front of it. **Unlike the Mastech protocol above, these register maps
+   have no independent cross-check and no real hardware tested against
+   them yet** — they're transcribed only from Artisan's own open-source
+   device profiles (`artisan-roaster-scope/artisan`,
+   `src/includes/Machines/San Franciscan/SF.aset` and `SF_Eurotherm.aset`),
+   corroborated by a Cropster support doc describing the Eurotherm variant's
+   physical connection, but not verified against a real unit. Treat the
+   exact baud rate/register addresses/encodings as a starting point to
+   confirm on-site, not a settled fact.
 
 **The bridge script**: `scripts/probe_bridge.py`. Run manually before a
 roast (deliberately not an always-on background service — start manual,
