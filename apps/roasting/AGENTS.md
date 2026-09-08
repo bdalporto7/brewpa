@@ -9,17 +9,23 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Temperature probe
 
 Bean-temp readings reach the app via `POST /api/probe/temperature`
-(`src/app/api/probe/temperature/route.ts`) — bearer-token authed
-(`PROBE_INGEST_TOKEN`, a flat machine credential, not a user session; see
-that route's own comments for why it's excluded from `proxy.ts`'s session
-gate). It always logs against whichever `RoastSession` has `endedAt: null`
-— this app only ever has one roast in flight, so "the active one" is
-unambiguous and the probe script never needs to know a roast started or
-changed. A reading can land before `startedAt` is set (roast still in
-setup); `atSeconds` is just `null` then. `LiveProbePanel` shows "Connected"
-purely from reading recency — no manual toggle — and a completed roast's
-curve chart prefers `TemperatureReading` rows over hand-logged `TEMP`
-events once there are at least two of them.
+(`src/app/api/probe/temperature/route.ts`) — bearer-token authed against a
+`ProbeToken` (`src/lib/probe-tokens.ts`), a machine credential minted per
+*team* from `/admin`, not a user session; see that route's own comments
+for why it's excluded from `proxy.ts`'s session gate. It always logs
+against whichever `RoastSession` has `endedAt: null` **for that token's
+own team** — a team only ever has one roast in flight at a time, so "the
+active one" is unambiguous within a team, and the probe script never
+needs to know a roast started or changed. (This used to be a single flat
+`PROBE_INGEST_TOKEN` env var shared by every team, with the endpoint just
+picking whichever team's session was most recently created — harmless
+with one team, silently wrong the moment two teams roast at once; fixed
+when per-team tokens replaced it.) A reading can land before `startedAt`
+is set (roast still in setup); `atSeconds` is just `null` then.
+`LiveProbePanel` shows "Connected" purely from reading recency — no
+manual toggle — and a completed roast's curve chart prefers
+`TemperatureReading` rows over hand-logged `TEMP` events once there are
+at least two of them.
 
 **Why a local bridge script, not the Web Serial API.** A cloud-hosted
 Vercel deployment has no path to a USB device sitting on someone's laptop
@@ -46,7 +52,7 @@ only automate if that becomes annoying):
 ```bash
 cd apps/roasting
 python3 -m pip install -r scripts/requirements.txt   # once
-export PROBE_INGEST_TOKEN=...   # from .env — same token the endpoint checks
+export PROBE_INGEST_TOKEN=...   # minted for your team from /admin
 python3 scripts/probe_bridge.py
 ```
 

@@ -1,38 +1,25 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-/**
- * Machine credential, not a user session — whatever script reads the
- * physical probe authenticates with a flat bearer token (PROBE_INGEST_TOKEN)
- * rather than signing in. Excluded from proxy.ts's session gate for exactly
- * that reason, same as /api/auth is excluded for the opposite one.
- */
-function isAuthorized(request: NextRequest): boolean {
-  const expected = process.env.PROBE_INGEST_TOKEN;
-  if (!expected) return false;
-
-  const header = request.headers.get("authorization") ?? "";
-  const [scheme, token] = header.split(" ");
-  if (scheme !== "Bearer" || !token) return false;
-
-  const provided = Buffer.from(token);
-  const secret = Buffer.from(expected);
-  return provided.length === secret.length && timingSafeEqual(provided, secret);
-}
+import { resolveProbeRequest } from "@/lib/probe-tokens";
 
 /**
  * Always logs against whichever RoastSession is currently active
- * (endedAt: null) rather than requiring the caller to know a session id —
- * this app only ever has one roast in flight at a time, so "the active
- * one" is unambiguous, and it's what lets the probe script stay completely
- * dumb: point it at this endpoint once, it never needs to know the roast
- * has changed. A reading can land here before startedAt is set (roast
+ * (endedAt: null) for the calling ProbeToken's own team, rather than
+ * requiring the caller to know a session id — a team only ever has one
+ * roast in flight at a time, so "the active one" is unambiguous within
+ * that team, and it's what lets the probe script stay completely dumb:
+ * point it at this endpoint once, it never needs to know the roast has
+ * changed. Scoped by teamId (not just "most recent across every team")
+ * since PROBE_INGEST_TOKEN's old flat env-var secret predates Team-based
+ * multi-tenancy — with a single shared token, two teams roasting at the
+ * same time would have had the newer session silently steal the older
+ * one's readings. A reading can land here before startedAt is set (roast
  * still in setup) — atSeconds is just null then, which is also how the UI
  * tells "probe connected" apart from "no probe" without a manual toggle.
  */
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  const probeToken = await resolveProbeRequest(request);
+  if (!probeToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,7 +32,7 @@ export async function POST(request: NextRequest) {
   }
 
   const activeSession = await prisma.roastSession.findFirst({
-    where: { endedAt: null },
+    where: { endedAt: null, teamId: probeToken.teamId },
     orderBy: { createdAt: "desc" },
   });
 

@@ -9,6 +9,7 @@ import Card from "@/components/ui/Card";
 import Checkbox from "@/components/ui/Checkbox";
 import SectionHeading from "@/components/ui/SectionHeading";
 import AllowedUserRow from "@/components/admin/AllowedUserRow";
+import ProbeTokenSection from "@/components/admin/ProbeTokenSection";
 import PageStamp from "@/components/ui/PageStamp";
 
 export default async function AdminPage() {
@@ -20,7 +21,10 @@ export default async function AdminPage() {
       orderBy: [{ isAdmin: "desc" }, { email: "asc" }],
       include: { team: true, syncTokens: { orderBy: { createdAt: "desc" } } },
     }),
-    prisma.team.findMany({ orderBy: { name: "asc" } }),
+    prisma.team.findMany({
+      orderBy: { name: "asc" },
+      include: { probeTokens: { orderBy: { createdAt: "desc" } } },
+    }),
   ]);
 
   return (
@@ -57,6 +61,25 @@ export default async function AdminPage() {
           <ul className="flex flex-col divide-y divide-border px-4">
             {users.map((user) => (
               <AllowedUserRow key={user.id} user={user} teams={teams} isSelf={user.id === currentUser.id} />
+            ))}
+          </ul>
+        </Card>
+      </div>
+
+      <div>
+        <div className="mb-3">
+          <SectionHeading>Probe tokens</SectionHeading>
+        </div>
+        <p className="mb-3 text-sm text-muted">
+          Each team needs its own token for <code className="font-mono text-xs">scripts/probe_bridge.py</code> to log
+          temperature readings against that team&apos;s roasts.
+        </p>
+        <Card interactive={false}>
+          <ul className="flex flex-col divide-y divide-border px-4">
+            {teams.map((team) => (
+              <li key={team.id}>
+                <ProbeTokenSection team={team} />
+              </li>
             ))}
           </ul>
         </Card>

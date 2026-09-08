@@ -23,10 +23,10 @@ isn't stored, etc.), see [`AGENTS.md`](../../AGENTS.md); this doc documents
 Ingests one temperature reading from a live probe. **Not session-authed** —
 excluded from `proxy.ts`'s gate (same as `/api/auth/*`, for the opposite
 reason: this one has no browser session to check). Always writes against
-whichever `RoastSession` is currently active (`endedAt: null`); the caller
-never specifies a session id.
+whichever `RoastSession` is currently active (`endedAt: null`) for the
+bearer token's own team; the caller never specifies a session id.
 
-- **Auth:** `Authorization: Bearer <PROBE_INGEST_TOKEN>` header, compared with `crypto.timingSafeEqual`. Missing/wrong token → `401`.
+- **Auth:** `Authorization: Bearer <token>` header, a per-team `ProbeToken` minted from `/admin` (`src/lib/probe-tokens.ts`), resolved by hash lookup. Missing/wrong/revoked token → `401`.
 - **Body (JSON):**
   | Field | Type | Required |
   |---|---|---|
