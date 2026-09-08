@@ -6,6 +6,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import { ROAST_LEVELS } from "@/lib/constants";
 import StartRoastForm from "@/components/roasts/StartRoastForm";
 import LogPastRoastForm from "@/components/roasts/LogPastRoastForm";
+import ImportArtisanRoastForm from "@/components/roasts/ImportArtisanRoastForm";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import RoastFilters from "@/components/roasts/RoastFilters";
 import DecoratedEmptyState from "@/components/ui/DecoratedEmptyState";
@@ -95,6 +96,7 @@ export default async function RoastsPage({
       )}
 
       <LogPastRoastForm beans={beans} />
+      <ImportArtisanRoastForm beans={beans} roasterDefinitions={roasterDefinitions} />
 
       {allPastSessions.length > 1 && <RoastFilters origins={origins} levels={ROAST_LEVELS} />}
 

@@ -25,6 +25,19 @@ export function TextField({
   );
 }
 
+export function FileField({
+  label,
+  name,
+  ...props
+}: { label: string; name: string } & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={name}>{label}</Label>
+      <input id={name} name={name} type="file" className={fieldClass} {...props} />
+    </div>
+  );
+}
+
 export function SelectField({
   label,
   name,
