@@ -46,7 +46,7 @@ export interface ArtisanImportResult {
   startedAt: Date;
   endedAt: Date;
   greenWeightGrams: number;
-  roastedWeightGrams: number;
+  roastedWeightGrams: number | null;
   events: ArtisanImportEvent[];
   temperatureReadings: { probeType: "bean" | "environment"; atSeconds: number; tempFahrenheit: number }[];
   beanNameGuess: { name: string; origin: string | null };
@@ -157,13 +157,15 @@ export function toFahrenheit(value: number, mode: "C" | "F"): number {
 }
 
 export function toGrams(value: number, unit: string): number {
-  switch (unit) {
+  switch (unit.toLowerCase()) {
     case "g":
       return value;
     case "kg":
       return value * 1000;
     case "oz":
       return value * 28.3495;
+    case "lb":
+      return value * 453.592;
     default:
       throw new Error(`Unrecognized weight unit "${unit}" in Artisan file.`);
   }
@@ -193,6 +195,33 @@ const MILESTONE_SLOTS: { index: number; type: string }[] = [
   { index: 5, type: "SECOND_CRACK_END" },
   { index: 6, type: "DROP" },
 ];
+
+/**
+ * Some Artisan setups name a channel differently than this app's own
+ * control catalog does, even for the exact same physical control — e.g. a
+ * real co-roastery's SF-6 shows its gas valve as "Burner" in Artisan while
+ * SF6_CONTROLS (src/lib/roasters.ts) calls it "Gas". Deliberately narrow:
+ * only synonyms confirmed to mean the same physical control, never a
+ * guess — an unrelated channel (e.g. a separate "Air" vent fan on some
+ * setups) stays unmapped and falls back to a NOTE rather than being
+ * merged into a control it isn't.
+ */
+const CONTROL_LABEL_ALIASES: Record<string, string[]> = {
+  gas: ["burner"],
+};
+
+function matchControlLabel(label: string, controlsByLabel: Map<string, RoasterControl>): RoasterControl | undefined {
+  const lower = label.toLowerCase();
+  const direct = controlsByLabel.get(lower);
+  if (direct) return direct;
+  for (const [controlLabel, aliases] of Object.entries(CONTROL_LABEL_ALIASES)) {
+    if (aliases.includes(lower)) {
+      const aliased = controlsByLabel.get(controlLabel);
+      if (aliased) return aliased;
+    }
+  }
+  return undefined;
+}
 
 export function buildArtisanImportResult(profile: ArtisanProfile, controls: RoasterControl[]): ArtisanImportResult {
   const chargeIdx = profile.timeindex[0];
@@ -233,7 +262,7 @@ export function buildArtisanImportResult(profile: ArtisanProfile, controls: Roas
     const label = profile.etypes[profile.specialeventstype[i]] ?? "";
     const value = profile.specialeventsvalue[i];
     const atSeconds = relSeconds(timexIndex);
-    const control = controlsByLabel.get(label.toLowerCase());
+    const control = matchControlLabel(label, controlsByLabel);
     if (control) {
       events.push({ type: control.key, atSeconds, controlValue: value });
     } else {
@@ -256,11 +285,19 @@ export function buildArtisanImportResult(profile: ArtisanProfile, controls: Roas
     }
   }
 
+  if (!profile.weight[0]) {
+    throw new Error("This Artisan file has no green weight recorded — add it manually after importing.");
+  }
+
   return {
     startedAt,
     endedAt,
     greenWeightGrams: toGrams(profile.weight[0], profile.weight[2]),
-    roastedWeightGrams: toGrams(profile.weight[1], profile.weight[2]),
+    // A roasted weight of 0 means it was never weighed back in (common —
+    // plenty of test/sample roasts skip this), not literally "roasted to
+    // nothing." Recording it as null rather than 0g avoids a bogus 100%
+    // weight-loss stat on the roast page.
+    roastedWeightGrams: profile.weight[1] ? toGrams(profile.weight[1], profile.weight[2]) : null,
     events,
     temperatureReadings,
     beanNameGuess: guessBeanFromLabel(profile.beans, profile.title),
