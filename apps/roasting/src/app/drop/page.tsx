@@ -11,8 +11,13 @@ export default async function DropPage({
   const { submitted } = await searchParams;
   const drop = submitted === "1" ? null : await getUnlockedDrop();
 
+  // The unlocked shop grid needs more room than the code-entry/thank-you
+  // screens — those stay a narrow centered column, this one grows to fit a
+  // real product grid with photos.
+  const maxWidth = drop ? "max-w-2xl" : "max-w-md";
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col items-center gap-6 px-4 py-16">
+    <div className={`mx-auto flex min-h-screen ${maxWidth} flex-col items-center gap-6 px-4 py-16`}>
       <CybarMark className="h-10 w-auto" />
 
       {submitted === "1" ? (
@@ -34,7 +39,7 @@ export default async function DropPage({
             <h1 className="text-2xl font-bold">{drop.name}</h1>
             {drop.notes && <p className="mt-1 text-sm text-muted">{drop.notes}</p>}
           </div>
-          <DropOrderForm beans={drop.items.map((i) => i.bean)} />
+          <DropOrderForm items={drop.items} />
         </div>
       )}
     </div>

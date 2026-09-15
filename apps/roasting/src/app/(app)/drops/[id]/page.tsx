@@ -5,6 +5,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import DropHeaderControls from "@/components/drops/DropHeaderControls";
 import DropCodeDisplay from "@/components/drops/DropCodeDisplay";
 import DropOrdersPanel from "@/components/drops/DropOrdersPanel";
+import DropItemsSummary from "@/components/drops/DropItemsSummary";
 import Stat from "@/components/ui/Stat";
 
 export default async function DropPage({ params }: { params: Promise<{ id: string }> }) {
@@ -67,9 +68,7 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
 
       {drop.notes && <p className="text-sm text-foreground/80">{drop.notes}</p>}
 
-      <p className="text-sm text-muted">
-        Beans: {drop.items.map((i) => i.bean.name).join(", ")}
-      </p>
+      <DropItemsSummary items={drop.items} />
 
       <DropOrdersPanel dropId={drop.id} orders={drop.orders} eligibleRoastsByBean={eligibleRoastsByBean} />
     </div>

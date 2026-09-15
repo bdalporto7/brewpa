@@ -70,12 +70,20 @@ export async function createDrop(formData: FormData) {
     throw new Error("One of those beans isn't yours.");
   }
 
+  const items = beanIds.map((beanId) => {
+    const stockQuantity = num(formData, `stock-${beanId}`);
+    if (stockQuantity === null || stockQuantity < 0) {
+      throw new Error("Enter a stock quantity (bags) for every bean you're offering.");
+    }
+    return { beanId, price: num(formData, `price-${beanId}`), stockQuantity };
+  });
+
   const drop = await prisma.drop.create({
     data: {
       name,
       notes,
       code: generateDropCode(),
-      items: { create: beanIds.map((id) => ({ beanId: id, price: null, stockQuantity: null })) },
+      items: { create: items },
       teamId: user.teamId,
     },
   });
@@ -122,22 +130,46 @@ export async function regenerateDropCode(dropId: string) {
   revalidatePath(`/drops/${dropId}`);
 }
 
+/** Deleting an order means "this claim never happened" — restocks every
+ * tracked pick unconditionally, regardless of paid/fulfilled status. */
 export async function deleteDropOrder(dropId: string, orderId: string) {
   const user = await requireUser();
-  await prisma.dropOrder.findFirstOrThrow({
-    where: { id: orderId, dropId, drop: { teamId: user.teamId } },
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.dropOrder.findFirstOrThrow({
+      where: { id: orderId, dropId, drop: { teamId: user.teamId } },
+      include: { items: true },
+    });
+
+    // Grouped by bean so a duplicate-bean order restores atomically, not via racy sequential +1s.
+    const countsByBeanId = new Map<string, number>();
+    for (const item of order.items) {
+      countsByBeanId.set(item.beanId, (countsByBeanId.get(item.beanId) ?? 0) + 1);
+    }
+    for (const [beanId, count] of countsByBeanId) {
+      await tx.dropItem.updateMany({
+        where: { dropId, beanId, stockQuantity: { not: null } },
+        data: { stockQuantity: { increment: count } },
+      });
+    }
+
+    await tx.dropOrder.delete({ where: { id: orderId } });
   });
-  await prisma.dropOrder.delete({ where: { id: orderId } });
   revalidatePath(`/drops/${dropId}`);
 }
 
-/** Removes one bean+style pick from an order without canceling the whole thing — e.g. a bean in someone's order ran out before it could be fulfilled. */
+/** Removes one bean+style pick from an order without canceling the whole thing — e.g. a bean in someone's order ran out before it could be fulfilled. Restocks the same as deleteDropOrder, just for one pick. */
 export async function deleteDropOrderItem(dropId: string, itemId: string) {
   const user = await requireUser();
-  await prisma.dropOrderItem.findFirstOrThrow({
-    where: { id: itemId, dropOrder: { dropId, drop: { teamId: user.teamId } } },
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.dropOrderItem.findFirstOrThrow({
+      where: { id: itemId, dropOrder: { dropId, drop: { teamId: user.teamId } } },
+    });
+    await tx.dropItem.updateMany({
+      where: { dropId, beanId: item.beanId, stockQuantity: { not: null } },
+      data: { stockQuantity: { increment: 1 } },
+    });
+    await tx.dropOrderItem.delete({ where: { id: itemId } });
   });
-  await prisma.dropOrderItem.delete({ where: { id: itemId } });
   revalidatePath(`/drops/${dropId}`);
 }
 
@@ -289,14 +321,38 @@ export async function submitDropOrder(formData: FormData) {
     // Re-fetched inside the transaction (not just trusting the
     // getUnlockedDrop() read above) so a drop closed or a bean removed in
     // the instant between that read and this write still gets caught.
-    const current = await tx.drop.findUniqueOrThrow({ where: { id: drop.id }, include: { items: true } });
+    const current = await tx.drop.findUniqueOrThrow({
+      where: { id: drop.id },
+      include: { items: { include: { bean: true } } },
+    });
     if (current.closedAt) {
       throw new Error("This drop is closed.");
     }
 
-    const allowedBeanIds = new Set(current.items.map((i) => i.beanId));
+    const itemsByBeanId = new Map(current.items.map((i) => [i.beanId, i]));
     for (const beanId of beanIds) {
-      if (!allowedBeanIds.has(beanId)) throw new Error("That bean isn't part of this drop.");
+      if (!itemsByBeanId.has(beanId)) throw new Error("That bean isn't part of this drop.");
+    }
+
+    // Grouped by bean so ordering the same bean twice decrements its stock
+    // in one atomic step instead of two separate, racy ones. The
+    // conditional `gte` update is what actually enforces stock under
+    // concurrent claims — the client-side "N left" count is best-effort UX
+    // only. Any throw here rolls back the whole order.
+    const countsByBeanId = new Map<string, number>();
+    for (const beanId of beanIds) {
+      countsByBeanId.set(beanId, (countsByBeanId.get(beanId) ?? 0) + 1);
+    }
+    for (const [beanId, count] of countsByBeanId) {
+      const item = itemsByBeanId.get(beanId)!;
+      if (item.stockQuantity === null) continue; // unlimited/not tracked
+      const result = await tx.dropItem.updateMany({
+        where: { id: item.id, stockQuantity: { gte: count } },
+        data: { stockQuantity: { decrement: count } },
+      });
+      if (result.count === 0) {
+        throw new Error(`${item.bean.name} doesn't have enough left — remove it and resubmit.`);
+      }
     }
 
     // Same case-insensitive match-or-create pattern addDropClaim/recordSale
@@ -312,7 +368,11 @@ export async function submitDropOrder(formData: FormData) {
         friendId: friend.id,
         name,
         items: {
-          create: beanIds.map((beanId, i) => ({ beanId, roastStyle: roastStyles[i] })),
+          create: beanIds.map((beanId, i) => ({
+            beanId,
+            roastStyle: roastStyles[i],
+            price: itemsByBeanId.get(beanId)!.price,
+          })),
         },
       },
     });
