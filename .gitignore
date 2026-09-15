@@ -75,3 +75,5 @@ prisma/migrations/
 
 # Local database backups (backup-db.sh) — never goes in the public repo
 backups/
+.vercel
+.env*

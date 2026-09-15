@@ -1138,6 +1138,36 @@ and the app itself reachable from more than one machine. Live at
    Used successfully for `add_cupping_notes`; verify with `turso db shell
    roasting ".schema <Table>"` after, since `turso db shell`'s own success
    output has already proven unreliable once above.
+
+   **This step is easy to forget and the site will not tell you until it's
+   live** — Vercel's git integration means `git push` to `main` deploys the
+   new *code* immediately (see Hosting, below), but that push does nothing
+   to Turso; the two are completely separate actions with no shared gate
+   between them. A push that includes a schema change ships code expecting
+   columns/tables the production database doesn't have yet, and every page
+   that touches the changed model starts throwing on first load. **Treat
+   "apply the migration(s) to Turso" as part of the same unit of work as
+   the push itself, not a followup** — either run it right before pushing
+   or immediately after, never "later."
+
+   **Real incident, 2026-09-15:** three migrations (`add_drop_item`,
+   `add_bean_photo_url`, `drop_bean_to_drop_join_table`) landed across two
+   commits, got pushed, and were verified locally beforehand with `prisma
+   migrate diff` — but none were ever applied to Turso. Production went
+   fully down on every page (`DriverAdapterError: no such column:
+   main.Bean.photoUrl`) the moment the new deploy went live, caught only
+   because the user noticed the site was erroring. Diagnosed via `vercel
+   logs <url>` (shows the actual thrown error, not just the generic 500 the
+   browser sees) cross-referenced against `vercel ls`/`vercel inspect` to
+   confirm the build itself hadn't failed — this was a schema mismatch, not
+   a bad build. Fixed live with a small one-off script using
+   `@libsql/client`'s `executeMultiple()` (the `turso` CLI wasn't logged in
+   at the time, and this approach also allows scripting a verification
+   step — row-count-matching the `DropItem` backfill against the old
+   `_BeanToDrop` table, and confirming `_BeanToDrop` was actually gone —
+   between each of the three migrations, rather than firing them blind).
+   Zero data loss, but real downtime that a one-line reminder before
+   pushing would have prevented entirely.
 3. **Hosting (done).** Deployed to Vercel — live at
    `https://roasting-three.vercel.app`. `vercel link` run from
    `apps/roasting/` (not the repo root) initially set the project's Root
