@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Coffee } from "lucide-react";
 import { submitDropOrder } from "@/lib/drop-actions";
-import { DROP_ORDER_ROAST_STYLES, DROP_ORDER_ROAST_STYLE_LABELS } from "@/lib/constants";
 import { formatCurrency } from "@/lib/format";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
@@ -14,26 +13,25 @@ const fieldClass =
   "rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none";
 
 type Item = DropItem & { bean: Bean };
-type CartEntry = { key: number; beanId: string; roastStyle: string };
+type CartEntry = { key: number; beanId: string };
 
 /**
  * A real shop grid — photo, name, price, stock — instead of the old plain
  * bean/style dropdowns. Cart state lives client-side (picks accumulate into
- * `cart`, rendered as one hidden beanId/roastStyle input pair per entry);
- * submitDropOrder's wire contract (parallel getAll("beanId")/
- * getAll("roastStyle") arrays) hasn't changed, so the server action itself
- * only needed its stock-decrement logic touched, not this form's shape.
- * The per-card "N left" count only ever subtracts the *local* cart — it's
- * best-effort UX, not enforcement; submitDropOrder's own atomic conditional
- * update is what actually protects stock under a concurrent claim, and a
- * sold-out-during-race throw needs to land as an inline message (so the
- * buyer can just remove that pick and resubmit) rather than crash the page
- * — hence ActionForm here instead of a bare `<form action={...}>`.
+ * `cart`, rendered as one hidden beanId input per entry); submitDropOrder's
+ * wire contract (getAll("beanId")) hasn't changed, so the server action
+ * itself only needed its stock-decrement logic touched, not this form's
+ * shape. The per-card "N left" count only ever subtracts the *local* cart —
+ * it's best-effort UX, not enforcement; submitDropOrder's own atomic
+ * conditional update is what actually protects stock under a concurrent
+ * claim, and a sold-out-during-race throw needs to land as an inline
+ * message (so the buyer can just remove that pick and resubmit) rather than
+ * crash the page — hence ActionForm here instead of a bare `<form
+ * action={...}>`.
  */
 export default function DropOrderForm({ items }: { items: Item[] }) {
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [nextKey, setNextKey] = useState(0);
-  const [roastStyleByBean, setRoastStyleByBean] = useState<Record<string, string>>({});
 
   if (items.length === 0) {
     return <p className="text-center text-sm text-muted">Nothing&apos;s available on this drop right now.</p>;
@@ -46,8 +44,7 @@ export default function DropOrderForm({ items }: { items: Item[] }) {
   }
 
   function addToCart(item: Item) {
-    const roastStyle = roastStyleByBean[item.beanId] ?? DROP_ORDER_ROAST_STYLES[0];
-    setCart((prev) => [...prev, { key: nextKey, beanId: item.beanId, roastStyle }]);
+    setCart((prev) => [...prev, { key: nextKey, beanId: item.beanId }]);
     setNextKey((k) => k + 1);
   }
 
@@ -86,18 +83,6 @@ export default function DropOrderForm({ items }: { items: Item[] }) {
                   {soldOut ? "Out of stock" : `${remaining} left`}
                 </p>
               )}
-              <select
-                value={roastStyleByBean[item.beanId] ?? DROP_ORDER_ROAST_STYLES[0]}
-                onChange={(e) => setRoastStyleByBean((prev) => ({ ...prev, [item.beanId]: e.target.value }))}
-                disabled={soldOut}
-                className={fieldClass}
-              >
-                {DROP_ORDER_ROAST_STYLES.map((style) => (
-                  <option key={style} value={style}>
-                    {DROP_ORDER_ROAST_STYLE_LABELS[style]}
-                  </option>
-                ))}
-              </select>
               <Button type="button" size="sm" disabled={soldOut} onClick={() => addToCart(item)}>
                 {soldOut ? "Sold out" : "Add"}
               </Button>
@@ -112,10 +97,7 @@ export default function DropOrderForm({ items }: { items: Item[] }) {
           <ul className="flex flex-col gap-1.5">
             {cart.map((entry) => (
               <li key={entry.key} className="flex items-center justify-between gap-2 text-sm">
-                <span>
-                  {itemsByBeanId.get(entry.beanId)!.bean.name} ·{" "}
-                  {DROP_ORDER_ROAST_STYLE_LABELS[entry.roastStyle as keyof typeof DROP_ORDER_ROAST_STYLE_LABELS]}
-                </span>
+                <span>{itemsByBeanId.get(entry.beanId)!.bean.name}</span>
                 <button
                   type="button"
                   onClick={() => removeFromCart(entry.key)}
@@ -124,7 +106,6 @@ export default function DropOrderForm({ items }: { items: Item[] }) {
                   Remove
                 </button>
                 <input type="hidden" name="beanId" value={entry.beanId} />
-                <input type="hidden" name="roastStyle" value={entry.roastStyle} />
               </li>
             ))}
           </ul>

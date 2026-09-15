@@ -473,10 +473,7 @@ model DropOrder {
   @@index([friendId])
 }
 
-// One bean + roast-style pick within a DropOrder (see constants.ts's
-// DROP_ORDER_ROAST_STYLES for the roastStyle values — a plain string
-// scalar validated in code, same convention RoastEvent.type/EVENT_TYPES
-// already use rather than a Prisma enum). "Fulfilled" isn't a checkbox: it
+// One bean pick within a DropOrder. "Fulfilled" isn't a checkbox: it
 // means a real Sale exists (saleId), drawn from an actual completed
 // roast's roastedRemainingGrams once that roast happens — the item and the
 // roasted-stock ledger stay reconciled through the same Sale row rather
@@ -489,7 +486,10 @@ model DropOrderItem {
   dropOrder   DropOrder @relation(fields: [dropOrderId], references: [id], onDelete: Cascade)
   beanId      String
   bean        Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
-  roastStyle  String
+  // Buyers no longer pick a roast style (Filter/Omni/Espresso) — the field
+  // stays, nullable, purely so pre-existing orders keep showing what was
+  // actually picked at the time; see constants.ts's DROP_ORDER_ROAST_STYLE_LABELS.
+  roastStyle  String?
   price       Float?
   paid        Boolean   @default(false)
   saleId      String?   @unique

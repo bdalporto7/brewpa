@@ -76,7 +76,11 @@ export default function DropOrderItemRow({
 }) {
   const [isFulfilling, setIsFulfilling] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const styleLabel = DROP_ORDER_ROAST_STYLE_LABELS[item.roastStyle as keyof typeof DROP_ORDER_ROAST_STYLE_LABELS] ?? item.roastStyle;
+  // Buyers no longer pick a roast style — only shown for orders placed
+  // before that was removed, via the value they picked at the time.
+  const styleLabel = item.roastStyle
+    ? (DROP_ORDER_ROAST_STYLE_LABELS[item.roastStyle as keyof typeof DROP_ORDER_ROAST_STYLE_LABELS] ?? item.roastStyle)
+    : null;
 
   return (
     <li className="text-sm">
@@ -85,7 +89,7 @@ export default function DropOrderItemRow({
           <Link href={`/beans/${item.bean.id}`} className="hover:text-accent">
             {item.bean.name}
           </Link>
-          <span className="text-muted"> · {styleLabel}</span>
+          {styleLabel && <span className="text-muted"> · {styleLabel}</span>}
         </div>
         <div className="flex items-center gap-3">
           <PaidCheckbox dropId={dropId} item={item} />

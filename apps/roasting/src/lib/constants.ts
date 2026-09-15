@@ -126,7 +126,12 @@ export const MILESTONE_ABBREVIATIONS: Partial<Record<EventType, string>> = {
   SECOND_CRACK_END: "2CE",
 };
 
-/** DropOrderItem.roastStyle's allowed values — a plain string column validated against this union, same convention as EventType/EVENT_TYPES above rather than a Prisma enum. */
+/**
+ * Buyers no longer pick a roast style when placing a drop order — kept
+ * here only so DROP_ORDER_ROAST_STYLE_LABELS can still show what was
+ * picked on orders placed before that was removed (DropOrderItem.roastStyle
+ * is now optional and unset on every new order).
+ */
 export const DROP_ORDER_ROAST_STYLES = ["FILTER", "OMNI", "ESPRESSO"] as const;
 export type DropOrderRoastStyle = (typeof DROP_ORDER_ROAST_STYLES)[number];
 

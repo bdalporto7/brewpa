@@ -5,7 +5,6 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { DROP_ORDER_ROAST_STYLES } from "@/lib/constants";
 import { getUnlockedDrop, setDropUnlockCookie } from "@/lib/drop-session";
 import { requireUser } from "@/lib/admin";
 
@@ -306,15 +305,10 @@ export async function submitDropOrder(formData: FormData) {
 
   const name = str(formData, "name");
   const beanIds = formData.getAll("beanId").map(String);
-  const roastStyles = formData.getAll("roastStyle").map(String);
 
   if (!name) throw new Error("Your name is required.");
-  if (beanIds.length === 0 || beanIds.length !== roastStyles.length) {
-    throw new Error("Pick at least one bean and roast style.");
-  }
-  const validStyles = new Set<string>(DROP_ORDER_ROAST_STYLES);
-  for (const style of roastStyles) {
-    if (!validStyles.has(style)) throw new Error("Invalid roast style.");
+  if (beanIds.length === 0) {
+    throw new Error("Pick at least one bean.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -368,9 +362,8 @@ export async function submitDropOrder(formData: FormData) {
         friendId: friend.id,
         name,
         items: {
-          create: beanIds.map((beanId, i) => ({
+          create: beanIds.map((beanId) => ({
             beanId,
-            roastStyle: roastStyles[i],
             price: itemsByBeanId.get(beanId)!.price,
           })),
         },

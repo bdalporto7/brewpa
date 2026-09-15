@@ -64,9 +64,9 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
                   <ul className="mt-1 flex flex-col gap-0.5 text-sm text-foreground/80">
                     {order.items.map((item) => (
                       <li key={item.id}>
-                        {item.bean.name} ·{" "}
-                        {DROP_ORDER_ROAST_STYLE_LABELS[item.roastStyle as keyof typeof DROP_ORDER_ROAST_STYLE_LABELS] ??
-                          item.roastStyle}
+                        {item.bean.name}
+                        {item.roastStyle &&
+                          ` · ${DROP_ORDER_ROAST_STYLE_LABELS[item.roastStyle as keyof typeof DROP_ORDER_ROAST_STYLE_LABELS] ?? item.roastStyle}`}
                         {item.paid && " · Paid"}
                         {item.saleId && " · Fulfilled"}
                       </li>
