@@ -11,6 +11,7 @@ import {
   CHART_HEIGHT,
   type CurveReading,
   type RoastCurveTargets,
+  type RoastCurveForecast,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
@@ -23,6 +24,7 @@ export default function RoastCurveChart({
   controls,
   probeReadings = [],
   targets,
+  forecast,
   title,
   collapsible = false,
   defaultCollapsed = false,
@@ -35,6 +37,12 @@ export default function RoastCurveChart({
    * dashed reference lines alongside the actual curve. Only meaningful for
    * the live view; a completed roast doesn't pass this. */
   targets?: RoastCurveTargets;
+  /** Live RoR-extrapolated forecast (src/lib/tips.ts's computeLiveForecast)
+   * — only meaningful for the live view; a completed roast doesn't pass
+   * this (no live RoR left to project from). No toggle, unlike RoR: it's
+   * already self-limiting (absent whenever the same guards that gate the
+   * underlying projection aren't satisfied), so there's nothing to hide. */
+  forecast?: RoastCurveForecast;
   /** When given, renders a labeled header INSIDE the chart's own bordered
    * box (completed-roast view) instead of leaving the "Rate of rise"
    * toggle floating in its own unboxed row above it (the live view's
@@ -55,8 +63,9 @@ export default function RoastCurveChart({
     // animateIn tracks `title`: the same signal RoastCurveChart's own
     // callers already use to mean "this is the completed-roast view," not
     // the live one — see this component's `title` doc comment above.
-    () => buildRoastCurveSvg(events, totalSeconds, controls, { showRor, probeReadings, targets, animateIn: !!title }),
-    [events, totalSeconds, controls, showRor, probeReadings, targets, title]
+    () =>
+      buildRoastCurveSvg(events, totalSeconds, controls, { showRor, probeReadings, targets, forecast, animateIn: !!title }),
+    [events, totalSeconds, controls, showRor, probeReadings, targets, forecast, title]
   );
   const readings = useMemo(() => getCurveReadings(events, probeReadings, controls), [events, probeReadings, controls]);
   const layout = useMemo(

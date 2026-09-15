@@ -8,7 +8,14 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import BrewCard from "@/components/brews/BrewCard";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
-import { computeHistoricalBaseline, computeMilestoneTempBaseline, projectNextMilestone, type ReferenceRoast } from "@/lib/tips";
+import {
+  computeHistoricalBaseline,
+  computeMilestoneTempBaseline,
+  projectNextMilestone,
+  computeLiveForecast,
+  type ReferenceRoast,
+  type LiveForecast,
+} from "@/lib/tips";
 import { getCurveReadings, computeAdjustedPlan, type PlanSettingChange, type PlanTargets } from "@/lib/curve";
 import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
 import type { EventType } from "@/lib/constants";
@@ -175,6 +182,7 @@ export default async function RoastSessionPage({
   let milestoneTempBaseline = null;
   let referenceRoast: ReferenceRoast | null = null;
   let projectedTargets = acceptedPlanTargets;
+  let liveForecast: LiveForecast | null = null;
   if (isLive) {
     const sameBeanCompleted = await prisma.roastSession.findMany({
       where: { beanId: session.beanId, endedAt: { not: null }, id: { not: session.id } },
@@ -213,6 +221,9 @@ export default async function RoastSessionPage({
       if (readings.length > 0) referenceRoast = { label, readings };
     }
 
+    const liveCurveReadings = getCurveReadings(session.events, session.temperatureReadings, controls);
+    const hasYellowingTarget = acceptedPlanTargets?.yellowingEndSeconds != null;
+
     // Live RoR-based re-projection of the next unreached milestone — see
     // src/lib/tips.ts's projectNextMilestone for why this extrapolates
     // directly-measured RoR rather than a fan/heat causal model. Only
@@ -221,10 +232,10 @@ export default async function RoastSessionPage({
     const projection = acceptedPlan
       ? projectNextMilestone({
           events: session.events,
-          curveReadings: getCurveReadings(session.events, session.temperatureReadings, controls),
+          curveReadings: liveCurveReadings,
           elapsedSeconds: liveElapsedSeconds,
           milestoneTempBaseline,
-          hasYellowingTarget: acceptedPlan.targets.yellowingEndSeconds != null,
+          hasYellowingTarget,
         })
       : null;
     if (projection && projectedTargets) {
@@ -239,6 +250,22 @@ export default async function RoastSessionPage({
         }),
       };
     }
+
+    // The chart-line counterpart to the text tips above — same underlying
+    // math (src/lib/tips.ts's computeLiveForecast), reshaped as a from/to
+    // segment for RoastCurveChart to draw as a ghosted forecast ray off the
+    // end of the real curve. Computed unconditionally (not gated on
+    // acceptedPlan, unlike the re-projection above) since it doesn't need a
+    // plan to project toward a milestone's typical temp — only the
+    // post-1C leg needs dropTempF, which is simply undefined without one.
+    liveForecast = computeLiveForecast({
+      events: session.events,
+      curveReadings: liveCurveReadings,
+      elapsedSeconds: liveElapsedSeconds,
+      milestoneTempBaseline,
+      hasYellowingTarget,
+      dropTempF: acceptedPlanTargets?.dropTempF,
+    });
   }
 
   return (
@@ -409,31 +436,43 @@ export default async function RoastSessionPage({
               line, which used to silently kill the *entire* chart, live
               curve included, just because whatever past roast was picked
               to compare against had too little hand-logged temp data. */}
-          {session.compareTo && getCurveReadings(session.compareTo.events, [], controls).length >= 2 ? (
-            <LiveComparisonChart
-              currentEvents={session.events}
-              currentLabel={`${session.bean.name} (live)`}
-              currentElapsedSeconds={liveElapsedSeconds}
-              comparisonEvents={session.compareTo.events}
-              comparisonLabel={`${session.compareTo.bean.name} — ${session.compareTo.startedAt ? format(session.compareTo.startedAt, "MMM d, yyyy") : "undated"}`}
-              comparisonTotalSeconds={
-                session.compareTo.startedAt && session.compareTo.endedAt
-                  ? (session.compareTo.endedAt.getTime() - session.compareTo.startedAt.getTime()) / 1000
-                  : 0
-              }
-              controls={controls}
-              currentProbeReadings={session.temperatureReadings}
-              comparisonProbeReadings={session.compareTo.temperatureReadings}
-            />
-          ) : (
-            <RoastCurveChart
-              events={session.events}
-              totalSeconds={liveElapsedSeconds}
-              controls={controls}
-              probeReadings={session.temperatureReadings}
-              targets={projectedTargets}
-            />
-          )}
+          {/* Breaks out of main's shared max-w-4xl — the chart is the whole
+              point of this page while live, so it gets more room than the
+              rest of the app's shared content width on anything wider than
+              a phone (where max-w-4xl never bound in the first place).
+              w-screen + max-w-6xl means it's never wider than the actual
+              viewport even between those two breakpoints; left-1/2 +
+              -translate-x-1/2 recenters it regardless of viewport size.
+              Scoped to just the chart, not LiveRoastBars or the panels
+              below — those stay aligned with the rest of the app. */}
+          <div className="relative left-1/2 w-screen max-w-6xl -translate-x-1/2 px-4 sm:px-6">
+            {session.compareTo && getCurveReadings(session.compareTo.events, [], controls).length >= 2 ? (
+              <LiveComparisonChart
+                currentEvents={session.events}
+                currentLabel={`${session.bean.name} (live)`}
+                currentElapsedSeconds={liveElapsedSeconds}
+                comparisonEvents={session.compareTo.events}
+                comparisonLabel={`${session.compareTo.bean.name} — ${session.compareTo.startedAt ? format(session.compareTo.startedAt, "MMM d, yyyy") : "undated"}`}
+                comparisonTotalSeconds={
+                  session.compareTo.startedAt && session.compareTo.endedAt
+                    ? (session.compareTo.endedAt.getTime() - session.compareTo.startedAt.getTime()) / 1000
+                    : 0
+                }
+                controls={controls}
+                currentProbeReadings={session.temperatureReadings}
+                comparisonProbeReadings={session.compareTo.temperatureReadings}
+              />
+            ) : (
+              <RoastCurveChart
+                events={session.events}
+                totalSeconds={liveElapsedSeconds}
+                controls={controls}
+                probeReadings={session.temperatureReadings}
+                targets={projectedTargets}
+                forecast={liveForecast ?? undefined}
+              />
+            )}
+          </div>
           {baseline && (
             <LiveTipsPanel
               roastSessionId={session.id}
