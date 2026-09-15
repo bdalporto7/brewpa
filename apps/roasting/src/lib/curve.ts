@@ -4,7 +4,12 @@ import type { RoasterControl } from "@/lib/roasters";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
 export const CHART_WIDTH = 760;
-export const CHART_HEIGHT = 380;
+// The temp/RoR plotting area's own height — named apart from the exported
+// CHART_HEIGHT below now that CHART_HEIGHT also has to fit the
+// control-change strip beneath the axis row. This number is unchanged from
+// the chart's original (pre-strip) proportions — adding the strip is
+// additive room, not a compression of the existing curve area.
+const TEMP_CHART_HEIGHT = 326;
 export const CHART_MARGIN_LEFT = 44;
 // Wide enough for the rate-of-rise axis's tick labels, kept constant whether
 // or not RoR is currently toggled on so showing/hiding it never reflows the
@@ -18,12 +23,24 @@ const MARGIN_RIGHT = 38;
 // 10px more headroom is a negligible, safe change everywhere else too.
 const MARGIN_TOP = 30;
 const AXIS_HEIGHT = 24;
+// Same step-line band buildLiveComparisonSvg already draws for its own
+// current-vs-comparison strip, ported here so every roast-curve chart shows
+// control changes as a strip too, replacing the old on-curve triangle
+// markers (dialChangeMarkers, removed) with something that scales to more
+// than one simultaneous change without the markers overlapping.
+const CONTROL_STRIP_HEIGHT = 40;
+// Gap from the time-axis tick row down to the strip's own per-control label
+// row — same spacing buildLiveComparisonSvg already uses (its own comment:
+// any tighter and the strip's labels collide with the axis tick text just
+// above them).
+const CONTROL_STRIP_GAP = 22;
+export const CHART_HEIGHT = MARGIN_TOP + TEMP_CHART_HEIGHT + AXIS_HEIGHT + CONTROL_STRIP_GAP + CONTROL_STRIP_HEIGHT;
 
 /**
  * Cycled one per control (fan, heat, and whatever else a given roaster has)
- * for the dial-change triangle markers on the curve chart — four is plenty
- * for any real machine's control count, and reusing colors already defined
- * for milestone markers keeps this from needing its own new CSS variables.
+ * for the control-change strip beneath the chart — four is plenty for any
+ * real machine's control count, and reusing colors already defined for
+ * milestone markers keeps this from needing its own new CSS variables.
  */
 export const DIAL_MARKER_COLORS: [color: string, opacity: number][] = [
   ["var(--accent)", 1],
@@ -176,6 +193,9 @@ export interface ChartLayout {
   chartRight: number;
   tempChartTop: number;
   tempChartBottom: number;
+  /** Top/bottom of the control-change step-line strip, below the time-axis row. */
+  stripTop: number;
+  stripBottom: number;
   minTemp: number;
   maxTemp: number;
   minRor: number;
@@ -231,20 +251,34 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
   const chartRight = CHART_WIDTH - MARGIN_RIGHT;
   const chartWidth = chartRight - chartLeft;
   const tempChartTop = MARGIN_TOP;
-  const tempChartHeight = CHART_HEIGHT - MARGIN_TOP - AXIS_HEIGHT;
+  const tempChartHeight = TEMP_CHART_HEIGHT;
   const tempChartBottom = tempChartTop + tempChartHeight;
+  const stripTop = tempChartBottom + AXIS_HEIGHT + CONTROL_STRIP_GAP;
+  const stripBottom = stripTop + CONTROL_STRIP_HEIGHT;
 
+  // Clamped to the plot area's own bounds — minRor/maxRor is a trimmed
+  // percentile range specifically so one outlier spike can't compress every
+  // other point into a sliver (see the comment above), which means a point
+  // outside that range is expected, not a bug. Without clamping here, that
+  // point's *pixel* position would land outside the chart entirely — this
+  // keeps the line visually flattened against the top/bottom edge instead
+  // of escaping the plot box altogether. minTemp/maxTemp are padded from
+  // the real min/max (not percentile-trimmed) so temp values only need this
+  // as a defensive floor, not something expected to trigger often.
   const x = (seconds: number) => chartLeft + (seconds / duration) * chartWidth;
+  const clampToTempChart = (y: number) => Math.min(tempChartBottom, Math.max(tempChartTop, y));
   const yTemp = (temp: number) =>
-    tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight;
+    clampToTempChart(tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight);
   const yRor = (rorPerMin: number) =>
-    tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * tempChartHeight;
+    clampToTempChart(tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * tempChartHeight);
 
   return {
     chartLeft,
     chartRight,
     tempChartTop,
     tempChartBottom,
+    stripTop,
+    stripBottom,
     minTemp,
     maxTemp,
     minRor,
@@ -290,6 +324,18 @@ export interface RoastCurveTargets {
   dropTempF?: number;
 }
 
+/** Live RoR-extrapolated forecast (src/lib/tips.ts's computeLiveForecast) —
+ * same shape as LiveForecast there, duplicated here rather than imported to
+ * keep curve.ts independent (tips.ts already imports from curve.ts, so the
+ * reverse import would be circular). */
+export interface RoastCurveForecast {
+  type: "DRY_END" | "YELLOWING_END" | "FIRST_CRACK_START" | "DROP";
+  fromAtSeconds: number;
+  fromTempF: number;
+  toAtSeconds: number;
+  toTempF: number;
+}
+
 export function buildRoastCurveSvg(
   events: RoastEvent[],
   totalSeconds: number,
@@ -298,6 +344,7 @@ export function buildRoastCurveSvg(
     showRor?: boolean;
     probeReadings?: TemperatureReading[];
     targets?: RoastCurveTargets;
+    forecast?: RoastCurveForecast;
     /** Draws the temp line in on mount instead of appearing complete —
      * scoped to the completed-roast view only (RoastCurveChart passes this
      * when it renders with `title`). The live view's chart regenerates on
@@ -310,27 +357,32 @@ export function buildRoastCurveSvg(
   const readings = getCurveReadings(events, options.probeReadings, controls);
   if (readings.length < 2) return null;
 
-  // Extend the axis to cover the furthest target time too — otherwise a
-  // live chart's x-axis only spans elapsed-time-so-far, and every upcoming
-  // target milestone (which is the whole point of showing them) sits
-  // off-screen to the right until the actual roast catches up to it.
+  // Extend the axis to cover the furthest target/forecast time too —
+  // otherwise a live chart's x-axis only spans elapsed-time-so-far, and
+  // every upcoming target/forecast (which is the whole point of showing
+  // them) sits off-screen to the right until the actual roast catches up.
   const t = options.targets;
-  const latestTarget = t
-    ? Math.max(
-        t.dryEndSeconds ?? 0,
-        t.yellowingEndSeconds ?? 0,
-        t.firstCrackSeconds ?? 0,
-        t.firstCrackSeconds != null && t.developmentSeconds != null
-          ? t.firstCrackSeconds + t.developmentSeconds
-          : 0
-      )
-    : 0;
+  const latestTarget = Math.max(
+    t
+      ? Math.max(
+          t.dryEndSeconds ?? 0,
+          t.yellowingEndSeconds ?? 0,
+          t.firstCrackSeconds ?? 0,
+          t.firstCrackSeconds != null && t.developmentSeconds != null
+            ? t.firstCrackSeconds + t.developmentSeconds
+            : 0
+        )
+      : 0,
+    options.forecast?.toAtSeconds ?? 0
+  );
   const layout = getChartLayout(readings, Math.max(totalSeconds, latestTarget));
   const {
     chartLeft,
     chartRight,
     tempChartTop,
     tempChartBottom,
+    stripTop,
+    stripBottom,
     minTemp,
     maxTemp,
     minRor,
@@ -426,6 +478,28 @@ export function buildRoastCurveSvg(
     }
   }
 
+  // Live RoR-extrapolated forecast (src/lib/tips.ts's computeLiveForecast) —
+  // same ghosted dashed convention as the AI-plan targets just above
+  // (reduced opacity, finer dash, label stacked at -16 rather than a real
+  // milestone's -6), but suffixed "~" rather than "→" so the two stay
+  // visually distinct on a roast that's tracking a plan AND has diverged
+  // from it enough for the live-RoR forecast to land at a different time —
+  // exactly the case most worth noticing. Drawn as a diagonal ray from the
+  // last real reading to the projected point, not just a vertical marker,
+  // since unlike a plan target (a fixed time with no implied path to it) a
+  // forecast is a continuation of the curve itself.
+  if (options.forecast) {
+    const f = options.forecast;
+    const marker = MILESTONE_MARKERS.find((m) => m.type === f.type);
+    const color = marker?.color ?? "var(--mark-drop)";
+    const label = marker?.label ?? "Drop";
+    parts.push(
+      `<line x1="${x(f.fromAtSeconds)}" x2="${x(f.toAtSeconds)}" y1="${yTemp(f.fromTempF)}" y2="${yTemp(f.toTempF)}" style="stroke:${color}" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`,
+      `<line x1="${x(f.toAtSeconds)}" x2="${x(f.toAtSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${color}" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`,
+      `<text x="${x(f.toAtSeconds)}" y="${tempChartTop - 16}" text-anchor="middle" style="fill:${color}" class="marker-label" opacity="0.7">${label}~</text>`
+    );
+  }
+
   // filter, not a redrawn path: the sketchy-fine wobble (same filter every
   // other hand-drawn line in the app uses) is a couple px of visual
   // displacement only — the underlying points, and everything that reads
@@ -462,44 +536,36 @@ export function buildRoastCurveSvg(
     );
   }
 
-  // Fan/heat changes plotted directly on the temp curve, not as a separate
-  // strip below it: a small triangle at the exact time of each change,
-  // pointing up for an increase and down for a decrease, colored per dial
-  // (fan = accent, heat = muted foreground, matching their old strip
-  // colors). Reading the exact dial value at any moment is already covered
-  // by the hover tooltip (RoastCurveChart.tsx shows fan/heat for whatever
-  // point you're hovering) and by EventTimeline's precise table below the
-  // chart — this only needs to answer "when did something change and which
-  // way," at a glance, without a whole second scaled axis competing with
-  // the temp curve for attention. Fan and heat stack at different offsets
-  // (10px vs 18px above the curve) so a simultaneous change on both dials
-  // shows as two distinct marks instead of one hiding the other.
-  function dialChangeMarkers(
-    points: { atSeconds: number; level: number }[],
-    color: string,
-    opacity: number,
-    offset: number,
-    label: string
-  ): void {
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1];
-      const cur = points[i];
-      if (cur.level === prev.level) continue;
-      const cx = x(cur.atSeconds);
-      const cy = yTemp(nearestCurveReading(readings, cur.atSeconds).temp) - offset;
-      const up = cur.level > prev.level;
-      const trianglePoints = up
-        ? `${cx},${cy - 4} ${cx - 4},${cy + 4} ${cx + 4},${cy + 4}`
-        : `${cx - 4},${cy - 4} ${cx + 4},${cy - 4} ${cx},${cy + 4}`;
-      parts.push(
-        `<polygon points="${trianglePoints}" style="fill:${color}" opacity="${opacity}"><title>${label} ${prev.level}→${cur.level} at ${formatMMSS(cur.atSeconds)}</title></polygon>`
-      );
-    }
-  }
+  // Control-change step-line strip beneath the axis row — ported from
+  // buildLiveComparisonSvg's own strip (same per-control color cycling,
+  // same step-path shape), replacing the old on-curve triangle markers so
+  // more than one simultaneous dial change reads clearly instead of
+  // overlapping. Each control gets its own 0-1 normalized band (fan's 1-9
+  // and a gas valve's 0-100 don't share real units, so there's no single
+  // absolute scale to draw ticks for — the step shape, not the axis, is
+  // what this answers "when did it change and which way"). A control with
+  // zero changes yet still gets its label, just no path — an intact empty
+  // band, not a broken one.
+  let stripLabelX = chartLeft;
   controls.forEach((control, i) => {
     const [color, opacity] = DIAL_MARKER_COLORS[i % DIAL_MARKER_COLORS.length];
-    dialChangeMarkers(eventPoints(events, control.key), color, opacity, 10 + i * 8, control.label);
+    parts.push(
+      `<text x="${stripLabelX}" y="${stripTop - 6}" style="fill:${color};opacity:${opacity}" class="marker-label">${escapeXml(control.label)}</text>`
+    );
+    stripLabelX += control.label.length * 6 + 14;
+
+    const points = eventPoints(events, control.key);
+    if (points.length > 0) {
+      const yLevel = (level: number) =>
+        stripTop + (1 - (level - control.min) / (control.max - control.min)) * CONTROL_STRIP_HEIGHT;
+      parts.push(
+        `<path d="${buildStepPath(points, duration, x, yLevel)}" fill="none" style="stroke:${color};opacity:${opacity}" stroke-width="1.5" />`
+      );
+    }
   });
+  parts.push(
+    `<line x1="${chartLeft}" x2="${chartRight}" y1="${stripBottom}" y2="${stripBottom}" style="stroke:var(--border)" stroke-width="1" />`
+  );
 
   parts.push("</svg>");
 
@@ -669,13 +735,21 @@ export function buildLiveComparisonSvg(
   const legendY1 = stripABottom + 20;
   const legendY2 = legendY1 + 16;
 
+  // Clamped to the temp plot area's own bounds, same reasoning as
+  // getChartLayout's yTemp/yRor — a percentile-trimmed RoR range (below)
+  // deliberately lets an outlier point fall outside [minRor, maxRor], and
+  // without clamping its *pixel* position would escape the plot box
+  // entirely rather than flattening against the top/bottom edge.
   const x = (seconds: number) => chartLeft + (seconds / duration) * (chartRight - chartLeft);
-  const yTemp = (temp: number) => tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * LIVE_CMP_TEMP_HEIGHT;
+  const clampToTempChart = (y: number) => Math.min(tempChartBottom, Math.max(tempChartTop, y));
+  const yTemp = (temp: number) =>
+    clampToTempChart(tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * LIVE_CMP_TEMP_HEIGHT);
   // Normalized 0-1 per control's own min/max, not one shared absolute
   // scale — a gas valve's 0-100 range and a fan's 1-9 range have to share
   // this one strip, so there's no single set of real units to draw ticks
   // for; the step-lines' shape (when did it change, which direction) is
-  // what this strip is for, same reasoning as dialChangeMarkers above.
+  // what this strip is for, same reasoning as buildRoastCurveSvg's own
+  // control-change strip.
   const yLevelA = (level: number, control: RoasterControl) =>
     stripATop + (1 - (level - control.min) / (control.max - control.min)) * LIVE_CMP_STRIP_HEIGHT;
 
@@ -734,7 +808,7 @@ export function buildLiveComparisonSvg(
     const minRor = Math.floor((rawMinRor - 5) / 10) * 10;
     const maxRor = Math.ceil((rawMaxRor + 5) / 10) * 10;
     const yRor = (rorPerMin: number) =>
-      tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * LIVE_CMP_TEMP_HEIGHT;
+      clampToTempChart(tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * LIVE_CMP_TEMP_HEIGHT);
     // --foreground, not --ror — the comparison roast's temp line already
     // owns --ror (dashed) in this chart, and both can be on screen at once
     // once this is toggled on. --foreground at reduced opacity is this same
