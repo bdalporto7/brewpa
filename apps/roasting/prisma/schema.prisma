@@ -68,7 +68,11 @@ model Bean {
   goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
 
   roastSessions  RoastSession[] @relation("BeanRoasts")
+  // Being replaced by dropItems (an explicit join carrying price/stock per
+  // listing) — kept alive alongside it until every touch point migrates,
+  // see the DropItem model's own comment.
   drops          Drop[]
+  dropItems      DropItem[]
   dropOrderItems DropOrderItem[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
   // actually draws down) is tracked per roast, not per bean — see Brew.
@@ -389,7 +393,11 @@ model Drop {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  // Being replaced by items (an explicit join carrying price/stock per
+  // listing) — kept alive alongside it until every touch point migrates,
+  // see the DropItem model's own comment.
   beans  Bean[]
+  items  DropItem[]
   orders DropOrder[]
 
   // Whichever team created this drop — a public order submitted against it
@@ -399,6 +407,37 @@ model Drop {
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([teamId])
+}
+
+// One bean listed on a drop's menu — an explicit join (replacing the old
+// plain Bean<->Drop many-to-many) specifically so each listing can carry
+// its own price and stock count, neither of which a bare m2m can express.
+// stockQuantity is a simple bag-level count set by the admin when building
+// the drop (e.g. "I have 3 bags of this") — deliberately not tied to
+// Bean.remainingGrams or RoastSession.roastedRemainingGrams (both
+// gram-precise, tracked per bean/roast respectively, and used for the
+// *admin's* own inventory bookkeeping); this is a much coarser "how many
+// can I let people claim" cap that only exists on the listing itself, and
+// null means unlimited/not tracked — every listing created before this
+// concept existed backfills to null (see this model's migration) rather
+// than inventing a number the admin never actually entered. Decremented by
+// submitDropOrder at claim time (not later at fulfillment, unlike the
+// gram-level ledgers above), restored by deleteDropOrder/deleteDropOrderItem
+// if a claim is removed.
+model DropItem {
+  id            String   @id @default(cuid())
+  dropId        String
+  drop          Drop     @relation(fields: [dropId], references: [id], onDelete: Cascade)
+  beanId        String
+  bean          Bean     @relation(fields: [beanId], references: [id], onDelete: Cascade)
+  price         Float?
+  stockQuantity Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([dropId, beanId])
+  @@index([dropId])
+  @@index([beanId])
 }
 
 // A record of one code-entry attempt on the public /drop page, keyed by
