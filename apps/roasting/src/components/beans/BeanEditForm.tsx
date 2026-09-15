@@ -2,7 +2,7 @@ import { updateBean } from "@/lib/actions";
 import { PROCESSES } from "@/lib/constants";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
-import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
+import { TextField, SelectField, TextareaField, FileField } from "@/components/ui/Field";
 import type { Bean } from "@prisma/client";
 
 /** `weightGrams`'s min is the bean's own remainingGrams (line 62) — total
@@ -28,6 +28,13 @@ export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () 
       <TextField label="Producer" name="producer" defaultValue={bean.producer ?? ""} />
       <TextField label="Supplier" name="supplier" defaultValue={bean.supplier ?? ""} />
       <TextField label="Seller link" name="supplierUrl" type="url" defaultValue={bean.supplierUrl ?? ""} />
+      <div className="flex flex-col gap-1.5">
+        {bean.photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- Blob URL, not a local asset next/image can optimize
+          <img src={bean.photoUrl} alt="" className="h-16 w-16 rounded-md object-cover" />
+        )}
+        <FileField label={bean.photoUrl ? "Replace photo" : "Photo"} name="photo" accept="image/*" />
+      </div>
       <TextField
         label="Price ($)"
         name="purchasePrice"

@@ -3,7 +3,7 @@ import { createBean } from "@/lib/actions";
 import { PROCESSES } from "@/lib/constants";
 import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
-import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
+import { TextField, SelectField, TextareaField, FileField } from "@/components/ui/Field";
 
 /**
  * A native <details>/<summary> disclosure, not SectionCard — deliberately
@@ -35,6 +35,7 @@ export default function BeanForm() {
         <TextField label="Producer" name="producer" placeholder="Optional" />
         <TextField label="Supplier" name="supplier" placeholder="Where you bought it" />
         <TextField label="Seller link" name="supplierUrl" type="url" placeholder="https://…" />
+        <FileField label="Photo" name="photo" accept="image/*" />
         <TextField
           label="Weight (g)"
           name="weightGrams"

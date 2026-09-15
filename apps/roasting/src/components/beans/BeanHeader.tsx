@@ -18,14 +18,20 @@ export default function BeanHeader({ bean }: { bean: Bean }) {
 
   return (
     <div className="flex items-start justify-between gap-4">
-      <div>
-        <h1 className="text-4xl font-black tracking-tight">{bean.name}</h1>
-        <p className="text-sm text-muted">
-          {bean.origin}
-          {bean.producer ? ` · ${bean.producer}` : ""} · {bean.process}
-          {bean.variety ? ` · ${bean.variety}` : ""}
-        </p>
-        {bean.notes && <p className="mt-1 text-sm text-foreground/80">{bean.notes}</p>}
+      <div className="flex items-start gap-4">
+        {bean.photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- Blob URL, not a local asset next/image can optimize
+          <img src={bean.photoUrl} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
+        )}
+        <div>
+          <h1 className="text-4xl font-black tracking-tight">{bean.name}</h1>
+          <p className="text-sm text-muted">
+            {bean.origin}
+            {bean.producer ? ` · ${bean.producer}` : ""} · {bean.process}
+            {bean.variety ? ` · ${bean.variety}` : ""}
+          </p>
+          {bean.notes && <p className="mt-1 text-sm text-foreground/80">{bean.notes}</p>}
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <button

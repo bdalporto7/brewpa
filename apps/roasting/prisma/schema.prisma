@@ -30,6 +30,10 @@ model Bean {
   weightGrams    Float
   remainingGrams Float
   notes          String?
+  // Uploaded via Vercel Blob (src/lib/actions.ts's uploadBeanPhotoIfProvided)
+  // — a real hosted URL, not user-entered text like supplierUrl above.
+  // Mainly for the Drops shop-grid card; shown on the bean's own page too.
+  photoUrl       String?
   // Optional physical attributes an AI roast suggestion can factor in
   // (src/lib/roastAdvisor.ts) — left null when the roaster hasn't measured
   // them; the suggestion prompt just says so rather than guessing.

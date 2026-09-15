@@ -10,6 +10,7 @@ import { extractSupplierInfo } from "@/lib/supplierExtractor";
 import { requireUser } from "@/lib/admin";
 import { parseControls } from "@/lib/roasters";
 import { parseArtisanFile, buildArtisanImportResult } from "@/lib/artisanImport";
+import { put } from "@vercel/blob";
 
 function num(formData: FormData, key: string): number | null {
   const raw = formData.get(key);
@@ -36,6 +37,23 @@ async function getDefaultRoasterDefinitionId(teamId: string, tx: Pick<typeof pri
   return definition.id;
 }
 
+/**
+ * Uploads a bean's photo to Vercel Blob if one was actually provided —
+ * returns null (not an error) when the field is empty, since the photo is
+ * always optional on both createBean and updateBean. `access: "public"` is
+ * intentional: these are shown to friends on the Drops shop grid, which is
+ * only code-gated at the order-flow level, not per-asset.
+ */
+async function uploadBeanPhotoIfProvided(formData: FormData): Promise<string | null> {
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return null;
+  if (!file.type.startsWith("image/")) {
+    throw new Error("That file isn't an image.");
+  }
+  const blob = await put(`bean-photos/${file.name}`, file, { access: "public", addRandomSuffix: true });
+  return blob.url;
+}
+
 export async function createBean(formData: FormData) {
   const user = await requireUser();
   const name = str(formData, "name");
@@ -46,6 +64,8 @@ export async function createBean(formData: FormData) {
   if (!name || !origin || !process || weightGrams === null || weightGrams <= 0) {
     throw new Error("Name, origin, process, and a positive weight are required.");
   }
+
+  const photoUrl = await uploadBeanPhotoIfProvided(formData);
 
   await prisma.bean.create({
     data: {
@@ -62,6 +82,7 @@ export async function createBean(formData: FormData) {
       moisturePercent: num(formData, "moisturePercent"),
       densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
       notes: str(formData, "notes"),
+      photoUrl,
       teamId: user.teamId,
     },
   });
@@ -91,6 +112,11 @@ export async function updateBean(id: string, formData: FormData) {
     );
   }
 
+  // undefined (not null) when no new file was picked — Prisma skips the
+  // field entirely rather than clearing an existing photo just because the
+  // edit form was resubmitted without re-picking one.
+  const newPhotoUrl = await uploadBeanPhotoIfProvided(formData);
+
   await prisma.bean.update({
     where: { id },
     data: {
@@ -106,6 +132,7 @@ export async function updateBean(id: string, formData: FormData) {
       moisturePercent: num(formData, "moisturePercent"),
       densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
       notes: str(formData, "notes"),
+      photoUrl: newPhotoUrl ?? undefined,
     },
   });
 
