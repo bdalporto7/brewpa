@@ -19,9 +19,14 @@ import Eyebrow from "@/components/ui/Eyebrow";
 export default function EventLogPanel({
   roastSessionId,
   startedAt,
+  bare = false,
 }: {
   roastSessionId: string;
   startedAt: string;
+  /** Skips this component's own Card and "Note" header — for callers (the
+   * live view's SectionCard) that already provide both, so it doesn't end
+   * up double-boxed/double-labeled. */
+  bare?: boolean;
 }) {
   const elapsed = useElapsedSeconds(startedAt);
   const [isPending, startTransition] = useTransition();
@@ -33,31 +38,37 @@ export default function EventLogPanel({
     });
   }
 
+  const form = (
+    <form
+      className="flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const value = noteInputRef.current?.value.trim();
+        if (!value) return;
+        fire({ type: "NOTE", note: value });
+        if (noteInputRef.current) noteInputRef.current.value = "";
+      }}
+    >
+      <input
+        ref={noteInputRef}
+        type="text"
+        placeholder="Smells nutty, slowing down…"
+        className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm focus:border-accent focus:outline-none"
+      />
+      <Button type="submit" size="sm" disabled={isPending}>
+        Add
+      </Button>
+    </form>
+  );
+
+  if (bare) return form;
+
   return (
     <Card interactive={false} className="p-4">
       <Eyebrow icon={<NotebookPen className="h-3.5 w-3.5" />} className="mb-2">
         Note
       </Eyebrow>
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const value = noteInputRef.current?.value.trim();
-          if (!value) return;
-          fire({ type: "NOTE", note: value });
-          if (noteInputRef.current) noteInputRef.current.value = "";
-        }}
-      >
-        <input
-          ref={noteInputRef}
-          type="text"
-          placeholder="Smells nutty, slowing down…"
-          className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm focus:border-accent focus:outline-none"
-        />
-        <Button type="submit" size="sm" disabled={isPending}>
-          Add
-        </Button>
-      </form>
+      {form}
     </Card>
   );
 }

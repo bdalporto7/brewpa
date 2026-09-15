@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Sparkles, ChevronDown } from "lucide-react";
 import { useElapsedSeconds } from "@/lib/useElapsedSeconds";
 import { useProbeReadings } from "@/lib/useProbeReadings";
 import { computeRoastPhases } from "@/lib/phases";
@@ -31,6 +31,12 @@ export default function LiveTipsPanel({
   milestoneTempBaseline?: MilestoneTempBaseline | null;
   originalPlanTargets?: PlanTargets;
 }) {
+  // Collapsed by default, like every other secondary panel on the live
+  // page — but internally, not via an external SectionCard wrapper: this
+  // component keeps polling (useProbeReadings, below) the whole time it's
+  // on screen, and PhaseBar is compact enough to stay visible even while
+  // the tips list itself is tucked away.
+  const [collapsed, setCollapsed] = useState(true);
   const elapsed = useElapsedSeconds(startedAt);
   const phases = computeRoastPhases(events, elapsed);
   const probeReadings = useProbeReadings(roastSessionId);
@@ -58,17 +64,26 @@ export default function LiveTipsPanel({
       <PhaseBar phases={phases} />
       {tips.length > 0 && (
         <Card interactive={false} className="p-4">
-          <Eyebrow icon={<Sparkles className="h-3.5 w-3.5" />} className="mb-2">
-            Tips
-          </Eyebrow>
-          <ul className="flex flex-col gap-1.5 text-sm text-foreground/80">
-            {tips.map((tip) => (
-              <li key={tip.id}>{tip.message}</li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs text-muted">
-            General guidance, not personalized coaching — use your judgment.
-          </p>
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            className="flex items-center gap-1.5"
+          >
+            <Eyebrow icon={<Sparkles className="h-3.5 w-3.5" />}>Tips</Eyebrow>
+            <ChevronDown className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-180"}`} />
+          </button>
+          {!collapsed && (
+            <div className="mt-2">
+              <ul className="flex flex-col gap-1.5 text-sm text-foreground/80">
+                {tips.map((tip) => (
+                  <li key={tip.id}>{tip.message}</li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-muted">
+                General guidance, not personalized coaching — use your judgment.
+              </p>
+            </div>
+          )}
         </Card>
       )}
     </div>

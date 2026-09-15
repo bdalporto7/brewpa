@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Download, PlusCircle, History, ChevronDown } from "lucide-react";
+import { Download, PlusCircle, History, ChevronDown, NotebookPen } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { deleteRoastSession } from "@/lib/actions";
 import { getCurrentAllowedUser } from "@/lib/admin";
@@ -485,9 +485,13 @@ export default async function RoastSessionPage({
               originalPlanTargets={acceptedPlan?.targets}
             />
           )}
-          <EventLogPanel roastSessionId={session.id} startedAt={session.startedAt!.toISOString()} />
+          <SectionCard icon={<NotebookPen className="h-3.5 w-3.5" />} label="Note" collapsible defaultCollapsed>
+            <EventLogPanel roastSessionId={session.id} startedAt={session.startedAt!.toISOString()} bare />
+          </SectionCard>
           <RoastPlanCard roastSessionId={session.id} notes={session.notes} collapsedByDefault />
-          <EventTimeline events={session.events} controls={controls} editable />
+          <SectionCard icon={<History className="h-3.5 w-3.5" />} label="Event timeline" collapsible defaultCollapsed>
+            <EventTimeline events={session.events} controls={controls} editable bare />
+          </SectionCard>
           <div className="pb-24 sm:pb-28" />
         </>
       )}
