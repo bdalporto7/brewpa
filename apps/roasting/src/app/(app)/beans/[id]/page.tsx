@@ -36,9 +36,9 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           include: { bean: true, roasterDefinition: true },
           orderBy: { startedAt: "desc" },
         },
-        drops: {
-          include: { beans: true, orders: true },
-          orderBy: { createdAt: "desc" },
+        dropItems: {
+          include: { drop: { include: { items: { include: { bean: true } }, orders: true } } },
+          orderBy: { drop: { createdAt: "desc" } },
         },
       },
     }),
@@ -90,11 +90,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
         <div className="mb-3">
           <SectionHeading>Drops</SectionHeading>
         </div>
-        {bean.drops.length === 0 ? (
+        {bean.dropItems.length === 0 ? (
           <p className="mb-3 text-sm text-muted">No drops opened for this bean yet.</p>
         ) : (
           <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {bean.drops.map((drop) => (
+            {bean.dropItems.map(({ drop }) => (
               <DropCard key={drop.id} drop={drop} />
             ))}
           </div>

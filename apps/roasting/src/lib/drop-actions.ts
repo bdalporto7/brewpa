@@ -75,7 +75,7 @@ export async function createDrop(formData: FormData) {
       name,
       notes,
       code: generateDropCode(),
-      beans: { connect: beanIds.map((id) => ({ id })) },
+      items: { create: beanIds.map((id) => ({ beanId: id, price: null, stockQuantity: null })) },
       teamId: user.teamId,
     },
   });
@@ -289,12 +289,12 @@ export async function submitDropOrder(formData: FormData) {
     // Re-fetched inside the transaction (not just trusting the
     // getUnlockedDrop() read above) so a drop closed or a bean removed in
     // the instant between that read and this write still gets caught.
-    const current = await tx.drop.findUniqueOrThrow({ where: { id: drop.id }, include: { beans: true } });
+    const current = await tx.drop.findUniqueOrThrow({ where: { id: drop.id }, include: { items: true } });
     if (current.closedAt) {
       throw new Error("This drop is closed.");
     }
 
-    const allowedBeanIds = new Set(current.beans.map((b) => b.id));
+    const allowedBeanIds = new Set(current.items.map((i) => i.beanId));
     for (const beanId of beanIds) {
       if (!allowedBeanIds.has(beanId)) throw new Error("That bean isn't part of this drop.");
     }

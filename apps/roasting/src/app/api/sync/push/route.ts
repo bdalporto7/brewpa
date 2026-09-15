@@ -139,30 +139,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Drop — beanIds connect handles the implicit Bean<->Drop join table
-  // Prisma generates under the hood (migrate-to-remote.ts's raw-SQL
-  // approach had no way to see that hidden table at all; a drop's bean
-  // list was silently lost on migration before this).
   for (const row of body.drops ?? []) {
-    const { beanIds, ...dropRow } = row as Row & { beanIds?: string[] };
-    const requestedIds = beanIds ?? [];
-    const ownedBeans = await prisma.bean.findMany({ where: { id: { in: requestedIds }, teamId } });
-    if (ownedBeans.length !== requestedIds.length) {
-      skipped.push(`drop ${row.id}: one or more beanIds don't belong to this team`);
-      continue;
-    }
-    const id = dropRow.id as string;
-    const data = toDates(omit(dropRow, ["teamId"]), ["closedAt", "createdAt", "updatedAt"]);
-    const beanConnections = ownedBeans.map((b) => ({ id: b.id }));
-    const existing = await prisma.drop.findFirst({ where: { id, teamId } });
-    if (!existing) {
-      await prisma.drop.create({ data: { ...data, teamId, beans: { connect: beanConnections } } as never });
-    } else {
-      const incomingUpdatedAt = row.updatedAt ? new Date(row.updatedAt as string) : null;
-      if (!incomingUpdatedAt || !existing.updatedAt || incomingUpdatedAt > existing.updatedAt) {
-        await prisma.drop.update({ where: { id }, data: { ...data, beans: { set: beanConnections } } as never });
-      }
-    }
+    await upsertOwned(prisma.drop, row, "teamId", teamId, ["closedAt", "createdAt", "updatedAt"]);
   }
 
   // Everything below hangs off a RoastSession/Drop that's already
@@ -212,6 +190,36 @@ export async function POST(request: NextRequest) {
       const incomingUpdatedAt = row.updatedAt ? new Date(row.updatedAt as string) : null;
       if (!incomingUpdatedAt || !existing.updatedAt || incomingUpdatedAt > existing.updatedAt) {
         await prisma.cuppingNote.update({ where: { id }, data: data as never });
+      }
+    }
+  }
+  for (const row of body.dropItems ?? []) {
+    const drop = await prisma.drop.findFirst({ where: { id: row.dropId as string, teamId } });
+    if (!drop) {
+      skipped.push(`dropItem ${row.id}: dropId doesn't belong to this team`);
+      continue;
+    }
+    const bean = await prisma.bean.findFirst({ where: { id: row.beanId as string, teamId } });
+    if (!bean) {
+      skipped.push(`dropItem ${row.id}: beanId doesn't belong to this team`);
+      continue;
+    }
+    // DropItem has no teamId of its own — ownership is via dropId, already
+    // checked above — so this upserts directly by id, same manual pattern
+    // cuppingNotes uses rather than upsertOwned (which needs an owner
+    // column to filter findFirst on). price/stockQuantity mutate after
+    // creation (order claims decrement, cancellations restore), so this
+    // needs the same last-writer-wins updatedAt comparison, not
+    // insertIfMissing.
+    const id = row.id as string;
+    const data = toDates(row, ["createdAt", "updatedAt"]);
+    const existing = await prisma.dropItem.findUnique({ where: { id } });
+    if (!existing) {
+      await prisma.dropItem.create({ data: data as never });
+    } else {
+      const incomingUpdatedAt = row.updatedAt ? new Date(row.updatedAt as string) : null;
+      if (!incomingUpdatedAt || !existing.updatedAt || incomingUpdatedAt > existing.updatedAt) {
+        await prisma.dropItem.update({ where: { id }, data: data as never });
       }
     }
   }

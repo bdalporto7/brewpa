@@ -38,6 +38,7 @@ async function collectLocalRows() {
     sales,
     cuppingNotes,
     drops,
+    dropItems,
     dropOrders,
     dropOrderItems,
     brews,
@@ -50,7 +51,8 @@ async function collectLocalRows() {
     prisma.roastEvent.findMany(),
     prisma.sale.findMany(),
     prisma.cuppingNote.findMany(),
-    prisma.drop.findMany({ include: { beans: { select: { id: true } } } }),
+    prisma.drop.findMany(),
+    prisma.dropItem.findMany(),
     prisma.dropOrder.findMany(),
     prisma.dropOrderItem.findMany(),
     prisma.brew.findMany(),
@@ -65,7 +67,8 @@ async function collectLocalRows() {
     roastEvents,
     sales,
     cuppingNotes,
-    drops: drops.map(({ beans: dropBeans, ...drop }) => ({ ...drop, beanIds: dropBeans.map((b) => b.id) })),
+    drops,
+    dropItems,
     dropOrders,
     dropOrderItems,
     brews,
@@ -193,30 +196,15 @@ async function pull(apiBase: string, token: string): Promise<number> {
   for (const row of snapshot.roastSessions ?? []) {
     if (row.compareToId) await prisma.roastSession.update({ where: { id: row.id as string }, data: { compareToId: row.compareToId as string } }).catch(() => {});
   }
-  for (const row of snapshot.drops ?? []) {
-    const { beanIds, ...dropRow } = row as Row & { beanIds?: string[] };
-    const id = dropRow.id as string;
-    const data = toDates(dropRow, ["closedAt", "createdAt", "updatedAt"]);
-    const beanConnect = { set: (beanIds ?? []).map((beanId) => ({ id: beanId })) };
-    const existing = await prisma.drop.findUnique({ where: { id } });
-    if (!existing) {
-      await prisma.drop.create({ data: { ...data, beans: { connect: (beanIds ?? []).map((beanId) => ({ id: beanId })) } } as never });
-    } else {
-      // Same unconditional ownership correction as upsertLocal — push
-      // re-stamps teamId without touching updatedAt, so this can't be
-      // gated on the freshness check below.
-      if (dropRow.teamId !== existing.teamId) {
-        await prisma.drop.update({ where: { id }, data: { teamId: dropRow.teamId as string } });
-      }
-      const incoming = row.updatedAt ? new Date(row.updatedAt as string) : null;
-      if (!incoming || !existing.updatedAt || incoming > existing.updatedAt) {
-        await prisma.drop.update({ where: { id }, data: { ...data, beans: beanConnect } as never });
-      }
-    }
-  }
+  for (const row of snapshot.drops ?? []) await upsertLocal(prisma.drop, row, ["closedAt", "createdAt", "updatedAt"], true);
   for (const row of snapshot.roastEvents ?? []) await upsertLocal(prisma.roastEvent, row, ["createdAt"], false);
   for (const row of snapshot.sales ?? []) await upsertLocal(prisma.sale, row, ["soldAt", "createdAt"], false);
   for (const row of snapshot.cuppingNotes ?? []) await upsertLocal(prisma.cuppingNote, row, ["cuppedAt", "createdAt", "updatedAt"], true);
+  // DropItem has no teamId of its own (ownership is via dropId, a Drop
+  // that's already landed above), so it doesn't need upsertLocal's
+  // ownership-correction pass — a plain last-writer-wins upsert is enough,
+  // same as cuppingNotes gets for the identical reason.
+  for (const row of snapshot.dropItems ?? []) await upsertLocal(prisma.dropItem, row, ["createdAt", "updatedAt"], true);
   for (const row of snapshot.dropOrders ?? []) await upsertLocal(prisma.dropOrder, row, ["createdAt"], false);
   for (const row of snapshot.dropOrderItems ?? []) await upsertLocal(prisma.dropOrderItem, row, ["createdAt"], false);
   for (const row of snapshot.brews ?? []) await upsertLocal(prisma.brew, row, ["brewedAt", "createdAt", "updatedAt"], true);

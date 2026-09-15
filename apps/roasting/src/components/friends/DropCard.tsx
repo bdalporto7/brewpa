@@ -3,9 +3,13 @@
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import TapCircleLink from "@/components/ui/TapCircleLink";
-import type { Bean, Drop, DropOrder } from "@prisma/client";
+import type { Bean, Drop, DropItem, DropOrder } from "@prisma/client";
 
-export default function DropCard({ drop }: { drop: Drop & { beans: Bean[]; orders: DropOrder[] } }) {
+export default function DropCard({
+  drop,
+}: {
+  drop: Drop & { items: (DropItem & { bean: Bean })[]; orders: DropOrder[] };
+}) {
   const router = useRouter();
   const isClosed = !!drop.closedAt;
 
@@ -21,7 +25,7 @@ export default function DropCard({ drop }: { drop: Drop & { beans: Bean[]; order
           {isClosed ? "Closed" : "Open"}
         </span>
       </div>
-      <p className="mt-1 text-xs text-muted">{drop.beans.map((b) => b.name).join(", ")}</p>
+      <p className="mt-1 text-xs text-muted">{drop.items.map((i) => i.bean.name).join(", ")}</p>
       <p className="mt-1.5 font-mono text-xs text-muted">
         {drop.orders.length} {drop.orders.length === 1 ? "order" : "orders"}
       </p>

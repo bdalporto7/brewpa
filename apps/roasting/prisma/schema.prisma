@@ -72,10 +72,6 @@ model Bean {
   goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
 
   roastSessions  RoastSession[] @relation("BeanRoasts")
-  // Being replaced by dropItems (an explicit join carrying price/stock per
-  // listing) — kept alive alongside it until every touch point migrates,
-  // see the DropItem model's own comment.
-  drops          Drop[]
   dropItems      DropItem[]
   dropOrderItems DropOrderItem[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
@@ -397,10 +393,6 @@ model Drop {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // Being replaced by items (an explicit join carrying price/stock per
-  // listing) — kept alive alongside it until every touch point migrates,
-  // see the DropItem model's own comment.
-  beans  Bean[]
   items  DropItem[]
   orders DropOrder[]
 

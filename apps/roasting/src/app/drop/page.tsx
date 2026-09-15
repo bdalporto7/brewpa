@@ -34,7 +34,7 @@ export default async function DropPage({
             <h1 className="text-2xl font-bold">{drop.name}</h1>
             {drop.notes && <p className="mt-1 text-sm text-muted">{drop.notes}</p>}
           </div>
-          <DropOrderForm beans={drop.beans} />
+          <DropOrderForm beans={drop.items.map((i) => i.bean)} />
         </div>
       )}
     </div>

@@ -62,7 +62,7 @@ export default async function DashboardPage() {
     }),
     prisma.drop.findMany({
       where: { closedAt: null, teamId: user.teamId },
-      include: { beans: true, orders: true },
+      include: { items: { include: { bean: true } }, orders: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);

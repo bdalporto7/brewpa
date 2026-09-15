@@ -17,7 +17,7 @@ export default async function FriendsPage() {
     prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
     prisma.drop.findMany({
       where: { teamId: user.teamId },
-      include: { beans: true, orders: true },
+      include: { items: { include: { bean: true } }, orders: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);

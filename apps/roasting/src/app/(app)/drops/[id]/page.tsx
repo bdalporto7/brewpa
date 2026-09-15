@@ -15,7 +15,7 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
   const drop = await prisma.drop.findFirst({
     where: { id, teamId: user.teamId },
     include: {
-      beans: { orderBy: { name: "asc" } },
+      items: { include: { bean: true }, orderBy: { bean: { name: "asc" } } },
       orders: {
         orderBy: { createdAt: "desc" },
         include: {
@@ -34,7 +34,7 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
   // known once that query resolves.
   const eligibleRoastsByBean: Record<string, Awaited<ReturnType<typeof prisma.roastSession.findMany>>> = {};
   await Promise.all(
-    drop.beans.map(async (bean) => {
+    drop.items.map(async ({ bean }) => {
       eligibleRoastsByBean[bean.id] = await prisma.roastSession.findMany({
         where: { beanId: bean.id, endedAt: { not: null }, roastedRemainingGrams: { gt: 0 } },
         orderBy: { startedAt: "desc" },
@@ -68,7 +68,7 @@ export default async function DropPage({ params }: { params: Promise<{ id: strin
       {drop.notes && <p className="text-sm text-foreground/80">{drop.notes}</p>}
 
       <p className="text-sm text-muted">
-        Beans: {drop.beans.map((b) => b.name).join(", ")}
+        Beans: {drop.items.map((i) => i.bean.name).join(", ")}
       </p>
 
       <DropOrdersPanel dropId={drop.id} orders={drop.orders} eligibleRoastsByBean={eligibleRoastsByBean} />

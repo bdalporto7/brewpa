@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import type { Bean, Drop } from "@prisma/client";
+import type { Bean, Drop, DropItem } from "@prisma/client";
 
 export const DROP_UNLOCK_COOKIE = "drop_unlock";
 
@@ -39,7 +39,7 @@ export async function setDropUnlockCookie(dropId: string, code: string) {
  * decoded and trusted) — see signDropUnlock's comment for why that's the
  * entire revocation story.
  */
-export async function getUnlockedDrop(): Promise<(Drop & { beans: Bean[] }) | null> {
+export async function getUnlockedDrop(): Promise<(Drop & { items: (DropItem & { bean: Bean })[] }) | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(DROP_UNLOCK_COOKIE)?.value;
   if (!raw) return null;
@@ -51,7 +51,7 @@ export async function getUnlockedDrop(): Promise<(Drop & { beans: Bean[] }) | nu
 
   const drop = await prisma.drop.findUnique({
     where: { id: dropId },
-    include: { beans: { orderBy: { name: "asc" } } },
+    include: { items: { include: { bean: true }, orderBy: { bean: { name: "asc" } } } },
   });
   if (!drop || drop.closedAt) return null;
 
