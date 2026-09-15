@@ -113,6 +113,7 @@ export type MilestoneProjection = {
   milestone: NextMilestoneType;
   projectedAtSeconds: number;
   rorPerMin: number;
+  targetTempF: number;
 };
 
 // Starting estimate for how long to distrust a freshly-changed dial's RoR
@@ -125,10 +126,12 @@ const PROJECTION_MIN_ROR = 1;
 const PROJECTION_MAX_LOOKAHEAD_SECONDS = 20 * 60;
 
 /**
- * Extrapolates forward from live, directly-measured RoR to estimate when the
- * next unreached milestone (dry end / yellowing end / first crack — one hop
- * ahead only, since RoR is non-monotonic across phases and chaining further
- * projections would compound error) will hit its typical temperature.
+ * Extrapolates forward from live, directly-measured RoR to estimate when
+ * `targetTempF` will be reached — the shared math behind both
+ * `projectNextMilestone` (targeting a milestone's typical temperature) and
+ * `computeLiveForecast`'s post-1C leg (targeting an accepted plan's drop
+ * temp). Pulled out on its own so both share identical trust-gating rather
+ * than two copies of the same five constants.
  *
  * Deliberately NOT a fan/heat causal model — this unit's historical fan
  * changes are confounded with time-since-charge (fan is ramped down on a
@@ -140,6 +143,37 @@ const PROJECTION_MAX_LOOKAHEAD_SECONDS = 20 * 60;
  * prompt claims — so fitting a coefficient from it would be actively
  * misleading. Extrapolating the RoR that's actually happening right now
  * sidesteps that: it doesn't need to know *why* RoR is what it is.
+ */
+function extrapolateRor(
+  curveReadings: CurveReading[],
+  elapsedSeconds: number,
+  events: Pick<RoastEvent, "type" | "atSeconds">[],
+  targetTempF: number
+): { projectedAtSeconds: number; rorPerMin: number } | null {
+  const lastDialChangeAt = events
+    .filter((e) => e.type === "FAN" || e.type === "HEAT")
+    .reduce((max, e) => Math.max(max, e.atSeconds), -Infinity);
+  const windowStart = Math.max(elapsedSeconds - STALL_WINDOW_SECONDS, lastDialChangeAt + PROJECTION_SETTLE_SECONDS);
+  const window = curveReadings.filter((r) => r.atSeconds > windowStart && r.atSeconds <= elapsedSeconds);
+  if (window.length < STALL_MIN_READINGS) return null;
+
+  const ror = avgRoR(window);
+  const currentTemp = curveReadings.at(-1)?.temp;
+  if (ror == null || currentTemp == null) return null;
+  if (ror < PROJECTION_MIN_ROR) return null;
+  if (currentTemp >= targetTempF) return null; // logging is lagging reality — no meaningful ETA to give
+
+  const secondsToTarget = ((targetTempF - currentTemp) / ror) * 60;
+  if (secondsToTarget > PROJECTION_MAX_LOOKAHEAD_SECONDS) return null;
+
+  return { projectedAtSeconds: elapsedSeconds + secondsToTarget, rorPerMin: ror };
+}
+
+/**
+ * Estimates when the next unreached milestone (dry end / yellowing end /
+ * first crack — one hop ahead only, since RoR is non-monotonic across
+ * phases and chaining further projections would compound error) will hit
+ * its typical temperature. See `extrapolateRor` for the actual math.
  */
 export function projectNextMilestone(input: {
   events: Pick<RoastEvent, "type" | "atSeconds">[];
@@ -167,23 +201,73 @@ export function projectNextMilestone(input: {
   }
   if (targetTempF == null) return null; // cold start: no bean or global history to ground a target temp in yet
 
-  const lastDialChangeAt = events
-    .filter((e) => e.type === "FAN" || e.type === "HEAT")
-    .reduce((max, e) => Math.max(max, e.atSeconds), -Infinity);
-  const windowStart = Math.max(elapsedSeconds - STALL_WINDOW_SECONDS, lastDialChangeAt + PROJECTION_SETTLE_SECONDS);
-  const window = curveReadings.filter((r) => r.atSeconds > windowStart && r.atSeconds <= elapsedSeconds);
-  if (window.length < STALL_MIN_READINGS) return null;
+  const projection = extrapolateRor(curveReadings, elapsedSeconds, events, targetTempF);
+  if (!projection) return null;
 
-  const ror = avgRoR(window);
-  const currentTemp = curveReadings.at(-1)?.temp;
-  if (ror == null || currentTemp == null) return null;
-  if (ror < PROJECTION_MIN_ROR) return null;
-  if (currentTemp >= targetTempF) return null; // logging is lagging reality — no meaningful ETA to give
+  return { milestone, ...projection, targetTempF };
+}
 
-  const secondsToMilestone = ((targetTempF - currentTemp) / ror) * 60;
-  if (secondsToMilestone > PROJECTION_MAX_LOOKAHEAD_SECONDS) return null;
+export type LiveForecast = {
+  type: "DRY_END" | "YELLOWING_END" | "FIRST_CRACK_START" | "DROP";
+  fromAtSeconds: number;
+  fromTempF: number;
+  toAtSeconds: number;
+  toTempF: number;
+};
 
-  return { milestone, projectedAtSeconds: elapsedSeconds + secondsToMilestone, rorPerMin: ror };
+/**
+ * The chart-line counterpart to `projectNextMilestone`/`detectStall`'s text
+ * tips — same underlying math, reshaped into a from/to line segment for
+ * `curve.ts`'s `buildRoastCurveSvg` to draw as a ghosted forecast ray off
+ * the end of the real temp curve. Past first crack, `projectNextMilestone`
+ * itself always returns null by design (development/drop aren't RoR-
+ * projected against a milestone temp) — this instead extrapolates toward
+ * `dropTempF` when the caller has one (an accepted AI plan's target,
+ * SR800-only today), and simply renders no forecast otherwise rather than
+ * inventing a new historical drop-temp baseline.
+ */
+export function computeLiveForecast(input: {
+  events: Pick<RoastEvent, "type" | "atSeconds">[];
+  curveReadings: CurveReading[];
+  elapsedSeconds: number;
+  milestoneTempBaseline: MilestoneTempBaseline;
+  hasYellowingTarget: boolean;
+  dropTempF?: number;
+}): LiveForecast | null {
+  const { events, curveReadings, elapsedSeconds, milestoneTempBaseline, hasYellowingTarget, dropTempF } = input;
+  const from = curveReadings.at(-1);
+  if (!from) return null;
+
+  const nextMilestone = projectNextMilestone({
+    events,
+    curveReadings,
+    elapsedSeconds,
+    milestoneTempBaseline,
+    hasYellowingTarget,
+  });
+  if (nextMilestone) {
+    return {
+      type: nextMilestone.milestone,
+      fromAtSeconds: from.atSeconds,
+      fromTempF: from.temp,
+      toAtSeconds: nextMilestone.projectedAtSeconds,
+      toTempF: nextMilestone.targetTempF,
+    };
+  }
+
+  const hasFirstCrack = events.some((e) => e.type === "FIRST_CRACK_START");
+  if (!hasFirstCrack || dropTempF == null) return null;
+
+  const projection = extrapolateRor(curveReadings, elapsedSeconds, events, dropTempF);
+  if (!projection) return null;
+
+  return {
+    type: "DROP",
+    fromAtSeconds: from.atSeconds,
+    fromTempF: from.temp,
+    toAtSeconds: projection.projectedAtSeconds,
+    toTempF: dropTempF,
+  };
 }
 
 /**
