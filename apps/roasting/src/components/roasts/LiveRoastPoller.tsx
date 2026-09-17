@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const POLL_MS = 2000;
+const POLL_MS = 7000;
 
 /**
- * Refreshes the page's server data every 2s while a roast is live. Without
+ * Refreshes the page's server data every 7s while a roast is live. Without
  * this, the chart (and anything else built from `session.events`/
  * `session.temperatureReadings`) only updates when a Server Action runs —
  * i.e. only when the roaster happens to log an event — even though the
@@ -16,16 +16,21 @@ const POLL_MS = 2000;
  * Renders nothing — a router.refresh() re-runs the page's server
  * component with fresh data without losing client-side UI state.
  *
- * 2s (down from an original 7s) so the curve — including the live RoR
- * forecast, which has to stay anchored to the same server-fetched
- * temperature readings the drawn curve itself uses — visibly updates
- * close to as fast as the probe can actually deliver new points (1s by
- * default; see probe_bridge.py's PROBE_POST_INTERVAL). Deliberately still
- * a server round-trip rather than a client-side poll of just the readings
- * feed (the way useProbeReadings does for LiveTipsPanel): splitting the
- * chart's curve onto a faster, independent client feed while the forecast
- * stays computed server-side from a slower one would let the curve visibly
- * outrun the point the forecast ray starts from.
+ * Real incident, 2026-09-17: this was briefly dropped to 2s so the curve
+ * felt more real-time, but this page's own render does an expensive query
+ * on every hit (up to 50 past completed roasts' full events +
+ * temperature history, for the forecast baseline — see the isLive branch
+ * above) — at 2s, combined with probe readings now landing every 1s
+ * (~5x denser per roast than before) and more than one browser tab open
+ * on the app at once, that was enough concurrent load to exhaust Turso's
+ * connection/transaction pool mid-roast: unrelated requests (a live
+ * fan/heat adjustment) started failing with Prisma P2028 ("unable to
+ * start a transaction in the given time"), rendering the live controls
+ * unusable. Reverted back to 7s as an immediate mitigation. If the
+ * real-time feel is worth pursuing again, that baseline query needs to
+ * get cheaper/less frequent first (cache it, or stop recomputing it on
+ * every single poll) — not just polling faster and hoping the database
+ * keeps up.
  */
 export default function LiveRoastPoller() {
   const router = useRouter();
