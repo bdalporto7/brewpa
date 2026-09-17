@@ -5,6 +5,7 @@ import { LineChart, ChevronDown } from "lucide-react";
 import {
   buildRoastCurveSvg,
   getCurveReadings,
+  getEnvTempPoints,
   getChartLayout,
   nearestCurveReading,
   CHART_WIDTH,
@@ -23,6 +24,7 @@ export default function RoastCurveChart({
   totalSeconds,
   controls,
   probeReadings = [],
+  envProbeReadings = [],
   targets,
   forecast,
   title,
@@ -33,6 +35,11 @@ export default function RoastCurveChart({
   totalSeconds: number;
   controls: RoasterControl[];
   probeReadings?: TemperatureReading[];
+  /** Exhaust/environment probe readings (Artisan's "ET") — drawn as a
+   * second, thinner line on the same temp axis when there are at least
+   * two. Only ever populated today by an Artisan import; empty for a
+   * hand-logged or single-probe live roast. */
+  envProbeReadings?: TemperatureReading[];
   /** Accepted AI-plan targets (AiSuggestionPanel) — rendered as ghosted
    * dashed reference lines alongside the actual curve. Only meaningful for
    * the live view; a completed roast doesn't pass this. */
@@ -64,13 +71,28 @@ export default function RoastCurveChart({
     // callers already use to mean "this is the completed-roast view," not
     // the live one — see this component's `title` doc comment above.
     () =>
-      buildRoastCurveSvg(events, totalSeconds, controls, { showRor, probeReadings, targets, forecast, animateIn: !!title }),
-    [events, totalSeconds, controls, showRor, probeReadings, targets, forecast, title]
+      buildRoastCurveSvg(events, totalSeconds, controls, {
+        showRor,
+        probeReadings,
+        envProbeReadings,
+        targets,
+        forecast,
+        animateIn: !!title,
+      }),
+    [events, totalSeconds, controls, showRor, probeReadings, envProbeReadings, targets, forecast, title]
   );
   const readings = useMemo(() => getCurveReadings(events, probeReadings, controls), [events, probeReadings, controls]);
+  const envTempPoints = useMemo(() => getEnvTempPoints(envProbeReadings), [envProbeReadings]);
   const layout = useMemo(
-    () => (readings.length > 0 ? getChartLayout(readings, totalSeconds) : null),
-    [readings, totalSeconds]
+    () =>
+      readings.length > 0
+        ? getChartLayout(
+            readings,
+            totalSeconds,
+            envTempPoints.map((p) => p.temp)
+          )
+        : null,
+    [readings, totalSeconds, envTempPoints]
   );
 
   const rorToggle = (

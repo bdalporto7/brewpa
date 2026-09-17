@@ -67,7 +67,7 @@ export default async function RoastSessionPage({
   const user = await getCurrentAllowedUser();
   if (!user) notFound();
 
-  const [session, friends, profiles] = await Promise.all([
+  const [session, friends, profiles, envTemperatureReadings] = await Promise.all([
     prisma.roastSession.findFirst({
       where: { id, teamId: user.teamId },
       include: {
@@ -94,6 +94,15 @@ export default async function RoastSessionPage({
       where: { teamId: user.teamId },
       orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
       select: { id: true, name: true, process: true, brewTarget: true },
+    }),
+    // Exhaust/environment probe temp (Artisan's "ET") — kept out of the
+    // main session query's own temperatureReadings (bean-only, used
+    // throughout for RoR/milestone/forecast math) since it's chart display
+    // context only, never a calculation input. Only an Artisan import ever
+    // populates this today; empty array for every other roast.
+    prisma.temperatureReading.findMany({
+      where: { roastSessionId: id, probeType: "environment", roastSession: { teamId: user.teamId } },
+      orderBy: { atSeconds: "asc" },
     }),
   ]);
 
@@ -470,6 +479,7 @@ export default async function RoastSessionPage({
                 totalSeconds={liveElapsedSeconds}
                 controls={controls}
                 probeReadings={session.temperatureReadings}
+                envProbeReadings={envTemperatureReadings}
                 targets={projectedTargets}
                 forecast={liveForecast ?? undefined}
               />
@@ -584,6 +594,7 @@ export default async function RoastSessionPage({
             totalSeconds={durationSeconds ?? 0}
             controls={controls}
             probeReadings={session.temperatureReadings}
+            envProbeReadings={envTemperatureReadings}
             title="Roast curve"
           />
           <PhaseBar phases={phases} />

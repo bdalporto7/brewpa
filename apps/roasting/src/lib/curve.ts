@@ -170,6 +170,25 @@ export function getCurveReadings(
 }
 
 /**
+ * Exhaust/environment-probe temp (Artisan's "ET", `probeType: "environment"`)
+ * as its own plain series — never merged into CurveReading/getCurveReadings
+ * above, since that function's whole job (RoR, control levels, milestone
+ * projection) is specifically about the *bean* temp; ET is supplementary
+ * chart context only, drawn as a second line sharing the same temp axis.
+ * No RoR or control-level pairing needed for it. Hand-logged/live roasts
+ * without a second probe simply have none of these — buildRoastCurveSvg
+ * only draws the line when there are at least two.
+ */
+export function getEnvTempPoints(
+  probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = []
+): { atSeconds: number; temp: number }[] {
+  return probeReadings
+    .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null)
+    .map((r) => ({ atSeconds: r.atSeconds, temp: r.tempFahrenheit }))
+    .sort((a, b) => a.atSeconds - b.atSeconds);
+}
+
+/**
  * The nearest real reading to a given elapsed time — shared by the hover
  * tooltip (RoastCurveChart.tsx) and the live golden-roast comparison
  * (tips.ts), so both "closest logged point to right now" lookups use the
@@ -226,7 +245,15 @@ function rorPercentileRange(values: number[]): [number, number] {
  * the live chart's hover overlay (RoastCurveChart.tsx) can compute the same
  * coordinates without duplicating — and risking drift from — this logic.
  */
-export function getChartLayout(readings: CurveReading[], totalSeconds: number): ChartLayout {
+export function getChartLayout(
+  readings: CurveReading[],
+  totalSeconds: number,
+  /** Extra temps (e.g. getEnvTempPoints' ET series) that should count
+   * toward the axis's min/max range without being part of the bean-temp
+   * `readings` array itself — so an exhaust line running hotter than bean
+   * temp doesn't get its top clipped off. */
+  extraTemps: number[] = []
+): ChartLayout {
   const duration = readings.length === 0 ? Math.max(totalSeconds, 1) : Math.max(totalSeconds, readings[readings.length - 1].atSeconds, 1);
 
   // Padding before rounding out to a clean 25° grid line only guarantees
@@ -236,8 +263,9 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
   // visible gap above/below the plotted line in every case, not just the
   // lucky-rounding ones.
   const TEMP_PADDING = 25;
-  const rawMin = Math.min(...readings.map((p) => p.temp));
-  const rawMax = Math.max(...readings.map((p) => p.temp));
+  const allTemps = [...readings.map((p) => p.temp), ...extraTemps];
+  const rawMin = Math.min(...allTemps);
+  const rawMax = Math.max(...allTemps);
   const minTemp = Math.floor((rawMin - TEMP_PADDING) / 25) * 25;
   const maxTemp = Math.ceil((rawMax + TEMP_PADDING) / 25) * 25;
 
@@ -352,6 +380,11 @@ export function buildRoastCurveSvg(
   options: {
     showRor?: boolean;
     probeReadings?: TemperatureReading[];
+    /** Exhaust/environment-probe temp (Artisan's "ET") — a second, thinner
+     * line on the same temp axis, drawn only when there are at least two
+     * readings. See getEnvTempPoints's own comment for why this never
+     * merges into the main bean-temp series. */
+    envProbeReadings?: TemperatureReading[];
     targets?: RoastCurveTargets;
     forecast?: RoastCurveForecast;
     /** Draws the temp line in on mount instead of appearing complete —
@@ -365,6 +398,7 @@ export function buildRoastCurveSvg(
 ): string | null {
   const readings = getCurveReadings(events, options.probeReadings, controls);
   if (readings.length < 2) return null;
+  const envTempPoints = getEnvTempPoints(options.envProbeReadings);
 
   // Extend the axis to cover the furthest target/forecast time too —
   // otherwise a live chart's x-axis only spans elapsed-time-so-far, and
@@ -384,7 +418,11 @@ export function buildRoastCurveSvg(
       : 0,
     options.forecast?.toAtSeconds ?? 0
   );
-  const layout = getChartLayout(readings, Math.max(totalSeconds, latestTarget));
+  const layout = getChartLayout(
+    readings,
+    Math.max(totalSeconds, latestTarget),
+    envTempPoints.map((p) => p.temp)
+  );
   const {
     chartLeft,
     chartRight,
@@ -403,6 +441,8 @@ export function buildRoastCurveSvg(
   } = layout;
 
   const tempLine = readings.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
+  const envTempLine =
+    envTempPoints.length >= 2 ? envTempPoints.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ") : null;
 
   const tempTicks = [minTemp, (minTemp + maxTemp) / 2, maxTemp];
   const timeTickCount = duration > 600 ? 6 : 4;
@@ -506,6 +546,22 @@ export function buildRoastCurveSvg(
       `<line x1="${x(f.fromAtSeconds)}" x2="${x(f.toAtSeconds)}" y1="${yTemp(f.fromTempF)}" y2="${yTemp(f.toTempF)}" style="stroke:${color}" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`,
       `<line x1="${x(f.toAtSeconds)}" x2="${x(f.toAtSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${color}" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55" />`,
       `<text x="${x(f.toAtSeconds)}" y="${tempChartTop - 16}" text-anchor="middle" style="fill:${color}" class="marker-label" opacity="0.7">${label}~</text>`
+    );
+  }
+
+  // Exhaust/environment probe temp (Artisan's "ET") — drawn first, so the
+  // primary bean-temp line above stays visually dominant on top of it.
+  // Thinner, muted, and un-sketchy (a real recorded line, not the
+  // hand-drawn-style focal one) — a supplementary reference, not the metric
+  // roasting decisions actually get made from.
+  if (envTempLine) {
+    parts.push(
+      `<polyline points="${envTempLine}" fill="none" style="stroke:var(--mark-dry-end)" stroke-width="1.5" stroke-linejoin="round" opacity="0.75" />`,
+      // Top-right (mirroring the AI-plan-target legend's top-left spot at
+      // the same y) — a mystery second line with no label would otherwise
+      // just read as noise.
+      `<line x1="${chartRight - 28}" x2="${chartRight - 16}" y1="${tempChartTop - 16}" y2="${tempChartTop - 16}" style="stroke:var(--mark-dry-end)" stroke-width="1.5" opacity="0.75" />`,
+      `<text x="${chartRight - 12}" y="${tempChartTop - 16}" text-anchor="end" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">= exhaust temp</text>`
     );
   }
 
