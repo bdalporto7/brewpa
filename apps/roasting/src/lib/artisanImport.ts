@@ -223,6 +223,25 @@ function matchControlLabel(label: string, controlsByLabel: Map<string, RoasterCo
   return undefined;
 }
 
+/**
+ * `specialeventsvalue` is Artisan's own internal float, not the dial/lever
+ * value it actually displays — confirmed straight from Artisan's own
+ * `events_internal_to_external_value()` (artisan-roaster-scope/artisan,
+ * src/artisanlib/util.py, ~line 1000): anything in [-1, 1] means "no
+ * value" (0), otherwise it's the real value scaled by 10 with a ±10
+ * offset. Reproduced exactly, not approximated — verified against 13 of
+ * 15 real sample files' own specialeventsStrings (Artisan's separately-
+ * recorded display string for the same event) matching this conversion
+ * exactly; the two that didn't fully match still matched on most of their
+ * own events, the remainder reading like real-world human-logged
+ * inconsistency in Artisan itself rather than a different scale.
+ */
+function convertArtisanEventValue(v: number): number {
+  if (v >= -1 && v <= 1) return 0;
+  if (v < -1) return -(Math.round(Math.abs(v) * 10) - 10);
+  return Math.round(v * 10) - 10;
+}
+
 export function buildArtisanImportResult(profile: ArtisanProfile, controls: RoasterControl[]): ArtisanImportResult {
   const chargeIdx = profile.timeindex[0];
   if (chargeIdx == null || chargeIdx < 0 || chargeIdx >= profile.timex.length) {
@@ -259,9 +278,22 @@ export function buildArtisanImportResult(profile: ArtisanProfile, controls: Roas
   const controlsByLabel = new Map(controls.map((c) => [c.label.toLowerCase(), c]));
   for (let i = 0; i < profile.specialevents.length; i++) {
     const timexIndex = profile.specialevents[i];
-    const label = profile.etypes[profile.specialeventstype[i]] ?? "";
-    const value = profile.specialeventsvalue[i];
     const atSeconds = relSeconds(timexIndex);
+    const eventTypeIdx = profile.specialeventstype[i];
+
+    // Artisan's own convention (artisanlib/util.py): specialeventstype
+    // index 4 is a pure text annotation with no device or numeric value —
+    // the real content is specialeventsStrings[i], not
+    // specialeventsvalue[i]. Every other index (0-3) is one of the four
+    // device/slider channels etypes[0..3] names.
+    if (eventTypeIdx === 4) {
+      const note = profile.specialeventsStrings[i];
+      if (note) events.push({ type: "NOTE", atSeconds, note: `${note} (imported from Artisan)` });
+      continue;
+    }
+
+    const label = profile.etypes[eventTypeIdx] ?? "";
+    const value = convertArtisanEventValue(profile.specialeventsvalue[i]);
     const control = matchControlLabel(label, controlsByLabel);
     if (control) {
       events.push({ type: control.key, atSeconds, controlValue: value });
