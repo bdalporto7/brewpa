@@ -7,6 +7,7 @@ import { useProbeReadings } from "@/lib/useProbeReadings";
 import { computeRoastPhases } from "@/lib/phases";
 import { getCurveReadings, type PlanTargets } from "@/lib/curve";
 import { generateLiveTips, type HistoricalBaseline, type MilestoneTempBaseline, type ReferenceRoast } from "@/lib/tips";
+import type { RoasterControl } from "@/lib/roasters";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import Card from "@/components/ui/Card";
 import Eyebrow from "@/components/ui/Eyebrow";
@@ -21,6 +22,7 @@ export default function LiveTipsPanel({
   planDivergedAtSeconds,
   milestoneTempBaseline,
   originalPlanTargets,
+  controls,
 }: {
   roastSessionId: string;
   startedAt: string;
@@ -30,6 +32,10 @@ export default function LiveTipsPanel({
   planDivergedAtSeconds?: number;
   milestoneTempBaseline?: MilestoneTempBaseline | null;
   originalPlanTargets?: PlanTargets;
+  /** Which of this session's own dial controls count as "just changed, RoR
+   * not trustworthy yet" for projectNextMilestone's forecast text — not
+   * used for curveReadings itself, see that useMemo's own comment. */
+  controls?: Pick<RoasterControl, "key">[];
 }) {
   // Collapsed by default, like every other secondary panel on the live
   // page — but internally, not via an external SectionCard wrapper: this
@@ -57,6 +63,7 @@ export default function LiveTipsPanel({
     planDivergedAtSeconds,
     milestoneTempBaseline,
     originalPlanTargets,
+    controls,
   });
 
   return (

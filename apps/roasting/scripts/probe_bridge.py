@@ -34,9 +34,11 @@ Config (env vars, all optional except PROBE_INGEST_TOKEN):
                          /admin (each team has its own; this is not a
                          flat app-wide secret, so don't reuse one team's
                          token for another team's roast)
-    PROBE_POST_INTERVAL default 5 (seconds between forwarded readings —
-                         the meter streams much faster than this app's
-                         chart needs, so most frames are just discarded)
+    PROBE_POST_INTERVAL default 1 (seconds between forwarded readings —
+                         the meter free-runs at ~2Hz, so 1s is close to the
+                         fastest this protocol can actually deliver; set
+                         higher to thin the data out if the chart ever gets
+                         too dense to read)
 """
 
 import os
@@ -48,7 +50,7 @@ import requests
 SERIAL_PORT = os.environ.get("PROBE_SERIAL_PORT", "/dev/cu.usbserial-0001")
 API_BASE = os.environ.get("PROBE_API_BASE", "https://roasting-three.vercel.app")
 TOKEN = os.environ.get("PROBE_INGEST_TOKEN")
-POST_INTERVAL = float(os.environ.get("PROBE_POST_INTERVAL", "5"))
+POST_INTERVAL = float(os.environ.get("PROBE_POST_INTERVAL", "1"))
 BAUD = 9600
 FRAME_LEN = 18
 

@@ -6,10 +6,10 @@ import type { RoastEvent, TemperatureReading } from "@prisma/client";
 export const CHART_WIDTH = 760;
 // The temp/RoR plotting area's own height — named apart from the exported
 // CHART_HEIGHT below now that CHART_HEIGHT also has to fit the
-// control-change strip beneath the axis row. This number is unchanged from
-// the chart's original (pre-strip) proportions — adding the strip is
-// additive room, not a compression of the existing curve area.
-const TEMP_CHART_HEIGHT = 326;
+// control-change strip beneath the axis row. Bumped from the original 326
+// so the live chart — the whole point of the page during a roast — reads
+// as bigger/easier to track at a glance, not just wider.
+const TEMP_CHART_HEIGHT = 400;
 export const CHART_MARGIN_LEFT = 44;
 // Wide enough for the rate-of-rise axis's tick labels, kept constant whether
 // or not RoR is currently toggled on so showing/hiding it never reflows the
@@ -229,10 +229,17 @@ function rorPercentileRange(values: number[]): [number, number] {
 export function getChartLayout(readings: CurveReading[], totalSeconds: number): ChartLayout {
   const duration = readings.length === 0 ? Math.max(totalSeconds, 1) : Math.max(totalSeconds, readings[readings.length - 1].atSeconds, 1);
 
+  // Padding before rounding out to a clean 25° grid line only guarantees
+  // *at least* this much buffer — how much more depends on where the raw
+  // value happens to fall relative to that grid, which could round to as
+  // little as the padding itself. Bumped from 15 to keep a real, always-
+  // visible gap above/below the plotted line in every case, not just the
+  // lucky-rounding ones.
+  const TEMP_PADDING = 25;
   const rawMin = Math.min(...readings.map((p) => p.temp));
   const rawMax = Math.max(...readings.map((p) => p.temp));
-  const minTemp = Math.floor((rawMin - 15) / 25) * 25;
-  const maxTemp = Math.ceil((rawMax + 15) / 25) * 25;
+  const minTemp = Math.floor((rawMin - TEMP_PADDING) / 25) * 25;
+  const maxTemp = Math.ceil((rawMax + TEMP_PADDING) / 25) * 25;
 
   // Percentile, not true min/max: two readings logged close together (most
   // often the first couple, before intervals settle into a rhythm) can spike
@@ -242,10 +249,12 @@ export function getChartLayout(readings: CurveReading[], totalSeconds: number): 
   // The point itself still plots (and clips at the frame if it's still off
   // this trimmed range); it just doesn't get to set the scale everyone else
   // has to live in.
+  // Same guaranteed-minimum-buffer reasoning as TEMP_PADDING above.
+  const ROR_PADDING = 10;
   const rorValues = readings.map((p) => p.rorPerMin).filter((v): v is number => v != null);
   const [rawMinRor, rawMaxRor] = rorPercentileRange(rorValues);
-  const minRor = Math.floor((rawMinRor - 5) / 10) * 10;
-  const maxRor = Math.ceil((rawMaxRor + 5) / 10) * 10;
+  const minRor = Math.floor((rawMinRor - ROR_PADDING) / 10) * 10;
+  const maxRor = Math.ceil((rawMaxRor + ROR_PADDING) / 10) * 10;
 
   const chartLeft = CHART_MARGIN_LEFT;
   const chartRight = CHART_WIDTH - MARGIN_RIGHT;
@@ -718,8 +727,9 @@ export function buildLiveComparisonSvg(
   const allTemps = [...readingsA, ...readingsB].map((p) => p.temp);
   const rawMin = Math.min(...allTemps);
   const rawMax = Math.max(...allTemps);
-  const minTemp = Math.floor((rawMin - 15) / 25) * 25;
-  const maxTemp = Math.ceil((rawMax + 15) / 25) * 25;
+  // Same guaranteed-minimum-buffer padding as getChartLayout's TEMP_PADDING.
+  const minTemp = Math.floor((rawMin - 25) / 25) * 25;
+  const maxTemp = Math.ceil((rawMax + 25) / 25) * 25;
 
   const chartLeft = CHART_MARGIN_LEFT;
   const chartRight = CHART_WIDTH - MARGIN_RIGHT;
@@ -805,8 +815,9 @@ export function buildLiveComparisonSvg(
   if (showRor) {
     const rorValues = readingsA.map((p) => p.rorPerMin).filter((v): v is number => v != null);
     const [rawMinRor, rawMaxRor] = rorPercentileRange(rorValues);
-    const minRor = Math.floor((rawMinRor - 5) / 10) * 10;
-    const maxRor = Math.ceil((rawMaxRor + 5) / 10) * 10;
+    // Same guaranteed-minimum-buffer padding as getChartLayout's ROR_PADDING.
+    const minRor = Math.floor((rawMinRor - 10) / 10) * 10;
+    const maxRor = Math.ceil((rawMaxRor + 10) / 10) * 10;
     const yRor = (rorPerMin: number) =>
       clampToTempChart(tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * LIVE_CMP_TEMP_HEIGHT);
     // --foreground, not --ror — the comparison roast's temp line already

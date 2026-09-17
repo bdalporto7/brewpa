@@ -10,14 +10,15 @@ export interface ProbeReading {
   probeType: string;
 }
 
-const POLL_MS = 5000;
+const POLL_MS = 2000;
 
 /**
- * Polls /api/roasts/[id]/temperature every 5s while a roast is pending or
- * live. Shared by LiveProbePanel (latest reading + connection status) and
- * LiveTipsPanel (needs the whole series to compute RoR) — both want the
- * same feed, so one poll rather than two independent ones hitting the same
- * endpoint from the same page.
+ * Polls /api/roasts/[id]/temperature every 2s (down from 5s, matching
+ * LiveRoastPoller's own interval — see that component's comment) while a
+ * roast is pending or live. Shared by LiveProbePanel (latest reading +
+ * connection status) and LiveTipsPanel (needs the whole series to compute
+ * RoR) — both want the same feed, so one poll rather than two independent
+ * ones hitting the same endpoint from the same page.
  */
 export function useProbeReadings(roastSessionId: string): ProbeReading[] | null {
   const [readings, setReadings] = useState<ProbeReading[] | null>(null);

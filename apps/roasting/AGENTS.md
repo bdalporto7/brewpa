@@ -86,7 +86,8 @@ Reads a **Mastech MS6514** dual-channel thermocouple meter over its USB
 serial cable (a Silicon Labs CP2102 USB-to-UART bridge; the meter enumerates
 as a plain serial port, e.g. `/dev/cu.usbserial-0001` on macOS — no
 driver install needed, macOS already has the CP210x driver in-box) and
-posts the connected channel's reading to the ingest endpoint every 5s.
+posts the connected channel's reading to the ingest endpoint every second
+by default (`PROBE_POST_INTERVAL`).
 
 *Protocol*, reverse-engineered by sniffing the raw byte stream (no public
 datasheet from Mastech) and cross-checked against Artisan's open-source

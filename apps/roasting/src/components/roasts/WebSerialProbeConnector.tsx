@@ -6,10 +6,10 @@ import { extractFrames } from "@/lib/mastechFrameParser";
 import { logProbeReading } from "@/lib/probe-actions";
 import { useToast } from "@/components/ui/ToastProvider";
 
-// Matches the local bridge script's own default — the meter free-runs
-// much faster than the chart needs, so most frames are just discarded
-// between posts (see scripts/probe_bridge.py's PROBE_POST_INTERVAL).
-const POST_INTERVAL_MS = 5000;
+// Matches the local bridge script's own default — the meter free-runs at
+// ~2Hz, so this is close to the fastest the protocol can actually deliver
+// (see scripts/probe_bridge.py's PROBE_POST_INTERVAL).
+const POST_INTERVAL_MS = 1000;
 const BAUD_RATE = 9600;
 
 type Status = "idle" | "connecting" | "connected";

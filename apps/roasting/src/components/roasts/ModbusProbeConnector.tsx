@@ -7,7 +7,7 @@ import { buildReadInputRegistersRequest, parseModbusResponse, decodeFloat32BE, d
 import { logProbeReading } from "@/lib/probe-actions";
 import { useToast } from "@/components/ui/ToastProvider";
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 1000;
 const REQUEST_TIMEOUT_MS = 1000;
 const PRESET_STORAGE_KEY = "sfProbePresetId";
 

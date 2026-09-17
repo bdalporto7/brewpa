@@ -236,6 +236,7 @@ export default async function RoastSessionPage({
           elapsedSeconds: liveElapsedSeconds,
           milestoneTempBaseline,
           hasYellowingTarget,
+          controls,
         })
       : null;
     if (projection && projectedTargets) {
@@ -265,6 +266,7 @@ export default async function RoastSessionPage({
       milestoneTempBaseline,
       hasYellowingTarget,
       dropTempF: acceptedPlanTargets?.dropTempF,
+      controls,
     });
   }
 
@@ -440,12 +442,12 @@ export default async function RoastSessionPage({
               point of this page while live, so it gets more room than the
               rest of the app's shared content width on anything wider than
               a phone (where max-w-4xl never bound in the first place).
-              w-screen + max-w-6xl means it's never wider than the actual
+              w-screen + max-w-7xl means it's never wider than the actual
               viewport even between those two breakpoints; left-1/2 +
               -translate-x-1/2 recenters it regardless of viewport size.
               Scoped to just the chart, not LiveRoastBars or the panels
               below — those stay aligned with the rest of the app. */}
-          <div className="relative left-1/2 w-screen max-w-6xl -translate-x-1/2 px-4 sm:px-6">
+          <div className="relative left-1/2 w-screen max-w-7xl -translate-x-1/2 px-4 sm:px-6">
             {session.compareTo && getCurveReadings(session.compareTo.events, [], controls).length >= 2 ? (
               <LiveComparisonChart
                 currentEvents={session.events}
@@ -483,6 +485,7 @@ export default async function RoastSessionPage({
               planDivergedAtSeconds={planDivergedAtSeconds}
               milestoneTempBaseline={milestoneTempBaseline}
               originalPlanTargets={acceptedPlan?.targets}
+              controls={controls}
             />
           )}
           <SectionCard icon={<NotebookPen className="h-3.5 w-3.5" />} label="Note" collapsible defaultCollapsed>

@@ -1,6 +1,7 @@
 import { formatMMSS } from "@/lib/format";
 import { getCurveReadings, nearestCurveReading, type CurveReading, type PlanTargets } from "@/lib/curve";
 import { EVENT_LABELS } from "@/lib/constants";
+import type { RoasterControl } from "@/lib/roasters";
 import type { RoastEvent, RoastSession, TemperatureReading } from "@prisma/client";
 
 /**
@@ -51,6 +52,7 @@ export type MilestoneTempBaseline = {
   dryEndTempF: number | null;
   yellowingEndTempF: number | null;
   firstCrackTempF: number | null;
+  dropTempF: number | null;
 };
 
 export function computeMilestoneTempBaseline(
@@ -64,6 +66,7 @@ export function computeMilestoneTempBaseline(
   const dryEndTemps: number[] = [];
   const yellowingEndTemps: number[] = [];
   const firstCrackTemps: number[] = [];
+  const dropTemps: number[] = [];
 
   for (const session of sessions) {
     // Only temp/milestone timing is used below — controls are irrelevant here.
@@ -77,12 +80,14 @@ export function computeMilestoneTempBaseline(
     collect("DRY_END", dryEndTemps);
     collect("YELLOWING_END", yellowingEndTemps);
     collect("FIRST_CRACK_START", firstCrackTemps);
+    collect("DROP", dropTemps);
   }
 
   return {
     dryEndTempF: avg(dryEndTemps),
     yellowingEndTempF: avg(yellowingEndTemps),
     firstCrackTempF: avg(firstCrackTemps),
+    dropTempF: avg(dropTemps),
   };
 }
 
@@ -148,10 +153,21 @@ function extrapolateRor(
   curveReadings: CurveReading[],
   elapsedSeconds: number,
   events: Pick<RoastEvent, "type" | "atSeconds">[],
-  targetTempF: number
+  targetTempF: number,
+  controls: Pick<RoasterControl, "key">[]
 ): { projectedAtSeconds: number; rorPerMin: number } | null {
+  // Any of *this* roaster's own dial controls counts as "just changed,
+  // don't trust RoR yet" — not a hardcoded FAN/HEAT pair. That was silently
+  // wrong for every non-SR800 roaster (e.g. an SF-6's GAS/DAMPER controls
+  // never triggered it at all — no gating, arguably harmless — while a
+  // hardcoded pair on a roaster with *different* control keys would gate on
+  // nothing and never re-arm, the opposite failure). Real, confirmed bug: an
+  // SR800 roaster adjusting FAN/HEAT more often than roughly once a minute
+  // could suppress the forecast continuously, since each new change resets
+  // the settle window before the previous one clears.
+  const dialControlKeys = new Set<string>(controls.map((c) => c.key));
   const lastDialChangeAt = events
-    .filter((e) => e.type === "FAN" || e.type === "HEAT")
+    .filter((e) => dialControlKeys.has(e.type))
     .reduce((max, e) => Math.max(max, e.atSeconds), -Infinity);
   const windowStart = Math.max(elapsedSeconds - STALL_WINDOW_SECONDS, lastDialChangeAt + PROJECTION_SETTLE_SECONDS);
   const window = curveReadings.filter((r) => r.atSeconds > windowStart && r.atSeconds <= elapsedSeconds);
@@ -181,8 +197,9 @@ export function projectNextMilestone(input: {
   elapsedSeconds: number;
   milestoneTempBaseline: MilestoneTempBaseline;
   hasYellowingTarget: boolean;
+  controls?: Pick<RoasterControl, "key">[];
 }): MilestoneProjection | null {
-  const { events, curveReadings, elapsedSeconds, milestoneTempBaseline, hasYellowingTarget } = input;
+  const { events, curveReadings, elapsedSeconds, milestoneTempBaseline, hasYellowingTarget, controls = [] } = input;
 
   const hasType = (t: NextMilestoneType) => events.some((e) => e.type === t);
   let milestone: NextMilestoneType;
@@ -201,7 +218,7 @@ export function projectNextMilestone(input: {
   }
   if (targetTempF == null) return null; // cold start: no bean or global history to ground a target temp in yet
 
-  const projection = extrapolateRor(curveReadings, elapsedSeconds, events, targetTempF);
+  const projection = extrapolateRor(curveReadings, elapsedSeconds, events, targetTempF, controls);
   if (!projection) return null;
 
   return { milestone, ...projection, targetTempF };
@@ -222,9 +239,13 @@ export type LiveForecast = {
  * the end of the real temp curve. Past first crack, `projectNextMilestone`
  * itself always returns null by design (development/drop aren't RoR-
  * projected against a milestone temp) — this instead extrapolates toward
- * `dropTempF` when the caller has one (an accepted AI plan's target,
- * SR800-only today), and simply renders no forecast otherwise rather than
- * inventing a new historical drop-temp baseline.
+ * a drop temp: an accepted AI plan's target when there is one, otherwise
+ * `milestoneTempBaseline.dropTempF` (this roaster's own historical average
+ * drop temp — same baseline-averaging pattern as dry-end/first-crack, just
+ * for DROP). Without accepting an AI plan for every roast, that fallback is
+ * the difference between a forecast that only ever appears pre-1C and one
+ * that covers the whole roast — most of a roast's most consequential
+ * stretch (development) was otherwise never getting a forecast line at all.
  */
 export function computeLiveForecast(input: {
   events: Pick<RoastEvent, "type" | "atSeconds">[];
@@ -233,8 +254,10 @@ export function computeLiveForecast(input: {
   milestoneTempBaseline: MilestoneTempBaseline;
   hasYellowingTarget: boolean;
   dropTempF?: number;
+  controls?: Pick<RoasterControl, "key">[];
 }): LiveForecast | null {
-  const { events, curveReadings, elapsedSeconds, milestoneTempBaseline, hasYellowingTarget, dropTempF } = input;
+  const { events, curveReadings, elapsedSeconds, milestoneTempBaseline, hasYellowingTarget, dropTempF, controls = [] } =
+    input;
   const from = curveReadings.at(-1);
   if (!from) return null;
 
@@ -244,6 +267,7 @@ export function computeLiveForecast(input: {
     elapsedSeconds,
     milestoneTempBaseline,
     hasYellowingTarget,
+    controls,
   });
   if (nextMilestone) {
     return {
@@ -256,9 +280,10 @@ export function computeLiveForecast(input: {
   }
 
   const hasFirstCrack = events.some((e) => e.type === "FIRST_CRACK_START");
-  if (!hasFirstCrack || dropTempF == null) return null;
+  const targetDropTempF = dropTempF ?? milestoneTempBaseline.dropTempF ?? undefined;
+  if (!hasFirstCrack || targetDropTempF == null) return null;
 
-  const projection = extrapolateRor(curveReadings, elapsedSeconds, events, dropTempF);
+  const projection = extrapolateRor(curveReadings, elapsedSeconds, events, targetDropTempF, controls);
   if (!projection) return null;
 
   return {
@@ -266,7 +291,7 @@ export function computeLiveForecast(input: {
     fromAtSeconds: from.atSeconds,
     fromTempF: from.temp,
     toAtSeconds: projection.projectedAtSeconds,
-    toTempF: dropTempF,
+    toTempF: targetDropTempF,
   };
 }
 
@@ -369,6 +394,7 @@ export function generateLiveTips(input: {
   milestoneTempBaseline?: MilestoneTempBaseline | null;
   /** The accepted plan's raw, pre-drift targets — comparison text only. */
   originalPlanTargets?: PlanTargets;
+  controls?: Pick<RoasterControl, "key">[];
 }): Tip[] {
   const {
     elapsedSeconds,
@@ -379,6 +405,7 @@ export function generateLiveTips(input: {
     planDivergedAtSeconds,
     milestoneTempBaseline,
     originalPlanTargets,
+    controls = [],
   } = input;
   const tips: Tip[] = [];
 
@@ -389,6 +416,7 @@ export function generateLiveTips(input: {
         elapsedSeconds,
         milestoneTempBaseline,
         hasYellowingTarget: originalPlanTargets?.yellowingEndSeconds != null,
+        controls,
       })
     : null;
 
