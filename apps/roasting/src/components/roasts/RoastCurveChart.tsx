@@ -13,11 +13,12 @@ import {
   type CurveReading,
   type RoastCurveTargets,
   type RoastCurveForecast,
+  type ProbePoint,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
 import type { RoasterControl } from "@/lib/roasters";
-import type { RoastEvent, TemperatureReading } from "@prisma/client";
+import type { RoastEvent } from "@prisma/client";
 
 export default function RoastCurveChart({
   events,
@@ -34,12 +35,12 @@ export default function RoastCurveChart({
   events: RoastEvent[];
   totalSeconds: number;
   controls: RoasterControl[];
-  probeReadings?: TemperatureReading[];
+  probeReadings?: ProbePoint[];
   /** Exhaust/environment probe readings (Artisan's "ET") — drawn as a
    * second, thinner line on the same temp axis when there are at least
    * two. Only ever populated today by an Artisan import; empty for a
    * hand-logged or single-probe live roast. */
-  envProbeReadings?: TemperatureReading[];
+  envProbeReadings?: ProbePoint[];
   /** Accepted AI-plan targets (AiSuggestionPanel) — rendered as ghosted
    * dashed reference lines alongside the actual curve. Only meaningful for
    * the live view; a completed roast doesn't pass this. */

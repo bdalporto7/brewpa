@@ -9,12 +9,13 @@ import {
   getDialChangeEvents,
   DIAL_MARKER_COLORS,
   CHART_WIDTH,
+  type ProbePoint,
 } from "@/lib/curve";
 import { formatMMSS } from "@/lib/format";
 import Card from "@/components/ui/Card";
 import { EVENT_LABELS } from "@/lib/constants";
 import type { RoasterControl } from "@/lib/roasters";
-import type { RoastEvent, TemperatureReading } from "@prisma/client";
+import type { RoastEvent } from "@prisma/client";
 
 export default function LiveComparisonChart({
   currentEvents,
@@ -34,8 +35,8 @@ export default function LiveComparisonChart({
   comparisonLabel: string;
   comparisonTotalSeconds: number;
   controls: RoasterControl[];
-  currentProbeReadings?: TemperatureReading[];
-  comparisonProbeReadings?: TemperatureReading[];
+  currentProbeReadings?: ProbePoint[];
+  comparisonProbeReadings?: ProbePoint[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredSeconds, setHoveredSeconds] = useState<number | null>(null);

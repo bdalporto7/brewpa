@@ -11,10 +11,7 @@ import { computeRoastPhases } from "@/lib/phases";
 import {
   computeHistoricalBaseline,
   computeMilestoneTempBaseline,
-  projectNextMilestone,
-  computeLiveForecast,
   type ReferenceRoast,
-  type LiveForecast,
 } from "@/lib/tips";
 import { getCurveReadings, computeAdjustedPlan, type PlanSettingChange, type PlanTargets } from "@/lib/curve";
 import { saveProfileFromCompletedRoast } from "@/lib/profile-actions";
@@ -39,12 +36,12 @@ import GoldenRoastToggle from "@/components/roasts/GoldenRoastToggle";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
 import PhaseBar from "@/components/roasts/PhaseBar";
 import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
+import LiveRoastChart from "@/components/roasts/LiveRoastChart";
 import SalesPanel from "@/components/roasts/SalesPanel";
 import AddEventForm from "@/components/roasts/AddEventForm";
 import CuppingTab from "@/components/roasts/CuppingTab";
 import CompareTab from "@/components/roasts/CompareTab";
 import CompareRoastSelector from "@/components/roasts/CompareRoastSelector";
-import LiveComparisonChart from "@/components/roasts/LiveComparisonChart";
 import DeleteButton from "@/components/DeleteButton";
 import BeanBurst from "@/components/ui/BeanBurst";
 import RatingBeans from "@/components/ui/RatingBeans";
@@ -159,11 +156,6 @@ export default async function RoastSessionPage({
   const loggedMilestoneTypes = Array.from(new Set(session.events.map((e) => e.type))).filter(
     (t): t is EventType => (MILESTONE_EVENT_TYPES as string[]).includes(t)
   );
-  const liveElapsedSeconds = Math.max(
-    1,
-    ...session.events.map((e) => e.atSeconds),
-    ...session.temperatureReadings.map((r) => r.atSeconds ?? 0)
-  );
   // Only once the roaster has explicitly accepted a suggestion (or applied
   // a profile, which auto-accepts) — a generated-but-unused plan shouldn't
   // clutter the live chart with reference lines nobody asked to follow.
@@ -190,8 +182,6 @@ export default async function RoastSessionPage({
   let baseline = null;
   let milestoneTempBaseline = null;
   let referenceRoast: ReferenceRoast | null = null;
-  let projectedTargets = acceptedPlanTargets;
-  let liveForecast: LiveForecast | null = null;
   if (isLive) {
     const sameBeanCompleted = await prisma.roastSession.findMany({
       where: { beanId: session.beanId, endedAt: { not: null }, id: { not: session.id } },
@@ -229,54 +219,6 @@ export default async function RoastSessionPage({
       const readings = getCurveReadings(refSession.events, refSession.temperatureReadings, []);
       if (readings.length > 0) referenceRoast = { label, readings };
     }
-
-    const liveCurveReadings = getCurveReadings(session.events, session.temperatureReadings, controls);
-    const hasYellowingTarget = acceptedPlanTargets?.yellowingEndSeconds != null;
-
-    // Live RoR-based re-projection of the next unreached milestone — see
-    // src/lib/tips.ts's projectNextMilestone for why this extrapolates
-    // directly-measured RoR rather than a fan/heat causal model. Only
-    // overrides the one field it projects; every other target (already-
-    // reached milestones, developmentSeconds, dropTempF) is untouched.
-    const projection = acceptedPlan
-      ? projectNextMilestone({
-          events: session.events,
-          curveReadings: liveCurveReadings,
-          elapsedSeconds: liveElapsedSeconds,
-          milestoneTempBaseline,
-          hasYellowingTarget,
-          controls,
-        })
-      : null;
-    if (projection && projectedTargets) {
-      projectedTargets = {
-        ...projectedTargets,
-        ...(projection.milestone === "DRY_END" && { dryEndSeconds: Math.round(projection.projectedAtSeconds) }),
-        ...(projection.milestone === "YELLOWING_END" && {
-          yellowingEndSeconds: Math.round(projection.projectedAtSeconds),
-        }),
-        ...(projection.milestone === "FIRST_CRACK_START" && {
-          firstCrackSeconds: Math.round(projection.projectedAtSeconds),
-        }),
-      };
-    }
-
-    // The chart-line counterpart to the text tips above — same underlying
-    // math (src/lib/tips.ts's computeLiveForecast), reshaped as a from/to
-    // segment for RoastCurveChart to draw as a ghosted forecast ray off the
-    // end of the real curve. Computed unconditionally (not gated on
-    // acceptedPlan, unlike the re-projection above) since it doesn't need a
-    // plan to project toward a milestone's typical temp — only the
-    // post-1C leg needs dropTempF, which is simply undefined without one.
-    liveForecast = computeLiveForecast({
-      events: session.events,
-      curveReadings: liveCurveReadings,
-      elapsedSeconds: liveElapsedSeconds,
-      milestoneTempBaseline,
-      hasYellowingTarget,
-      dropTempF: acceptedPlanTargets?.dropTempF,
-      controls,
-    });
   }
 
   return (
@@ -457,33 +399,43 @@ export default async function RoastSessionPage({
               Scoped to just the chart, not LiveRoastBars or the panels
               below — those stay aligned with the rest of the app. */}
           <div className="relative left-1/2 w-screen max-w-7xl -translate-x-1/2 px-4 sm:px-6">
-            {session.compareTo && getCurveReadings(session.compareTo.events, [], controls).length >= 2 ? (
-              <LiveComparisonChart
-                currentEvents={session.events}
-                currentLabel={`${session.bean.name} (live)`}
-                currentElapsedSeconds={liveElapsedSeconds}
-                comparisonEvents={session.compareTo.events}
-                comparisonLabel={`${session.compareTo.bean.name} — ${session.compareTo.startedAt ? format(session.compareTo.startedAt, "MMM d, yyyy") : "undated"}`}
-                comparisonTotalSeconds={
-                  session.compareTo.startedAt && session.compareTo.endedAt
-                    ? (session.compareTo.endedAt.getTime() - session.compareTo.startedAt.getTime()) / 1000
-                    : 0
-                }
-                controls={controls}
-                currentProbeReadings={session.temperatureReadings}
-                comparisonProbeReadings={session.compareTo.temperatureReadings}
-              />
-            ) : (
-              <RoastCurveChart
-                events={session.events}
-                totalSeconds={liveElapsedSeconds}
-                controls={controls}
-                probeReadings={session.temperatureReadings}
-                envProbeReadings={envTemperatureReadings}
-                targets={projectedTargets}
-                forecast={liveForecast ?? undefined}
-              />
-            )}
+            {/* Driven client-side by the shared probe feed — see
+                LiveRoastChart. Everything passed here changes rarely (events
+                refresh on their own whenever a Server Action logs one), the
+                per-second data doesn't come through page props at all. */}
+            <LiveRoastChart
+              roastSessionId={session.id}
+              events={session.events}
+              controls={controls}
+              initialReadings={session.temperatureReadings.map((r) => ({
+                atSeconds: r.atSeconds,
+                tempFahrenheit: r.tempFahrenheit,
+              }))}
+              initialEnvReadings={envTemperatureReadings.map((r) => ({
+                atSeconds: r.atSeconds,
+                tempFahrenheit: r.tempFahrenheit,
+              }))}
+              milestoneTempBaseline={milestoneTempBaseline}
+              hasAcceptedPlan={!!acceptedPlan}
+              planTargets={acceptedPlanTargets}
+              comparison={
+                session.compareTo && getCurveReadings(session.compareTo.events, [], controls).length >= 2
+                  ? {
+                      currentLabel: `${session.bean.name} (live)`,
+                      comparisonEvents: session.compareTo.events,
+                      comparisonLabel: `${session.compareTo.bean.name} — ${session.compareTo.startedAt ? format(session.compareTo.startedAt, "MMM d, yyyy") : "undated"}`,
+                      comparisonTotalSeconds:
+                        session.compareTo.startedAt && session.compareTo.endedAt
+                          ? (session.compareTo.endedAt.getTime() - session.compareTo.startedAt.getTime()) / 1000
+                          : 0,
+                      comparisonProbeReadings: session.compareTo.temperatureReadings.map((r) => ({
+                        atSeconds: r.atSeconds,
+                        tempFahrenheit: r.tempFahrenheit,
+                      })),
+                    }
+                  : undefined
+              }
+            />
           </div>
           {baseline && (
             <LiveTipsPanel

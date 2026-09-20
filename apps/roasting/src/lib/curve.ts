@@ -3,6 +3,9 @@ import type { EventType } from "@/lib/constants";
 import type { RoasterControl } from "@/lib/roasters";
 import type { RoastEvent, TemperatureReading } from "@prisma/client";
 
+/** The two fields the chart actually reads off a temperature reading — so the live feed's lightweight rows and full Prisma rows both fit. */
+export type ProbePoint = Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">;
+
 export const CHART_WIDTH = 760;
 // The temp/RoR plotting area's own height — named apart from the exported
 // CHART_HEIGHT below now that CHART_HEIGHT also has to fit the
@@ -379,12 +382,12 @@ export function buildRoastCurveSvg(
   controls: RoasterControl[],
   options: {
     showRor?: boolean;
-    probeReadings?: TemperatureReading[];
+    probeReadings?: ProbePoint[];
     /** Exhaust/environment-probe temp (Artisan's "ET") — a second, thinner
      * line on the same temp axis, drawn only when there are at least two
      * readings. See getEnvTempPoints's own comment for why this never
      * merges into the main bean-temp series. */
-    envProbeReadings?: TemperatureReading[];
+    envProbeReadings?: ProbePoint[];
     targets?: RoastCurveTargets;
     forecast?: RoastCurveForecast;
     /** Draws the temp line in on mount instead of appearing complete —
@@ -773,14 +776,14 @@ export function buildLiveComparisonSvg(
   comparisonLabel: string,
   comparisonTotalSeconds: number,
   controls: RoasterControl[],
-  currentProbeReadings: TemperatureReading[] = [],
+  currentProbeReadings: ProbePoint[] = [],
   // The comparison roast's own probe data — easy to forget since it wasn't
   // needed before probe tracking was reliable, but a past roast tracked
   // purely via probe (no hand-logged TEMP events at all, which
   // getCurveReadings never looks at otherwise) has zero readings without
   // this, silently killing the whole chart even when the current roast has
   // plenty of its own data.
-  comparisonProbeReadings: TemperatureReading[] = [],
+  comparisonProbeReadings: ProbePoint[] = [],
   // Current roast only — the comparison roast's temp line already uses
   // --ror's color (dashed), so a second RoR series would either clash with
   // it or need a third color; the live roast's own RoR is the thing you'd

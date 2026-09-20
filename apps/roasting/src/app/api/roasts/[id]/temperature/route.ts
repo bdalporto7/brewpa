@@ -11,7 +11,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
  * owns this roast, not just that some session exists — TemperatureReading
  * itself carries no teamId (scoped transitively via RoastSession).
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentAllowedUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,8 +23,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // `?after=<epoch ms>` returns only rows recorded after that instant, so
+  // the live chart's ~1s poll (see useProbeReadings) pulls a handful of new
+  // rows instead of re-reading the whole series every time. Omitted =
+  // everything, as before. The caller subtracts a small overlap and dedupes
+  // by id, so a row landing in the same millisecond as the cursor can't be
+  // skipped.
+  const afterParam = Number(new URL(request.url).searchParams.get("after"));
+  const after = Number.isFinite(afterParam) && afterParam > 0 ? new Date(afterParam) : null;
+
   const readings = await prisma.temperatureReading.findMany({
-    where: { roastSessionId: id },
+    where: { roastSessionId: id, ...(after ? { recordedAt: { gt: after } } : {}) },
     orderBy: { recordedAt: "asc" },
   });
 
