@@ -162,6 +162,17 @@ export default function RoastCurveChart({
     setHovered(nearestCurveReading(readings, seconds));
   }
 
+  // Nearest exhaust-temp reading to the hovered instant, if there's an ET
+  // series at all — same snap-to-nearest rule as the bean-temp tooltip.
+  let hoveredEnvTemp: number | null = null;
+  if (hovered && envTempPoints.length > 0) {
+    let best = envTempPoints[0];
+    for (const p of envTempPoints) {
+      if (Math.abs(p.atSeconds - hovered.atSeconds) < Math.abs(best.atSeconds - hovered.atSeconds)) best = p;
+    }
+    hoveredEnvTemp = best.temp;
+  }
+
   const crosshairX = hovered ? layout.x(hovered.atSeconds) : 0;
   const leftPct = hovered ? (crosshairX / CHART_WIDTH) * 100 : 0;
   const anchor = leftPct < 15 ? "left" : leftPct > 85 ? "right" : "center";
@@ -219,7 +230,13 @@ export default function RoastCurveChart({
             }}
           >
             <p className="font-mono font-semibold">{formatMMSS(hovered.atSeconds)}</p>
-            <p className="font-mono text-muted">{Math.round(hovered.temp)}°F</p>
+            <p className="font-mono text-muted">
+              {hoveredEnvTemp != null ? "BT " : ""}
+              {Math.round(hovered.temp)}°F
+            </p>
+            {hoveredEnvTemp != null && (
+              <p className="font-mono text-muted">ET {Math.round(hoveredEnvTemp)}°F</p>
+            )}
             {showRor && (
               <p className="font-mono" style={{ color: "var(--ror)" }}>
                 {hovered.rorPerMin != null ? `${Math.round(hovered.rorPerMin)}°F/min` : "—"}

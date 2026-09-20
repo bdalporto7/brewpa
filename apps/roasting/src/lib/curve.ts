@@ -572,10 +572,22 @@ export function buildRoastCurveSvg(
   // only meaningful with the draw-in animation (globals.css's
   // .curve-draw-in, gated on animateIn) — harmless to always include, and
   // simpler than branching the whole polyline string on it.
+  //
+  // The filter (an feTurbulence displacement) is only applied on the
+  // completed-roast view (animateIn) — the live chart is rebuilt and
+  // re-rasterized on every update, and re-running that filter over a
+  // dense probe-fed polyline each time was a real source of live lag.
   parts.push(
-    `<polyline points="${tempLine}" pathLength="1" ${options.animateIn ? 'class="curve-draw-in"' : ""} fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" filter="url(#sketchy-fine)" />`
+    `<polyline points="${tempLine}" pathLength="1" ${options.animateIn ? 'class="curve-draw-in"' : ""} fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round"${options.animateIn ? ' filter="url(#sketchy-fine)"' : ""} />`
   );
-  for (const p of readings) {
+  // Per-reading dots only when the series is sparse (hand-logged temps,
+  // where each dot is a real logged point worth seeing). Dense probe data
+  // would emit hundreds of DOM nodes per rebuild for no visual gain — the
+  // hover crosshair (RoastCurveChart) already marks any point on demand —
+  // so there just the latest point gets a dot.
+  const SPARSE_READING_LIMIT = 40;
+  const dotted = readings.length <= SPARSE_READING_LIMIT ? readings : readings.slice(-1);
+  for (const p of dotted) {
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
   }
 
@@ -864,7 +876,10 @@ export function buildLiveComparisonSvg(
     `<polyline points="${lineB}" fill="none" style="stroke:var(--ror)" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />`,
     `<polyline points="${lineA}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" />`
   );
-  for (const p of readingsA) {
+  // Same dense-series reasoning as buildRoastCurveSvg: dots only when
+  // sparse, otherwise just the latest point.
+  const dottedA = readingsA.length <= 40 ? readingsA : readingsA.slice(-1);
+  for (const p of dottedA) {
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
   }
 
