@@ -12,7 +12,17 @@ import { useToast } from "@/components/ui/ToastProvider";
 const POST_INTERVAL_MS = 1000;
 const BAUD_RATE = 9600;
 
-type Status = "idle" | "connecting" | "connected";
+// A USB-serial adapter dropping for a moment (a cable wiggle, a power
+// blip) used to kill logging for however long it took someone to notice
+// "Probe connected" had silently flipped off and click reconnect — a real
+// gap seen live, up to 80+ seconds, on an otherwise-uneventful roast. 5
+// attempts spaced 2s apart rides out a transient drop without needing a
+// click; a genuinely unplugged/dead device still gives up and asks for one
+// rather than showing "Reconnecting…" forever.
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 2000;
+
+type Status = "idle" | "connecting" | "connected" | "reconnecting";
 
 interface Stats {
   bytes: number;
@@ -86,10 +96,55 @@ export default function WebSerialProbeConnector() {
   const stoppedRef = useRef(false);
   const portRef = useRef<SerialPort | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  // Latest parsed reading, updated as fast as frames arrive — posting reads
+  // this on its own steady timer (below) rather than firing right when a
+  // frame happens to land. Real hardware confirmed *not* to deliver bytes
+  // at a steady pace through Web Serial (Chromium/OS-level USB-serial
+  // buffering, not this app's parser or network path — verified live that
+  // reads can go 30+ real seconds between deliveries while the port stays
+  // "connected" the whole time), so tying posts directly to frame arrival
+  // produced the exact same burstiness in what got logged. Posting the
+  // latest known value on a fixed cadence instead means a burst of reads
+  // catches the post cadence up to a slightly-stale temperature rather
+  // than to a slightly-stale *and* irregular one.
+  const latestTempRef = useRef<number | null>(null);
+  const postTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const postInFlightRef = useRef(false);
+
+  function ensurePostTimer() {
+    if (postTimerRef.current) return;
+    postTimerRef.current = setInterval(() => {
+      if (stoppedRef.current || postInFlightRef.current || latestTempRef.current == null) return;
+      postInFlightRef.current = true;
+      const temp = latestTempRef.current;
+      logProbeReading(temp, "bean")
+        .then((result) => {
+          if (result.ok) {
+            setStats((s) => ({ ...s, posts: s.posts + 1, lastError: null }));
+          } else {
+            setStats((s) => ({ ...s, lastError: result.error }));
+            toast(result.error, "error");
+          }
+        })
+        .catch((e) => {
+          // Surfaced, not swallowed — a post that keeps failing needs to be
+          // visible, even though one failure isn't worth stopping the timer
+          // for (the next tick a second later retries on its own).
+          setStats((s) => ({ ...s, lastError: e instanceof Error ? e.message : "Couldn't reach the server." }));
+        })
+        .finally(() => {
+          postInFlightRef.current = false;
+        });
+    }, POST_INTERVAL_MS);
+  }
+
+  function stopPostTimer() {
+    if (postTimerRef.current) clearInterval(postTimerRef.current);
+    postTimerRef.current = null;
+  }
 
   async function readLoop(port: SerialPort) {
     let buffer = new Uint8Array(0);
-    let lastPost = 0;
 
     if (!port.readable) {
       setError("Port opened but has no readable stream.");
@@ -98,6 +153,7 @@ export default function WebSerialProbeConnector() {
     }
     const reader = port.readable.getReader();
     readerRef.current = reader;
+    ensurePostTimer();
 
     try {
       while (!stoppedRef.current) {
@@ -113,42 +169,56 @@ export default function WebSerialProbeConnector() {
         buffer = new Uint8Array(remainder);
 
         if (frames.length === 0) continue;
+        latestTempRef.current = frames[frames.length - 1];
         setStats((s) => ({ ...s, frames: s.frames + frames.length, lastTemp: frames[frames.length - 1] }));
-
-        const now = Date.now();
-        if (now - lastPost < POST_INTERVAL_MS) continue;
-        lastPost = now;
-
-        const latestTemp = frames[frames.length - 1];
-        try {
-          const result = await logProbeReading(latestTemp, "bean");
-          if (result.ok) {
-            setStats((s) => ({ ...s, posts: s.posts + 1, lastError: null }));
-          } else {
-            setStats((s) => ({ ...s, lastError: result.error }));
-            toast(result.error, "error");
-          }
-        } catch (e) {
-          // Surfaced, not swallowed — a post that keeps failing needs to be
-          // visible, even though one failure isn't worth interrupting the
-          // read loop for (the next reading a few seconds later retries on its own).
-          setStats((s) => ({ ...s, lastError: e instanceof Error ? e.message : "Couldn't reach the server." }));
-        }
       }
     } catch (e) {
-      if (!stoppedRef.current) {
-        setError(e instanceof Error ? e.message : "Lost connection to the probe.");
-        setStatus("idle");
-      }
-    } finally {
       readerRef.current = null;
+      if (!stoppedRef.current) {
+        void attemptAutoReconnect(port, e instanceof Error ? e.message : "Lost connection to the probe.");
+      }
+      return;
     }
+    readerRef.current = null;
+  }
+
+  /**
+   * Retries opening the same already-granted port after readLoop dies
+   * unexpectedly (not a user-initiated Disconnect, which sets
+   * stoppedRef first and is checked between every attempt). Deliberately
+   * doesn't reset `stats` the way a fresh connect does — this is meant to
+   * be invisible on success, a continuation of the same session rather
+   * than a new one, so the running byte/frame/post counts should keep
+   * counting through it.
+   */
+  async function attemptAutoReconnect(port: SerialPort, lastMessage: string) {
+    setStatus("reconnecting");
+    for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, RECONNECT_DELAY_MS));
+      if (stoppedRef.current) return;
+
+      try {
+        await port.close().catch(() => {});
+        await port.open({ baudRate: BAUD_RATE });
+        setStatus("connected");
+        setError(null);
+        readLoop(port);
+        return;
+      } catch (e) {
+        lastMessage = e instanceof Error ? e.message : lastMessage;
+      }
+    }
+
+    if (stoppedRef.current) return;
+    setError(`${lastMessage} (auto-reconnect gave up after ${MAX_RECONNECT_ATTEMPTS} tries — check the cable and reconnect.)`);
+    setStatus("idle");
   }
 
   async function connectToPort(port: SerialPort) {
     await port.open({ baudRate: BAUD_RATE });
     portRef.current = port;
     stoppedRef.current = false;
+    latestTempRef.current = null;
     setStats(EMPTY_STATS);
     setStatus("connected");
     readLoop(port);
@@ -165,6 +235,7 @@ export default function WebSerialProbeConnector() {
     }
     return () => {
       stoppedRef.current = true;
+      stopPostTimer();
       readerRef.current?.cancel().catch(() => {});
       portRef.current?.close().catch(() => {});
     };
@@ -193,6 +264,7 @@ export default function WebSerialProbeConnector() {
 
   function handleDisconnect() {
     stoppedRef.current = true;
+    stopPostTimer();
     readerRef.current?.cancel().catch(() => {});
     // forget(), not just close() — this is an explicit "stop using this
     // device" click, not a pause. Without forget(), the permission grant
@@ -210,7 +282,7 @@ export default function WebSerialProbeConnector() {
 
   if (!supported) return null;
 
-  if (status === "connected") {
+  if (status === "connected" || status === "reconnecting") {
     return (
       <div className="flex flex-col gap-1">
         <button
@@ -218,7 +290,12 @@ export default function WebSerialProbeConnector() {
           onClick={handleDisconnect}
           className="flex items-center gap-1.5 text-xs font-medium text-accent transition hover:text-foreground"
         >
-          <Usb className="h-3.5 w-3.5" /> Probe connected · Disconnect
+          {status === "reconnecting" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Usb className="h-3.5 w-3.5" />
+          )}
+          {status === "reconnecting" ? "Reconnecting…" : "Probe connected"} · Disconnect
         </button>
         <p className="text-xs text-muted">
           {stats.bytes}B received · {stats.frames} frames parsed
