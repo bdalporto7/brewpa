@@ -11,6 +11,28 @@ import { useToast } from "@/components/ui/ToastProvider";
 // (see scripts/probe_bridge.py's PROBE_POST_INTERVAL).
 const POST_INTERVAL_MS = 1000;
 const BAUD_RATE = 9600;
+// The real root cause of "connected, bytes keep trickling in, but frames
+// stop landing for 7-80+s at a time": Web Serial's open() defaults
+// bufferSize to 255 bytes, and this meter only pushes ~36 bytes/sec (an
+// 18-byte frame twice a second). Chromium doesn't hand the read loop
+// anything until that buffer fills or an internal flush timeout fires —
+// at this device's real throughput, filling 255 bytes takes many seconds,
+// which is exactly the irregular multi-second-to-80s gaps seen live
+// (confirmed via server-side clientCapturedAt logging: frames themselves
+// stop advancing for long stretches while the port stays "connected" and
+// bytes do eventually still increment once the buffer finally flushes).
+// Sizing this close to one frame forces near-immediate flushes instead.
+const SERIAL_BUFFER_SIZE = 64;
+// reader.read() confirmed live to hang indefinitely — no error, no data —
+// on this exact meter/adapter, with the port still reporting "connected"
+// the whole time. The meter free-runs a frame roughly every 500ms, so 5s
+// with nothing at all is already well past any legitimate gap.
+const READ_STALL_MS = 5000;
+// A reading older than this doesn't get posted at all — see ensurePostTimer.
+// Tighter than READ_STALL_MS on purpose: that's "how long before we
+// consider the read loop itself dead and try to recover it," this is "how
+// stale can a value be and still be worth writing down as 'now.'"
+const MAX_READING_STALENESS_MS = 3000;
 
 // A USB-serial adapter dropping for a moment (a cable wiggle, a power
 // blip) used to kill logging for however long it took someone to notice
@@ -108,6 +130,10 @@ export default function WebSerialProbeConnector() {
   // catches the post cadence up to a slightly-stale temperature rather
   // than to a slightly-stale *and* irregular one.
   const latestTempRef = useRef<number | null>(null);
+  // When latestTempRef was last set — used by ensurePostTimer's staleness
+  // guard below to tell "fresh reading, just hasn't been posted yet" apart
+  // from "the read loop stopped producing frames."
+  const latestTempCapturedAtRef = useRef<number | null>(null);
   const postTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const postInFlightRef = useRef(false);
 
@@ -115,6 +141,16 @@ export default function WebSerialProbeConnector() {
     if (postTimerRef.current) return;
     postTimerRef.current = setInterval(() => {
       if (stoppedRef.current || postInFlightRef.current || latestTempRef.current == null) return;
+      // Confirmed live: without this, a stalled read loop (see
+      // READ_STALL_MS above) just re-posts the same frozen reading forever
+      // on schedule — a flat, perfectly-regular-looking line that's
+      // actually stale data, worse than the gap it's covering up. A gap in
+      // the chart is honest; a fake flat one isn't.
+      const age = latestTempCapturedAtRef.current == null ? Infinity : Date.now() - latestTempCapturedAtRef.current;
+      if (age > MAX_READING_STALENESS_MS) {
+        setStats((s) => ({ ...s, lastError: `No fresh reading in ${Math.round(age / 1000)}s — probe may be stalled.` }));
+        return;
+      }
       postInFlightRef.current = true;
       const temp = latestTempRef.current;
       logProbeReading(temp, "bean")
@@ -157,7 +193,26 @@ export default function WebSerialProbeConnector() {
 
     try {
       while (!stoppedRef.current) {
-        const { value, done } = await reader.read();
+        // reader.read() can hang forever with no error and no data — a
+        // real failure mode confirmed live with this exact meter/adapter
+        // (port stays "connected," byte/frame counters simply stop
+        // advancing, indefinitely). There's nothing to catch there since
+        // nothing throws, so a stall has to be detected by timeout instead
+        // — READ_STALL_MS is generous next to the meter's ~500ms frame
+        // rate. Reusing the existing catch/attemptAutoReconnect path below
+        // by just throwing on timeout, rather than a separate recovery path.
+        const outcome = await Promise.race([
+          reader.read(),
+          new Promise<"stalled">((resolve) => setTimeout(() => resolve("stalled"), READ_STALL_MS)),
+        ]);
+        if (outcome === "stalled") {
+          // Releases the reader's lock on the stream so the port can
+          // actually close/reopen in attemptAutoReconnect — the read()
+          // call that timed out is still pending underneath otherwise.
+          await reader.cancel().catch(() => {});
+          throw new Error(`No data received for ${READ_STALL_MS / 1000}s.`);
+        }
+        const { value, done } = outcome;
         if (done) break;
         if (!value) continue;
         setStats((s) => ({ ...s, bytes: s.bytes + value.length }));
@@ -170,6 +225,7 @@ export default function WebSerialProbeConnector() {
 
         if (frames.length === 0) continue;
         latestTempRef.current = frames[frames.length - 1];
+        latestTempCapturedAtRef.current = Date.now();
         setStats((s) => ({ ...s, frames: s.frames + frames.length, lastTemp: frames[frames.length - 1] }));
       }
     } catch (e) {
@@ -199,7 +255,13 @@ export default function WebSerialProbeConnector() {
 
       try {
         await port.close().catch(() => {});
-        await port.open({ baudRate: BAUD_RATE });
+        await port.open({ baudRate: BAUD_RATE, bufferSize: SERIAL_BUFFER_SIZE });
+        // Same re-check as connectToPort — a Disconnect click during this
+        // await shouldn't get overridden by the retry that was already in flight.
+        if (stoppedRef.current) {
+          await port.close().catch(() => {});
+          return;
+        }
         setStatus("connected");
         setError(null);
         readLoop(port);
@@ -215,10 +277,25 @@ export default function WebSerialProbeConnector() {
   }
 
   async function connectToPort(port: SerialPort) {
-    await port.open({ baudRate: BAUD_RATE });
+    // Guards a real race, confirmed live in dev (React Strict Mode
+    // double-invokes effects there — never in a production build): the
+    // mount effect below checks stoppedRef before calling this, but
+    // port.open() is async, and the effect's own cleanup can flip
+    // stoppedRef back to true *during* that await (e.g. Strict Mode's
+    // mount → cleanup → mount again happening while this is still
+    // in flight). Without re-checking after the await, this would barge
+    // ahead and revive a connection the cleanup had already torn down —
+    // two readers left fighting over the same port, which is exactly the
+    // kind of thing that produces erratic, hard-to-explain stalls.
+    const wasStoppedBeforeOpen = stoppedRef.current;
+    await port.open({ baudRate: BAUD_RATE, bufferSize: SERIAL_BUFFER_SIZE });
+    if (wasStoppedBeforeOpen || stoppedRef.current) {
+      await port.close().catch(() => {});
+      return;
+    }
     portRef.current = port;
-    stoppedRef.current = false;
     latestTempRef.current = null;
+    latestTempCapturedAtRef.current = null;
     setStats(EMPTY_STATS);
     setStatus("connected");
     readLoop(port);
@@ -228,6 +305,7 @@ export default function WebSerialProbeConnector() {
   // getPorts() lists only ports this origin already has permission for,
   // and open() itself needs no user gesture (only requestPort() does).
   useEffect(() => {
+    stoppedRef.current = false;
     if (supported) {
       navigator.serial!.getPorts().then((ports) => {
         if (!stoppedRef.current && ports.length > 0) connectToPort(ports[0]).catch(() => {});
@@ -245,6 +323,11 @@ export default function WebSerialProbeConnector() {
   async function handleConnect() {
     setError(null);
     setStatus("connecting");
+    // connectToPort now re-checks stoppedRef after its own await (see that
+    // function's comment) — a stale `true` left over from an earlier
+    // Disconnect has to be cleared before calling it, or this click's own
+    // connection attempt would immediately close itself right back up.
+    stoppedRef.current = false;
     try {
       // requestPort() first, nothing awaited before it — see this file's
       // header comment on why an intervening await (e.g. checking

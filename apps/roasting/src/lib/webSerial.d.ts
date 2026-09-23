@@ -15,6 +15,8 @@ declare global {
 
   interface SerialOptions {
     baudRate: number;
+    /** Real spec field, default 255 — see WebSerialProbeConnector.tsx's SERIAL_BUFFER_SIZE comment for why the Mastech connector overrides it. */
+    bufferSize?: number;
   }
 
   interface SerialPort {

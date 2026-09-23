@@ -24,13 +24,6 @@ export interface FrameResult {
   remainder: Uint8Array;
 }
 
-function indexOfHeader(buf: Uint8Array, from: number): number {
-  for (let i = from; i <= buf.length - 2; i++) {
-    if (buf[i] === HEADER[0] && buf[i + 1] === HEADER[1]) return i;
-  }
-  return -1;
-}
-
 /** °F, tenths-of-a-degree precision — same encoding as probe_bridge.py's parse_temp_f. */
 function parseTempF(frame: Uint8Array): number {
   return (frame[5] * 256 + frame[6]) / 10;
@@ -41,21 +34,56 @@ function parseTempF(frame: Uint8Array): number {
  * rather than assuming the buffer starts aligned — a Web Serial read
  * chunk boundary has no relationship to the meter's own frame boundaries,
  * same reasoning as find_frame()'s docstring in probe_bridge.py.
+ *
+ * Found live (2026-09-22, via scripts/_test_frame_parser.mts feeding this
+ * function realistic byte-at-a-time chunks): the previous version's header
+ * search only ever looked for a *complete* 2-byte match, so whenever a
+ * chunk boundary landed between a frame's two header bytes — the normal
+ * case once Web Serial hands the read loop data in small dribbles, which
+ * is exactly how this meter's slow ~36 bytes/sec trickles in — the lone
+ * leading header byte at the end of the buffer got treated as "no header
+ * found" and discarded outright along with everything before it, instead
+ * of being kept as a pending partial match. That silently ate the frame:
+ * this is the actual mechanism behind readings freezing for long stretches
+ * while the byte counter kept climbing (the connection was fine, frames
+ * just kept losing their header this way). Scanning one byte at a time and
+ * explicitly keeping a trailing lone HEADER[0] as remainder fixes it.
  */
 export function extractFrames(buf: Uint8Array): FrameResult {
   const temps: number[] = [];
   let pos = 0;
 
-  while (true) {
-    const idx = indexOfHeader(buf, pos);
-    if (idx === -1 || buf.length < idx + FRAME_LEN) {
-      pos = idx === -1 ? buf.length : idx;
+  while (pos < buf.length) {
+    let idx = -1;
+    for (let i = pos; i < buf.length; i++) {
+      if (buf[i] === HEADER[0]) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) {
+      pos = buf.length;
+      break;
+    }
+    if (idx + 1 >= buf.length) {
+      // Only the first header byte has arrived so far — keep it and wait
+      // for the rest instead of discarding it as noise.
+      pos = idx;
+      break;
+    }
+    if (buf[idx + 1] !== HEADER[1]) {
+      pos = idx + 1;
+      continue;
+    }
+    if (buf.length < idx + FRAME_LEN) {
+      // Full header confirmed, but the rest of the frame hasn't arrived yet.
+      pos = idx;
       break;
     }
     const frame = buf.subarray(idx, idx + FRAME_LEN);
     if (frame[TRAILER_OFFSET] !== 0x0d || frame[TRAILER_OFFSET + 1] !== 0x0a) {
-      // Header matched by coincidence mid-payload — skip past it and keep looking.
-      pos = idx + 2;
+      // Header matched by coincidence mid-payload — resync one byte past it.
+      pos = idx + 1;
       continue;
     }
     temps.push(parseTempF(frame));
