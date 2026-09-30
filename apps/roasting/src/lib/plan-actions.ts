@@ -76,7 +76,7 @@ export async function createProductionPlan(formData: FormData) {
     data: { ...data, teamId: user.teamId },
   });
 
-  revalidatePath("/business/roast-plan");
+  revalidatePath("/inventory/plan");
 }
 
 export async function updateProductionPlan(id: string, formData: FormData) {
@@ -86,7 +86,7 @@ export async function updateProductionPlan(id: string, formData: FormData) {
 
   await prisma.productionPlan.update({ where: { id }, data });
 
-  revalidatePath("/business/roast-plan");
+  revalidatePath("/inventory/plan");
 }
 
 export async function deleteProductionPlan(id: string) {
@@ -97,5 +97,5 @@ export async function deleteProductionPlan(id: string) {
   // it just removes the commitment; any RoastSessions already logged stay.
   await prisma.productionPlan.delete({ where: { id } });
 
-  revalidatePath("/business/roast-plan");
+  revalidatePath("/inventory/plan");
 }
