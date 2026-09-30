@@ -5,7 +5,7 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { costPerBag, DEFAULT_LOSS_PERCENT, formatWeight } from "@/lib/inventory-connector/math";
-import { formatCurrency } from "@/lib/inventory-connector/queries";
+import { formatCurrency } from "@/lib/inventory-connector/client";
 
 type LotCost = {
   id: string;
