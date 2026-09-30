@@ -131,6 +131,26 @@ export async function updateBean(id: string, formData: FormData) {
       purchasePrice: num(formData, "purchasePrice"),
       moisturePercent: num(formData, "moisturePercent"),
       densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
+      // Business planning thresholds — optional; validated non-negative here
+      // so a typo can't set a negative reorder level or lead time. Day
+      // counts are rounded to whole numbers.
+      reorderLevelGrams: (() => {
+        const v = num(formData, "reorderLevelGrams");
+        if (v !== null && v < 0) throw new Error("Reorder level can't be negative.");
+        return v;
+      })(),
+      leadTimeDays: (() => {
+        const raw = num(formData, "leadTimeDays");
+        const v = raw === null ? null : Math.round(raw);
+        if (v !== null && v < 0) throw new Error("Lead time can't be negative.");
+        return v;
+      })(),
+      agingThresholdDays: (() => {
+        const raw = num(formData, "agingThresholdDays");
+        const v = raw === null ? null : Math.round(raw);
+        if (v !== null && v < 0) throw new Error("Aging threshold can't be negative.");
+        return v;
+      })(),
       notes: str(formData, "notes"),
       photoUrl: newPhotoUrl ?? undefined,
     },
