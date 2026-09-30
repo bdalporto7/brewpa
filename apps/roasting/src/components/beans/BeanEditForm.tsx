@@ -65,6 +65,36 @@ export default function BeanEditForm({ bean, onDone }: { bean: Bean; onDone: () 
         mono
       />
       <TextField
+        label="Reorder level (g)"
+        name="reorderLevelGrams"
+        type="number"
+        step="1"
+        min="0"
+        defaultValue={bean.reorderLevelGrams ?? ""}
+        placeholder="Optional — flag when stock drops below this"
+        mono
+      />
+      <TextField
+        label="Supplier lead time (days)"
+        name="leadTimeDays"
+        type="number"
+        step="1"
+        min="0"
+        defaultValue={bean.leadTimeDays ?? ""}
+        placeholder="Optional — for order-by dates"
+        mono
+      />
+      <TextField
+        label="Aging threshold (days)"
+        name="agingThresholdDays"
+        type="number"
+        step="1"
+        min="0"
+        defaultValue={bean.agingThresholdDays ?? ""}
+        placeholder="Optional — flag green sitting longer than this"
+        mono
+      />
+      <TextField
         label={`Total purchased (g) — min ${Math.round(bean.remainingGrams * 10) / 10}g (currently remaining)`}
         name="weightGrams"
         type="number"

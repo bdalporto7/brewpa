@@ -5,6 +5,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import { roastMargin, type RoastMargin } from "@/lib/economics";
 import { formatCurrency } from "@/lib/format";
 import BeanEconomicsRow from "@/components/beans/BeanEconomicsRow";
+import BusinessNav from "@/components/business/BusinessNav";
 import Section from "@/components/Section";
 import Stat from "@/components/ui/Stat";
 import PageStamp from "@/components/ui/PageStamp";
@@ -59,6 +60,8 @@ export default async function BusinessPage() {
         <h1 className="text-4xl font-black tracking-tight">Business</h1>
         <p className="text-sm text-muted">Real cost and profit, from what you paid for green coffee and what it sold for.</p>
       </div>
+
+      <BusinessNav />
 
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Total cost" value={formatCurrency(grandCost)} />

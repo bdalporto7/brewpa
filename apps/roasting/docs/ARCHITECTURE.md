@@ -57,6 +57,7 @@ erDiagram
     Bean ||--o{ RoastSession : "roasts"
     Bean |o--o| RoastSession : "golden roast (optional)"
     Bean ||--o{ Drop : "opens"
+    Bean ||--o{ ProductionPlan : "plans"
     RoastSession ||--o{ RoastEvent : "logs"
     RoastSession ||--o{ TemperatureReading : "probe readings"
     RoastSession ||--o{ Sale : "roast drops"
@@ -117,6 +118,14 @@ erDiagram
         string beanId FK
         float totalGrams
         datetime closedAt "nullable"
+    }
+    ProductionPlan {
+        string id PK
+        string month "YYYY-MM"
+        float targetGrams
+        string status "planned/in-progress/completed"
+        string beanId FK "nullable, SetNull"
+        string roasterDefinitionId FK "nullable, SetNull"
     }
     DropClaim {
         string id PK
