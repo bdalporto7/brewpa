@@ -36,11 +36,14 @@ Green coffee inventory — one purchase.
 | `weightGrams` | Float | ✅ | | Total ever purchased |
 | `remainingGrams` | Float | ✅ | | Green stock on hand right now |
 | `notes` | String | | | |
+| `reorderLevelGrams` | Float | | | Planning threshold — flag when `remainingGrams` drops below this |
+| `leadTimeDays` | Int | | | Supplier lead time in days — for order-by dates on reorder alerts |
+| `agingThresholdDays` | Int | | | Planning threshold — flag green sitting unroasted longer than this |
 | `createdAt` | DateTime | ✅ | `now()` | |
 | `updatedAt` | DateTime | ✅ | auto | |
 | `goldenRoastId` | String | | | FK → `RoastSession.id`, **UK**, `onDelete: SetNull`. The one roast of this bean future roasts get compared against live. Named relation `BeanGoldenRoast` — distinct from `roastSessions` below since both point `Bean` → `RoastSession`. |
 
-**Relations:** `roastSessions: RoastSession[]` (relation `BeanRoasts`, one bean → many roasts) · `drops: Drop[]` (one bean → many group buys) · `goldenRoast: RoastSession?` (see above)
+**Relations:** `roastSessions: RoastSession[]` (relation `BeanRoasts`, one bean → many roasts) · `drops: Drop[]` (one bean → many group buys) · `goldenRoast: RoastSession?` (see above) · `productionPlans: ProductionPlan[]` (one bean → many monthly plans; `SetNull` on delete)
 
 **Indexes:** `@@index([origin])` · `@@index([createdAt])`
 
@@ -72,6 +75,32 @@ One roast run against a `Bean`. Lifecycle: **pending** (`startedAt` null) → **
 **Indexes:** `@@index([beanId])` · `@@index([startedAt])`
 
 **Delete behavior:** restores `greenWeightGrams` back to the bean; cascades `RoastEvent`/`Sale`/`CuppingNote`/`TemperatureReading`/`Brew` (each has its own delete-time side effect — see their sections).
+
+---
+
+## ProductionPlan
+
+A monthly roast commitment: how much to roast in a given month, optionally pinned to a bean and a roaster. The business cycle is "buy green 1st–15th → roast/fulfill the following month", so `month` is the *roast* month. Plans never move stock — they're commitments; `RoastSession`s decrement inventory when they happen.
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | String | PK | `cuid()` | |
+| `month` | String | ✅ | | `YYYY-MM`, validated in `plan-actions.ts` |
+| `targetGrams` | Float | ✅ | | Target roast quantity in grams |
+| `status` | String | ✅ | `"planned"` | `planned` \| `in-progress` \| `completed`, validated in the action (plain string, not an enum — schema-wide convention) |
+| `notes` | String | | | |
+| `beanId` | String | | | FK → `Bean.id`, `onDelete: SetNull` — a plan can exist before the lot is decided |
+| `roasterDefinitionId` | String | | | FK → `RoasterDefinition.id`, `onDelete: SetNull` |
+| `createdAt` | DateTime | ✅ | `now()` | |
+| `updatedAt` | DateTime | ✅ | auto | |
+
+**Relations:** `bean: Bean?` · `roasterDefinition: RoasterDefinition?` · `team: Team` (team-scoped, shared by every member — like `Bean`, not per-user like `Brew`)
+
+**Indexes:** `@@index([teamId])` · `@@index([month])`
+
+**Delete behavior:** no stock side effects — deleting a plan just removes the commitment; already-logged `RoastSession`s are untouched.
+
+**Server actions:** `createProductionPlan` / `updateProductionPlan` / `deleteProductionPlan` in `src/lib/plan-actions.ts`. UI: `/business/roast-plan` (list grouped by month + create disclosure), `ProductionPlanForm`, `ProductionPlanCard`.
 
 ---
 

@@ -64,6 +64,16 @@ model Bean {
   // for three sub-warnings it treats as one "running low" notice.
   lowStockDismissed Boolean @default(false)
 
+  // Business planning thresholds — all optional, all feed future alerts:
+  // reorderLevelGrams flags "running low" when remainingGrams drops below
+  // it; leadTimeDays is the supplier's lead time so a reorder alert can
+  // name an order-by date; agingThresholdDays flags green sitting
+  // unroasted longer than this. No behavior reads them yet — chunk 1 just
+  // stores and edits them.
+  reorderLevelGrams  Float?
+  leadTimeDays       Int?
+  agingThresholdDays Int?
+
   // The one roast of this bean to target/compare future roasts against —
   // set explicitly (not just "most recent"), null until the roaster marks
   // one. A distinct relation from roastSessions below since a bean can
@@ -72,6 +82,7 @@ model Bean {
   goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
 
   roastSessions  RoastSession[] @relation("BeanRoasts")
+  productionPlans ProductionPlan[]
   dropItems      DropItem[]
   dropOrderItems DropOrderItem[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
@@ -85,6 +96,40 @@ model Bean {
   @@index([origin])
   @@index([createdAt])
   @@index([teamId])
+}
+
+// A monthly roast commitment: how much roasted coffee to produce in a
+// given month, optionally tied to a bean and a roaster. The business
+// cycle is "buy green 1st–15th → roast/fulfill the following month", so
+// `month` is the *roast* month as "YYYY-MM" — a plain string, not a
+// DateTime, because no day or time is meaningful here (validated in
+// plan-actions.ts). Plans never move stock; they're commitments, and
+// actual RoastSessions decrement inventory when they happen.
+model ProductionPlan {
+  id          String  @id @default(cuid())
+  month       String
+  targetGrams Float
+  // planned | in-progress | completed — plain string, validated in the
+  // action (this schema uses strings, not enums, throughout).
+  status      String  @default("planned")
+  notes       String?
+
+  beanId String?
+  bean   Bean?  @relation(fields: [beanId], references: [id], onDelete: SetNull)
+
+  roasterDefinitionId String?
+  roasterDefinition   RoasterDefinition? @relation(fields: [roasterDefinitionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Plans belong to the team — shared by every member, like Bean, not
+  // per-user like Brew.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([month])
 }
 
 model RoastSession {
@@ -209,6 +254,7 @@ model RoasterDefinition {
   updatedAt             DateTime @updatedAt
 
   roastSessions RoastSession[]
+  productionPlans ProductionPlan[]
 
   teamId String
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -594,6 +640,7 @@ model Team {
   members            AllowedUser[]
   beans              Bean[]
   roastSessions      RoastSession[]
+  productionPlans    ProductionPlan[]
   friends            Friend[]
   drops              Drop[]
   roastProfiles      RoastProfile[]
