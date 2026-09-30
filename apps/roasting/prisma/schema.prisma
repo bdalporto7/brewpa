@@ -711,6 +711,19 @@ model Team {
   recipes            Recipe[]
   roasterDefinitions RoasterDefinition[]
   probeTokens        ProbeToken[]
+  inventoryWidgetPrefs InventoryWidgetPrefs?
+}
+
+// Dashboard widget visibility for the inventory app — which widgets the
+// team has hidden on /inventory. One row per team, created on first save;
+// absent means everything visible (the default).
+model InventoryWidgetPrefs {
+  id            String   @id @default(cuid())
+  teamId        String   @unique
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  hiddenWidgets String   @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // A reusable brewing target — not tied to a bean, so the same "V60 4:6"

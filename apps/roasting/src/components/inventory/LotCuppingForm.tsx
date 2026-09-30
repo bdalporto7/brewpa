@@ -1,67 +1,72 @@
-import { createLotCupping } from "@/lib/inventory-actions";
-import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
-import { TextField, SelectField, TextareaField } from "@/components/ui/Field";
-import type { Bean } from "@prisma/client";
+import Card from "@/components/ui/Card";
+import { TextField, TextareaField, SelectField } from "@/components/ui/Field";
+import Form from "@/components/inventory/Form";
+import { createLotCupping } from "@/lib/inventory-connector/actions";
+import { SCORE_LABELS, ALL_SCORE_FIELDS } from "@/lib/inventory-connector/queries";
 
-const SCORE_FIELDS = [
-  ["fragranceAroma", "Fragrance"],
-  ["flavor", "Flavor"],
-  ["aftertaste", "Aftertaste"],
-  ["acidity", "Acidity"],
-  ["body", "Body"],
-  ["balance", "Balance"],
-  ["uniformity", "Uniformity"],
-  ["cleanCup", "Clean cup"],
-  ["sweetness", "Sweetness"],
-  ["overall", "Overall"],
-  ["defects", "Defects"],
-] as const;
+type LotOption = { id: string; name: string };
 
 /**
- * Log a cupping against a green lot (arrival sample, pre-roast check).
- * Either bound to one lot (hidden beanId, e.g. the lot detail page) or
- * with a lot picker (the cupping index page).
+ * Adds a cupping note directly to a green lot (arrival sample, pre-roast
+ * check). Every score is optional — notes + overall alone is a valid
+ * entry; the total only appears when all ten categories are scored.
  */
 export default function LotCuppingForm({
-  beanId,
-  beans,
+  lots,
+  defaultLotId,
 }: {
-  beanId?: string;
-  beans?: Pick<Bean, "id" | "name">[];
+  lots: LotOption[];
+  defaultLotId?: string;
 }) {
   return (
-    <ActionForm action={createLotCupping} className="grid grid-cols-3 gap-3 sm:grid-cols-4" successMessage="Cupping saved">
-      {beanId ? (
-        <input type="hidden" name="beanId" value={beanId} />
-      ) : (
-        <div className="col-span-3 sm:col-span-4">
-          <SelectField label="Lot *" name="beanId" required defaultValue="">
-            <option value="" disabled>
-              Select a lot
+    <Card interactive={false} className="p-4 sm:p-5">
+      <Form action={createLotCupping} successMessage="Cupping note saved" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <SelectField label="Lot *" name="beanId" required defaultValue={defaultLotId ?? ""}>
+          <option value="" disabled>
+            Choose a lot…
+          </option>
+          {lots.map((lot) => (
+            <option key={lot.id} value={lot.id}>
+              {lot.name}
             </option>
-            {(beans ?? []).map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </SelectField>
+          ))}
+        </SelectField>
+        <TextField
+          label="Cupped on"
+          name="cuppedAt"
+          type="date"
+          defaultValue={new Date().toISOString().slice(0, 10)}
+        />
+        {ALL_SCORE_FIELDS.map((field) => (
+          <TextField
+            key={field}
+            label={SCORE_LABELS[field]}
+            name={field}
+            type="number"
+            min="0"
+            max="10"
+            step="0.25"
+            inputMode="decimal"
+            placeholder="0–10"
+          />
+        ))}
+        <TextField
+          label="Defects"
+          name="defects"
+          type="number"
+          min="0"
+          step="0.25"
+          inputMode="decimal"
+          placeholder="0"
+        />
+        <div className="sm:col-span-2">
+          <TextareaField label="Notes" name="notes" rows={3} />
         </div>
-      )}
-      <div className="col-span-3 sm:col-span-4">
-        <TextField label="Cupped on" name="cuppedAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
-      </div>
-      {SCORE_FIELDS.map(([key, label]) => (
-        <TextField key={key} label={label} name={key} type="number" min="0" max="10" step="0.25" mono />
-      ))}
-      <div className="col-span-3 sm:col-span-4">
-        <TextareaField label="Notes" name="notes" rows={2} />
-      </div>
-      <div className="col-span-3 sm:col-span-4">
-        <Button type="submit" variant="primary">
-          Save cupping
-        </Button>
-      </div>
-    </ActionForm>
+        <div className="sm:col-span-2">
+          <Button type="submit">Save note</Button>
+        </div>
+      </Form>
+    </Card>
   );
 }

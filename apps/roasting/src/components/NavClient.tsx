@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Home, Gift, BookOpen, Shield, LogOut, Boxes } from "lucide-react";
+import { Flame, Home, Gift, BookOpen, Shield, LogOut } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
 import { BrewedCupIcon, GreenBeanIcon } from "@/components/ui/CoffeeIcons";
 import CybarMark from "@/components/ui/CybarMark";
@@ -18,7 +18,6 @@ const ROASTING_LINKS = [
   // the real coffee-bean shape already built for the dashboard instead.
   { href: "/beans", label: "Beans", icon: GreenBeanIcon },
   { href: "/roasts", label: "Roasts", icon: Flame },
-  { href: "/inventory", label: "Inventory", icon: Boxes },
   { href: "/profiles", label: "Profiles", icon: BookOpen },
   { href: "/friends", label: "Drops", icon: Gift },
 ] as const;
@@ -163,13 +162,9 @@ export default function NavClient({
         className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--panel-line)] bg-panel-bg sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className={`grid ${links.length === 2 ? "grid-cols-2" : "grid-cols-6"}`}>
+        <div className={`grid ${links.length === 2 ? "grid-cols-2" : links.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
           {links.map((link) => {
-            // Inventory's tab stays lit on all /inventory/* subpages, not
-            // just the dashboard — the bare "/" check avoids marking the
-            // Dashboard tab active for every path.
-            const active =
-              pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href + "/"));
+            const active = pathname === link.href;
             const Icon = link.icon;
             return (
               <Link

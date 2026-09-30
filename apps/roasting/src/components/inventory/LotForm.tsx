@@ -1,94 +1,118 @@
+import type { ReactNode } from "react";
 import type { Bean } from "@prisma/client";
-import ActionForm from "@/components/ActionForm";
 import Button from "@/components/ui/Button";
-import { TextField, TextareaField } from "@/components/ui/Field";
+import Card from "@/components/ui/Card";
+import { TextField, TextareaField, FileField } from "@/components/ui/Field";
+import Form from "@/components/inventory/Form";
 import WeightInput from "@/components/inventory/WeightInput";
 
+function isoDate(d: Date): string {
+  // Local date, not UTC — matches what the date input shows.
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /**
- * The lot form, shared by create (lots page disclosure) and edit (lot
- * detail page). Posts to the existing createBean/updateBean actions — all
- * weight fields go through WeightInput so the roaster can work in
- * g/kg/lb/oz while the database keeps seeing grams.
+ * Create/edit form for a green coffee lot.
+ *
+ * - `initial` pre-fills the form: a full Bean for editing, or partial
+ *   extracted values for the intake review step (scan → review → save).
+ * - In edit mode the weight field edits "total purchased" (validated
+ *   server-side to never drop below remaining); day-to-day stock moves
+ *   happen on the lot page instead.
  */
 export default function LotForm({
-  bean,
+  initial,
   action,
   submitLabel,
+  successMessage,
+  extraFields,
 }: {
-  bean?: Bean;
+  initial?: Partial<Bean>;
   action: (formData: FormData) => Promise<void>;
   submitLabel: string;
+  successMessage?: string;
+  /** Extra hidden inputs rendered inside the form (e.g. a receipt URL). */
+  extraFields?: ReactNode;
 }) {
-  const purchaseDateDefault = bean?.purchaseDate
-    ? bean.purchaseDate.toISOString().slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
+  const purchaseDateDefault =
+    initial?.purchaseDate instanceof Date ? isoDate(initial.purchaseDate) : isoDate(new Date());
 
   return (
-    <ActionForm action={action} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <TextField label="Name *" name="name" required defaultValue={bean?.name ?? ""} placeholder="e.g. Ethiopia Guji Natural" />
-      <TextField label="Origin *" name="origin" required defaultValue={bean?.origin ?? ""} placeholder="e.g. Ethiopia" />
-      <TextField label="Process *" name="process" required defaultValue={bean?.process ?? ""} placeholder="Washed, Natural, Honey…" />
-      <TextField label="Producer" name="producer" defaultValue={bean?.producer ?? ""} placeholder="Farm or cooperative" />
-      <TextField label="Variety" name="variety" defaultValue={bean?.variety ?? ""} placeholder="e.g. Bourbon" />
-      <TextField label="Supplier" name="supplier" defaultValue={bean?.supplier ?? ""} placeholder="Where you bought it" />
-      <TextField label="Supplier URL" name="supplierUrl" type="url" defaultValue={bean?.supplierUrl ?? ""} placeholder="https://…" />
-      <TextField
-        label="Purchase date"
-        name="purchaseDate"
-        type="date"
-        defaultValue={purchaseDateDefault}
-      />
-      <TextField
-        label="Purchase price (total)"
-        name="purchasePrice"
-        type="number"
-        min="0"
-        step="any"
-        mono
-        defaultValue={bean?.purchasePrice ?? ""}
-        placeholder="0.00"
-      />
-      <WeightInput
-        name="weightGrams"
-        label={bean ? "Total purchased" : "Lot weight *"}
-        defaultGrams={bean?.weightGrams}
-        required
-        hint={bean ? `Currently ${bean.remainingGrams}g remaining — total can't go below that.` : undefined}
-      />
-      <WeightInput
-        name="reorderLevelGrams"
-        label="Reorder level"
-        defaultGrams={bean?.reorderLevelGrams}
-        hint="Flag this lot when stock drops below here."
-      />
-      <TextField
-        label="Lead time (days)"
-        name="leadTimeDays"
-        type="number"
-        min="0"
-        step="1"
-        mono
-        defaultValue={bean?.leadTimeDays ?? ""}
-        placeholder="e.g. 14"
-      />
-      <TextField
-        label="Aging threshold (days)"
-        name="agingThresholdDays"
-        type="number"
-        min="0"
-        step="1"
-        mono
-        defaultValue={bean?.agingThresholdDays ?? ""}
-        placeholder="e.g. 180"
-      />
-      <div className="sm:col-span-2">
-        <TextareaField label="Notes" name="notes" rows={2} defaultValue={bean?.notes ?? ""} />
+    <Form action={action} successMessage={successMessage ?? "Saved"} className="flex flex-col gap-4">
+      {extraFields}
+      <Card interactive={false} className="flex flex-col gap-4 p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <TextField label="Name" name="name" required defaultValue={initial?.name ?? ""} placeholder="Ethiopia Guji" />
+          <TextField label="Origin" name="origin" required defaultValue={initial?.origin ?? ""} placeholder="Ethiopia, Guji" />
+          <TextField label="Process" name="process" required defaultValue={initial?.process ?? ""} placeholder="Washed" />
+          <TextField label="Producer" name="producer" defaultValue={initial?.producer ?? ""} placeholder="Farm or co-op" />
+          <TextField label="Variety" name="variety" defaultValue={initial?.variety ?? ""} placeholder="Heirloom" />
+          <TextField label="Supplier" name="supplier" defaultValue={initial?.supplier ?? ""} placeholder="Where you bought it" />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <WeightInput label={initial?.id ? "Total purchased" : "Weight purchased"} name="weight" required defaultGrams={initial?.weightGrams} />
+          <TextField
+            label="Price paid (total)"
+            name="purchasePrice"
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            defaultValue={initial?.purchasePrice ?? ""}
+            placeholder="0.00"
+          />
+          <TextField label="Purchase date" name="purchaseDate" type="date" defaultValue={purchaseDateDefault} />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <TextField label="Supplier URL" name="supplierUrl" type="url" defaultValue={initial?.supplierUrl ?? ""} placeholder="https://…" />
+          {!initial?.id && <FileField label="Photo" name="photo" accept="image/*" />}
+        </div>
+        <TextareaField label="Notes" name="notes" rows={3} defaultValue={initial?.notes ?? ""} />
+      </Card>
+
+      <Card interactive={false} className="flex flex-col gap-4 p-4 sm:p-5">
+        <div>
+          <h3 className="text-sm font-semibold">Reorder settings</h3>
+          <p className="mt-0.5 text-xs text-muted">Optional — used for the “needs attention” alerts. Leave blank for sensible defaults.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <TextField
+            label="Reorder level (g)"
+            name="reorderLevelGrams"
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            defaultValue={initial?.reorderLevelGrams ?? ""}
+            placeholder="e.g. 500"
+          />
+          <TextField
+            label="Lead time (days)"
+            name="leadTimeDays"
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            defaultValue={initial?.leadTimeDays ?? ""}
+            placeholder="14"
+          />
+          <TextField
+            label="Aging alert (days)"
+            name="agingThresholdDays"
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            defaultValue={initial?.agingThresholdDays ?? ""}
+            placeholder="180"
+          />
+        </div>
+      </Card>
+
+      <div>
+        <Button type="submit">{submitLabel}</Button>
       </div>
-      <div className="sm:col-span-2">
-        <Button type="submit" variant="primary">
-          {submitLabel}
-        </Button>
-      </div>
-    </ActionForm>
+    </Form>
   );
 }

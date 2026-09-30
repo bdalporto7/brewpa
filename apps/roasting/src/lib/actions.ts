@@ -67,16 +67,6 @@ export async function createBean(formData: FormData) {
 
   const photoUrl = await uploadBeanPhotoIfProvided(formData);
 
-  // Receipt intake supplies the real purchase date; absent, the DB default
-  // (now) stands — same "absent means today" reading the UI already had.
-  let purchaseDate: Date | undefined;
-  const purchaseDateRaw = str(formData, "purchaseDate");
-  if (purchaseDateRaw) {
-    const parsed = new Date(`${purchaseDateRaw}T12:00:00`);
-    if (Number.isNaN(parsed.getTime())) throw new Error("Purchase date isn't a valid date.");
-    purchaseDate = parsed;
-  }
-
   await prisma.bean.create({
     data: {
       name,
@@ -93,34 +83,12 @@ export async function createBean(formData: FormData) {
       densityGramsPerLiter: num(formData, "densityGramsPerLiter"),
       notes: str(formData, "notes"),
       photoUrl,
-      ...(purchaseDate ? { purchaseDate } : {}),
-      // Same planning thresholds updateBean accepts (validated the same
-      // way) so the inventory section's lot form can set them at creation.
-      reorderLevelGrams: (() => {
-        const v = num(formData, "reorderLevelGrams");
-        if (v !== null && v < 0) throw new Error("Reorder level can't be negative.");
-        return v;
-      })(),
-      leadTimeDays: (() => {
-        const raw = num(formData, "leadTimeDays");
-        const v = raw === null ? null : Math.round(raw);
-        if (v !== null && v < 0) throw new Error("Lead time can't be negative.");
-        return v;
-      })(),
-      agingThresholdDays: (() => {
-        const raw = num(formData, "agingThresholdDays");
-        const v = raw === null ? null : Math.round(raw);
-        if (v !== null && v < 0) throw new Error("Aging threshold can't be negative.");
-        return v;
-      })(),
       teamId: user.teamId,
     },
   });
 
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 export async function updateBean(id: string, formData: FormData) {
@@ -185,22 +153,11 @@ export async function updateBean(id: string, formData: FormData) {
       })(),
       notes: str(formData, "notes"),
       photoUrl: newPhotoUrl ?? undefined,
-      // Same purchase-date handling as createBean — lets a lot's date be
-      // corrected after the fact (e.g. receipt intake got it wrong).
-      ...(() => {
-        const raw = str(formData, "purchaseDate");
-        if (!raw) return {};
-        const parsed = new Date(`${raw}T12:00:00`);
-        if (Number.isNaN(parsed.getTime())) throw new Error("Purchase date isn't a valid date.");
-        return { purchaseDate: parsed };
-      })(),
     },
   });
 
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 /** LowStockBanner's per-bean "×" — see the Bean.lowStockDismissed schema comment for why this is one flag, not one per warning reason. */
@@ -245,8 +202,6 @@ export async function adjustBeanStock(beanId: string, direction: "add" | "remove
 
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 export async function setBeanStock(beanId: string, amount: number) {
@@ -261,8 +216,6 @@ export async function setBeanStock(beanId: string, amount: number) {
 
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 /**
@@ -333,8 +286,6 @@ export async function deleteBean(id: string) {
   await prisma.bean.delete({ where: { id } });
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 export async function startRoast(formData: FormData) {
@@ -1011,8 +962,6 @@ export async function updateRoastDetails(roastSessionId: string, formData: FormD
   revalidatePath("/roasts");
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 function cuppingScoresFromForm(formData: FormData) {
@@ -1115,8 +1064,6 @@ export async function adjustRoastedStock(
   revalidatePath("/roasts");
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 export async function setRoastedStock(roastSessionId: string, amount: number) {
@@ -1133,8 +1080,6 @@ export async function setRoastedStock(roastSessionId: string, amount: number) {
   revalidatePath("/roasts");
   revalidatePath("/beans");
   revalidatePath("/");
-  revalidatePath("/inventory");
-  revalidatePath("/inventory/lots");
 }
 
 export async function recordSale(roastSessionId: string, formData: FormData) {
