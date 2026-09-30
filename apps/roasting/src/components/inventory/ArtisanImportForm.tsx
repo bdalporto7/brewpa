@@ -7,7 +7,7 @@ import Card from "@/components/ui/Card";
 import { TextField, TextareaField, FileField, SelectField } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/ToastProvider";
 import { importArtisanRoast } from "@/lib/inventory-connector/actions";
-import { ROAST_LEVELS } from "@/lib/inventory-connector/queries";
+import { ROAST_LEVELS } from "@/lib/inventory-connector/client";
 
 type LotOption = { id: string; name: string };
 type RoasterOption = { id: string; name: string; isDefault: boolean };

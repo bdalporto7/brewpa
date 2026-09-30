@@ -11,12 +11,13 @@ import { requireUser } from "@/lib/admin";
  * Pure helpers the inventory UI needs, re-exported through the connector
  * so inventory code never imports the roasting app's lib directly.
  * (Re-exports are only dangerous from "use server" modules — this file
- * isn't one.)
+ * isn't one.) Client-safe bits come from ./client so "use client"
+ * components have a Prisma-free import site — see that file's header.
  */
 export { formatPlanMonth, defaultPlanMonth, PLAN_STATUSES } from "@/lib/plans";
 export { computeCuppingTotal, SCORE_LABELS, ALL_SCORE_FIELDS } from "@/lib/cupping";
-export { formatCurrency } from "@/lib/format";
-export { ROAST_LEVELS } from "@/lib/constants";
+export { formatCurrency, ROAST_LEVELS, INVENTORY_WIDGETS } from "./client";
+export type { InventoryWidgetKey } from "./client";
 
 /** Lots (beans) with the roast history needed for alerts, yield, and cost math. */
 export async function getInventoryLots() {
@@ -135,14 +136,3 @@ export async function getWidgetPrefs(): Promise<string[]> {
   }
 }
 
-/** All widget keys the dashboard knows how to render. */
-export const INVENTORY_WIDGETS = [
-  { key: "stats", label: "Totals" },
-  { key: "alerts", label: "Needs attention" },
-  { key: "lots", label: "Your lots" },
-  { key: "roasts", label: "Recent roasts" },
-  { key: "plan", label: "This month's plan" },
-  { key: "costs", label: "Inventory value" },
-] as const;
-
-export type InventoryWidgetKey = (typeof INVENTORY_WIDGETS)[number]["key"];

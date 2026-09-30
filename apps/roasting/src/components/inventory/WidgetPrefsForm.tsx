@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import { INVENTORY_WIDGETS, type InventoryWidgetKey } from "@/lib/inventory-connector/queries";
+import { INVENTORY_WIDGETS, type InventoryWidgetKey } from "@/lib/inventory-connector/client";
 import { setWidgetPrefs } from "@/lib/inventory-connector/actions";
 import Form from "@/components/inventory/Form";
 
