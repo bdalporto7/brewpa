@@ -83,6 +83,8 @@ model Bean {
 
   roastSessions  RoastSession[] @relation("BeanRoasts")
   productionPlans ProductionPlan[]
+  blendComponents BlendComponent[]
+  lotCuppingNotes CuppingNote[]
   dropItems      DropItem[]
   dropOrderItems DropOrderItem[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
@@ -130,6 +132,49 @@ model ProductionPlan {
 
   @@index([teamId])
   @@index([month])
+}
+
+// A named blend: component beans plus their share of the blend (0–100,
+// must sum to 100 — validated in inventory-actions.ts). Logging a blend
+// roast creates one RoastSession per component (each deducting its own
+// bean's green stock) sharing a blendBatchId — so weight loss, cost, and
+// cupping all keep working per component through the existing models,
+// and the batch id is what groups them back into "one blend roast" for
+// display. Plans never move stock; blend recipes don't either — only the
+// RoastSessions created from them do.
+model BlendRecipe {
+  id    String  @id @default(cuid())
+  name  String
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Blend recipes belong to the team — shared by every member, like Bean,
+  // not per-user like Brew.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  components    BlendComponent[]
+  roastSessions RoastSession[]
+
+  @@index([teamId])
+}
+
+model BlendComponent {
+  id String @id @default(cuid())
+
+  blendRecipeId String
+  blendRecipe   BlendRecipe @relation(fields: [blendRecipeId], references: [id], onDelete: Cascade)
+
+  beanId String
+  bean   Bean   @relation(fields: [beanId], references: [id], onDelete: Restrict)
+
+  // Share of the blend as a percentage (0–100); all components of one
+  // recipe must sum to exactly 100 (validated in the action, not the DB).
+  ratioPercent Float
+
+  @@index([blendRecipeId])
 }
 
 model RoastSession {
@@ -217,11 +262,21 @@ model RoastSession {
   teamId String
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  // Blend roasts: logging a blend creates one RoastSession per component
+  // bean (each deducting its own green stock); blendBatchId is the shared
+  // id grouping those component sessions back into one "blend roast" for
+  // display, and blendRecipeId is the soft link back to the recipe (SetNull
+  // so deleting a recipe doesn't delete the roast history).
+  blendRecipeId String?
+  blendRecipe   BlendRecipe? @relation(fields: [blendRecipeId], references: [id], onDelete: SetNull)
+  blendBatchId  String?
+
   @@index([beanId])
   @@index([startedAt])
   @@index([profileId])
   @@index([teamId])
   @@index([roasterDefinitionId])
+  @@index([blendBatchId])
 }
 
 // A catalog entry describing one physical roasting machine's controls and
@@ -371,10 +426,17 @@ model Sale {
 // score, or nothing quantitative at all. See src/lib/cupping.ts for the
 // field list/order and how these combine into a total score.
 model CuppingNote {
-  id             String       @id @default(cuid())
-  roastSessionId String
-  roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
-  cuppedAt       DateTime     @default(now())
+  id String @id @default(cuid())
+  // A cupping attaches to a roast OR directly to a green lot — exactly one
+  // must be set (enforced in the action, same app-level-constraint pattern
+  // as Brew's roastSessionId/beanName). Roast-attached cuppings are the
+  // original Q-grading flow; lot-attached ones are the inventory side's
+  // green-sample / arrival-sample notes.
+  roastSessionId String?
+  roastSession   RoastSession? @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
+  beanId         String?
+  bean           Bean?         @relation(fields: [beanId], references: [id], onDelete: Cascade)
+  cuppedAt       DateTime      @default(now())
 
   fragranceAroma Float?
   flavor         Float?
@@ -394,6 +456,7 @@ model CuppingNote {
   updatedAt DateTime @updatedAt
 
   @@index([roastSessionId])
+  @@index([beanId])
 }
 
 // A person drops go to — lets you see everything one friend has ever
@@ -641,6 +704,7 @@ model Team {
   beans              Bean[]
   roastSessions      RoastSession[]
   productionPlans    ProductionPlan[]
+  blendRecipes       BlendRecipe[]
   friends            Friend[]
   drops              Drop[]
   roastProfiles      RoastProfile[]

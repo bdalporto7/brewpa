@@ -43,7 +43,7 @@ Green coffee inventory — one purchase.
 | `updatedAt` | DateTime | ✅ | auto | |
 | `goldenRoastId` | String | | | FK → `RoastSession.id`, **UK**, `onDelete: SetNull`. The one roast of this bean future roasts get compared against live. Named relation `BeanGoldenRoast` — distinct from `roastSessions` below since both point `Bean` → `RoastSession`. |
 
-**Relations:** `roastSessions: RoastSession[]` (relation `BeanRoasts`, one bean → many roasts) · `drops: Drop[]` (one bean → many group buys) · `goldenRoast: RoastSession?` (see above) · `productionPlans: ProductionPlan[]` (one bean → many monthly plans; `SetNull` on delete)
+**Relations:** `roastSessions: RoastSession[]` (relation `BeanRoasts`, one bean → many roasts) · `drops: Drop[]` (one bean → many group buys) · `goldenRoast: RoastSession?` (see above) · `productionPlans: ProductionPlan[]` (one bean → many monthly plans; `SetNull` on delete) · `blendComponents: BlendComponent[]` (this lot as a component of blend recipes; `Cascade` — removing the lot drops it from recipes) · `lotCuppingNotes: CuppingNote[]` (green-side cuppings of this lot; named relation `BeanLotCuppings`, `Cascade`)
 
 **Indexes:** `@@index([origin])` · `@@index([createdAt])`
 
@@ -67,12 +67,14 @@ One roast run against a `Bean`. Lifecycle: **pending** (`startedAt` null) → **
 | `roastLevel` | String | | | Free text |
 | `rating` | Int | | | |
 | `notes` | String | | | Doubles as a pre-roast plan and a post-roast writeup — one field, editable at any lifecycle stage |
+| `blendRecipeId` | String | | | FK → `BlendRecipe.id`, `onDelete: SetNull` — set when this session is one component of a logged blend roast |
+| `blendBatchId` | String | | | Groups the component sessions of one blend roast (shared batch id, no FK) |
 | `createdAt` | DateTime | ✅ | `now()` | |
 | `updatedAt` | DateTime | ✅ | auto | |
 
-**Relations:** `bean: Bean` · `events: RoastEvent[]` · `sales: Sale[]` · `cuppingNotes: CuppingNote[]` · `temperatureReadings: TemperatureReading[]` · `brews: Brew[]` · `goldenForBean: Bean?` (inverse of `Bean.goldenRoast`)
+**Relations:** `bean: Bean` · `events: RoastEvent[]` · `sales: Sale[]` · `cuppingNotes: CuppingNote[]` · `temperatureReadings: TemperatureReading[]` · `brews: Brew[]` · `goldenForBean: Bean?` (inverse of `Bean.goldenRoast`) · `blendRecipe: BlendRecipe?` (this session as one component of a blend roast)
 
-**Indexes:** `@@index([beanId])` · `@@index([startedAt])`
+**Indexes:** `@@index([beanId])` · `@@index([startedAt])` · `@@index([blendRecipeId])` · `@@index([blendBatchId])`
 
 **Delete behavior:** restores `greenWeightGrams` back to the bean; cascades `RoastEvent`/`Sale`/`CuppingNote`/`TemperatureReading`/`Brew` (each has its own delete-time side effect — see their sections).
 
@@ -100,7 +102,7 @@ A monthly roast commitment: how much to roast in a given month, optionally pinne
 
 **Delete behavior:** no stock side effects — deleting a plan just removes the commitment; already-logged `RoastSession`s are untouched.
 
-**Server actions:** `createProductionPlan` / `updateProductionPlan` / `deleteProductionPlan` in `src/lib/plan-actions.ts`. UI: `/business/roast-plan` (list grouped by month + create disclosure), `ProductionPlanForm`, `ProductionPlanCard`.
+**Server actions:** `createProductionPlan` / `updateProductionPlan` / `deleteProductionPlan` in `src/lib/plan-actions.ts`. UI: `/inventory/plan` (month navigation, per-plan progress bars of actual roasted grams vs target derived from `RoastSession`s — stored nowhere, computed on read), `ProductionPlanForm`, `ProductionPlanCard`.
 
 ---
 
@@ -168,12 +170,13 @@ Roasted coffee given or sold to a `Friend`, drawn from one `RoastSession`'s stoc
 
 ## CuppingNote
 
-One formal tasting of a completed roast — SCA/Q-grading-style. A roast can have several over time.
+One formal tasting — SCA/Q-grading-style. Attached to **exactly one** of: a completed roast (`roastSessionId`) or a green lot (`beanId`) — never both, never neither. The app-level rule mirrors `Brew`'s roast-or-bean-name constraint. Roast cuppings live on their roast's page; lot cuppings (arrival samples, pre-roast checks) are the green-side ledger at `/inventory/cupping` and on each lot's page. `roastSessionId` is now nullable (was required before lot cupping existed); table was rebuilt in migration `20260930171801_add_inventory_blends_and_lot_cupping`.
 
 | Field | Type | Required | Default | Notes |
 |---|---|---|---|---|
 | `id` | String | PK | `cuid()` | |
-| `roastSessionId` | String | ✅ | | FK → `RoastSession.id`, `onDelete: Cascade` |
+| `roastSessionId` | String | | | FK → `RoastSession.id`, `onDelete: Cascade` |
+| `beanId` | String | | | FK → `Bean.id`, `onDelete: Cascade` (named relation `BeanLotCuppings`) |
 | `cuppedAt` | DateTime | ✅ | `now()` | |
 | `fragranceAroma` | Float | | | 6–10, 0.25 increments in the UI |
 | `flavor` | Float | | | 6–10 |
@@ -190,9 +193,53 @@ One formal tasting of a completed roast — SCA/Q-grading-style. A roast can hav
 | `createdAt` | DateTime | ✅ | `now()` | |
 | `updatedAt` | DateTime | ✅ | auto | |
 
-**Indexes:** `@@index([roastSessionId])`
+**Relations:** `roastSession: RoastSession?` · `bean: Bean?` (named relation `BeanLotCuppings`) — exactly one is set, enforced in the cupping actions (same pattern as `Brew`'s roast-or-bean-name rule).
+
+**Indexes:** `@@index([roastSessionId])` · `@@index([beanId])`
+
+**Delete behavior:** cascaded by whichever side it's attached to.
 
 **Note:** every score field is independently optional. `computeCuppingTotal` (`src/lib/cupping.ts`) only returns a total once all ten Q-grading categories are filled in — a partial entry never shows a misleading number.
+
+---
+
+## BlendRecipe
+
+A named blend: component green lots + their share percentages. Ratios must sum to exactly 100% — validated client-side (live total in `BlendRecipeForm`) and server-side in `createBlendRecipe`/`updateBlendRecipe` (`src/lib/inventory-actions.ts`). Like `ProductionPlan`, a recipe is a commitment: it never moves stock. `logBlendRoast` creates **one `RoastSession` per component** (sharing a `blendBatchId`) so each lot's stock, weight loss, and cost math stay independent — no parallel stock ledger, nothing that can drift.
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | String | PK | `cuid()` | |
+| `teamId` | String | ✅ | | FK → `Team.id`, `onDelete: Cascade` — team-scoped, shared by every member |
+| `name` | String | ✅ | | Unique per team (`@@unique([teamId, name])`) |
+| `notes` | String | | | |
+| `createdAt` | DateTime | ✅ | `now()` | |
+| `updatedAt` | DateTime | ✅ | auto | |
+
+**Relations:** `team: Team` · `components: BlendComponent[]` · `roastSessions: RoastSession[]` (the component sessions logged from this recipe; `SetNull` on delete)
+
+**Indexes:** `@@index([teamId])`
+
+**Delete behavior:** deleting a recipe is blocked while any roast was logged from it (same "history you don't rewrite" rule as `deleteBean`); the recipe's already-logged `RoastSession`s keep the batch grouped via `blendBatchId` even though `blendRecipeId` nulls out.
+
+---
+
+## BlendComponent
+
+One lot's share of a `BlendRecipe`. A recipe needs at least two; ratios are stored as plain floats (e.g. `40`, not `0.4`).
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | String | PK | `cuid()` | |
+| `blendRecipeId` | String | ✅ | | FK → `BlendRecipe.id`, `onDelete: Cascade` |
+| `beanId` | String | ✅ | | FK → `Bean.id`, `onDelete: Cascade` — deleting a lot removes it from every recipe it's part of, which can leave a recipe's ratios under 100% until it's edited (server validation blocks saving ratios that don't sum to 100%, so the recipe stays editable, just can't log roasts until fixed) |
+| `ratioPercent` | Float | ✅ | | Share of the blend, % |
+| `createdAt` | DateTime | ✅ | `now()` | |
+| `updatedAt` | DateTime | ✅ | auto | |
+
+**Relations:** `blendRecipe: BlendRecipe` · `bean: Bean`
+
+**Indexes:** `@@index([blendRecipeId])` · `@@index([beanId])`
 
 ---
 

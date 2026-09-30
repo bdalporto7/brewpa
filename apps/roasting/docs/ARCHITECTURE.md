@@ -63,6 +63,10 @@ erDiagram
     RoastSession ||--o{ Sale : "roast drops"
     RoastSession ||--o{ CuppingNote : "cuppings"
     RoastSession ||--o{ Brew : "brewed from (optional)"
+    BlendRecipe ||--o{ BlendComponent : "components"
+    Bean ||--o{ BlendComponent : "in blends"
+    BlendRecipe ||--o{ RoastSession : "blend roasts (optional, SetNull)"
+    Bean ||--o{ CuppingNote : "lot cuppings"
     Friend ||--o{ Sale : "received"
     Friend ||--o{ DropClaim : "claimed"
     Drop ||--o{ DropClaim : "claims"
@@ -84,6 +88,8 @@ erDiagram
         datetime startedAt "null = pending"
         datetime endedAt "null = live/pending"
         float roastedRemainingGrams
+        string blendRecipeId FK "nullable, SetNull"
+        string blendBatchId "nullable — groups blend batch"
     }
     RoastEvent {
         string id PK
@@ -106,7 +112,8 @@ erDiagram
     }
     CuppingNote {
         string id PK
-        string roastSessionId FK
+        string roastSessionId FK "nullable — exactly one of roast/lot"
+        string beanId FK "nullable — lot cupping"
         datetime cuppedAt
     }
     Friend {
@@ -126,6 +133,17 @@ erDiagram
         string status "planned/in-progress/completed"
         string beanId FK "nullable, SetNull"
         string roasterDefinitionId FK "nullable, SetNull"
+    }
+    BlendRecipe {
+        string id PK
+        string name "unique per team"
+        string teamId FK
+    }
+    BlendComponent {
+        string id PK
+        string blendRecipeId FK
+        string beanId FK
+        float ratioPercent
     }
     DropClaim {
         string id PK
