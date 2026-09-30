@@ -1,71 +1,61 @@
 "use client";
 
 import { useState } from "react";
-import { WEIGHT_UNITS, toGrams, fromGrams, type WeightUnit } from "@/lib/units";
+import { WEIGHT_UNITS, fromGrams, toGrams, type WeightUnit } from "@/lib/inventory-connector/math";
 
 /**
- * Weight input with an in-place unit switcher (g/kg/lb/oz). The number the
- * roaster sees converts when the unit changes; the hidden input always
- * submits grams — the database never sees a unit. Same component on every
- * weight field in the inventory section so the interaction is identical
- * everywhere.
+ * A weight field with a g/kg/lb/oz switcher. The displayed number converts
+ * in place when the unit changes; the form submits the raw number plus the
+ * unit (`<name>` / `<name>Unit`) and the server converts to grams — one
+ * conversion path, owned server-side.
  */
 export default function WeightInput({
-  name,
   label,
+  name,
   defaultGrams,
-  defaultUnit = "g",
-  required = false,
-  placeholder,
-  hint,
+  required,
 }: {
-  /** Name of the hidden input that submits grams. */
-  name: string;
   label: string;
+  name: string;
   defaultGrams?: number | null;
-  defaultUnit?: WeightUnit;
   required?: boolean;
-  placeholder?: string;
-  hint?: string;
 }) {
-  const [unit, setUnit] = useState<WeightUnit>(defaultUnit);
+  const [unit, setUnit] = useState<WeightUnit>("g");
   const [display, setDisplay] = useState<string>(
-    defaultGrams != null ? String(Math.round(fromGrams(defaultGrams, defaultUnit) * 100) / 100) : ""
+    defaultGrams != null && defaultGrams > 0 ? String(Math.round(fromGrams(defaultGrams, "g") * 100) / 100) : ""
   );
 
-  const grams = display === "" || Number.isNaN(Number(display)) ? "" : String(toGrams(Number(display), unit));
-
   return (
-    <div>
-      <label className="mb-1 block text-sm font-medium">
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-muted" htmlFor={`${name}-display`}>
         {label}
-        {required && <span className="text-danger"> *</span>}
       </label>
       <div className="flex gap-2">
         <input
+          id={`${name}-display`}
+          name={name}
           type="number"
           min="0"
           step="any"
+          inputMode="decimal"
           value={display}
-          onChange={(e) => setDisplay(e.target.value)}
           required={required}
-          placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm focus:border-accent focus:outline-none"
+          onChange={(e) => setDisplay(e.target.value)}
+          className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
         />
         <select
+          name={`${name}Unit`}
+          aria-label={`${label} unit`}
           value={unit}
           onChange={(e) => {
             const next = e.target.value as WeightUnit;
-            // Convert the visible number so the *weight* stays the same —
-            // switching g→kg divides the number, not the quantity.
-            if (display !== "" && !Number.isNaN(Number(display))) {
-              const g = toGrams(Number(display), unit);
-              setDisplay(String(Math.round(fromGrams(g, next) * 1000) / 1000));
+            const n = Number(display);
+            if (display !== "" && Number.isFinite(n)) {
+              setDisplay(String(Math.round(fromGrams(toGrams(n, unit), next) * 100) / 100));
             }
             setUnit(next);
           }}
-          aria-label={`${label} unit`}
-          className="rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium focus:border-accent focus:outline-none"
+          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
         >
           {WEIGHT_UNITS.map((u) => (
             <option key={u} value={u}>
@@ -74,8 +64,6 @@ export default function WeightInput({
           ))}
         </select>
       </div>
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-      <input type="hidden" name={name} value={grams} />
     </div>
   );
 }

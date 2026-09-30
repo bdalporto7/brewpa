@@ -102,7 +102,23 @@ A monthly roast commitment: how much to roast in a given month, optionally pinne
 
 **Delete behavior:** no stock side effects — deleting a plan just removes the commitment; already-logged `RoastSession`s are untouched.
 
-**Server actions:** `createProductionPlan` / `updateProductionPlan` / `deleteProductionPlan` in `src/lib/plan-actions.ts`. UI: `/inventory/plan` (month navigation, per-plan progress bars of actual roasted grams vs target derived from `RoastSession`s — stored nowhere, computed on read), `ProductionPlanForm`, `ProductionPlanCard`.
+**Server actions:** `createProductionPlan` / `updateProductionPlan` / `deleteProductionPlan` in `src/lib/plan-actions.ts`, wrapped with inventory-side revalidation by `createPlan` / `updatePlan` / `deletePlan` in `src/lib/inventory-connector/actions.ts`. UI: `/inventory/plan` (per-plan progress bars of actual roasted grams vs target derived from `RoastSession`s — stored nowhere, computed on read), `PlanForm` in `src/components/inventory/`.
+
+---
+
+## InventoryWidgetPrefs
+
+Which dashboard widgets the team hides on the inventory app's home page (`/inventory`) — the "pick and choose what gets displayed" preference. One row per team, `hiddenWidgets` a JSON array of widget keys (`stats` / `alerts` / `lots` / `roasts` / `plan` / `costs`, defined as `INVENTORY_WIDGETS` in `src/lib/inventory-connector/queries.ts`). Keys are validated server-side in `setWidgetPrefs`; anything absent from the stored list renders. Upsert keyed on `teamId`.
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | String | PK | `cuid()` | |
+| `teamId` | String | ✅ unique | | FK → `Team.id`, `onDelete: Cascade` |
+| `hiddenWidgets` | String | ✅ | `"[]"` | JSON array of widget keys |
+| `createdAt` | DateTime | ✅ | `now()` | |
+| `updatedAt` | DateTime | ✅ | auto | |
+
+**Indexes:** `@@index([teamId])`
 
 ---
 
@@ -205,7 +221,7 @@ One formal tasting — SCA/Q-grading-style. Attached to **exactly one** of: a co
 
 ## BlendRecipe
 
-A named blend: component green lots + their share percentages. Ratios must sum to exactly 100% — validated client-side (live total in `BlendRecipeForm`) and server-side in `createBlendRecipe`/`updateBlendRecipe` (`src/lib/inventory-actions.ts`). Like `ProductionPlan`, a recipe is a commitment: it never moves stock. `logBlendRoast` creates **one `RoastSession` per component** (sharing a `blendBatchId`) so each lot's stock, weight loss, and cost math stay independent — no parallel stock ledger, nothing that can drift.
+A named blend: component green lots + their share percentages. Ratios must sum to exactly 100% — validated client-side (live total in `BlendRecipeForm`) and server-side in `createBlendRecipe`/`updateBlendRecipe` (`src/lib/inventory-connector/actions.ts`). Like `ProductionPlan`, a recipe is a commitment: it never moves stock. `logBlendRoast` creates **one `RoastSession` per component** (sharing a `blendBatchId`) so each lot's stock, weight loss, and cost math stay independent — no parallel stock ledger, nothing that can drift.
 
 | Field | Type | Required | Default | Notes |
 |---|---|---|---|---|
