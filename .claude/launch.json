@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/roasting", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "shop",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/shop", "run", "dev"],
+      "port": 3001
     }
   ]
 }

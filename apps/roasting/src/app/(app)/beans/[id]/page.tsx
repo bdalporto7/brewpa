@@ -6,6 +6,8 @@ import BeanHeader from "@/components/beans/BeanHeader";
 import BeanStockBar from "@/components/beans/BeanStockBar";
 import BeanMeta from "@/components/beans/BeanMeta";
 import SupplierTastingNotes from "@/components/beans/SupplierTastingNotes";
+import ShopListingCard from "@/components/beans/ShopListingCard";
+import { beanStock } from "@/lib/shop-stock";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DropCard from "@/components/friends/DropCard";
 import CreateDropToggle from "@/components/drops/CreateDropToggle";
@@ -40,6 +42,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           include: { drop: { include: { items: { include: { bean: true } }, orders: true } } },
           orderBy: { drop: { createdAt: "desc" } },
         },
+        shopListing: { include: { variants: true } },
       },
     }),
     prisma.bean.findMany({ where: { teamId: user.teamId, remainingGrams: { gt: 0 } }, orderBy: { name: "asc" } }),
@@ -80,6 +83,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
 
       <SupplierTastingNotes bean={bean} />
 
+      <ShopListingCard
+        beanId={bean.id}
+        listing={bean.shopListing}
+        stock={beanStock(bean, bean.roastSessions)}
+      />
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Roasted on hand" value={`${Math.round(roastedTotal * 10) / 10}g`} />
         <Stat label="Total roasts" value={String(completed.length)} />

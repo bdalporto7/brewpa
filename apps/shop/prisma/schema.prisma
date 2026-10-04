@@ -1,3 +1,6 @@
+// GENERATED COPY of apps/roasting/prisma/schema.prisma — do not edit here.
+// Edit the roasting app's schema (it owns migrations), then run `npm run sync-schema`.
+
 // Prisma schema for the roasting app (built for a Fresh Roast SR800).
 // Bean = green bean inventory. RoastSession = one roast: pending
 // (startedAt null — bean/weight picked, fan/heat being dialed in, timer not

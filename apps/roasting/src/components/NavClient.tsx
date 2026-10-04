@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Home, Gift, BookOpen, Shield, LogOut } from "lucide-react";
+import { Flame, Home, Gift, BookOpen, Shield, LogOut, Store } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
 import { BrewedCupIcon, GreenBeanIcon } from "@/components/ui/CoffeeIcons";
 import CybarMark from "@/components/ui/CybarMark";
@@ -20,12 +20,23 @@ const ROASTING_LINKS = [
   { href: "/roasts", label: "Roasts", icon: Flame },
   { href: "/profiles", label: "Profiles", icon: BookOpen },
   { href: "/friends", label: "Drops", icon: Gift },
+  // Manages the public storefront (apps/shop): what's listed, order, and site settings.
+  { href: "/shop", label: "Shop", icon: Store },
 ] as const;
 
 const BREWING_LINKS = [
   { href: "/brews", label: "Brews", icon: BrewedCupIcon },
   { href: "/recipes", label: "Recipes", icon: BookOpen },
 ] as const;
+
+// Literal class names (not `grid-cols-${n}`) so Tailwind's scanner sees them.
+const TAB_COLS: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  6: "grid-cols-6",
+};
 
 function isBrewingPath(pathname: string) {
   return pathname.startsWith("/brews") || pathname.startsWith("/recipes");
@@ -162,7 +173,7 @@ export default function NavClient({
         className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--panel-line)] bg-panel-bg sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className={`grid ${links.length === 2 ? "grid-cols-2" : links.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+        <div className={`grid ${TAB_COLS[links.length] ?? "grid-cols-4"}`}>
           {links.map((link) => {
             const active = pathname === link.href;
             const Icon = link.icon;
