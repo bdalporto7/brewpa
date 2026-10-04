@@ -185,8 +185,11 @@ export default async function DashboardPage() {
       </div>
 
       <div>
-        <div className="mb-3">
+        <div className="mb-3 flex items-center justify-between">
           <SectionHeading>On hand</SectionHeading>
+          <Link href="/inventory" className="text-sm text-muted hover:text-foreground">
+            Inventory app →
+          </Link>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <InventoryCard

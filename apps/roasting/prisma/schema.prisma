@@ -64,6 +64,16 @@ model Bean {
   // for three sub-warnings it treats as one "running low" notice.
   lowStockDismissed Boolean @default(false)
 
+  // Business planning thresholds — all optional, all feed future alerts:
+  // reorderLevelGrams flags "running low" when remainingGrams drops below
+  // it; leadTimeDays is the supplier's lead time so a reorder alert can
+  // name an order-by date; agingThresholdDays flags green sitting
+  // unroasted longer than this. No behavior reads them yet — chunk 1 just
+  // stores and edits them.
+  reorderLevelGrams  Float?
+  leadTimeDays       Int?
+  agingThresholdDays Int?
+
   // The one roast of this bean to target/compare future roasts against —
   // set explicitly (not just "most recent"), null until the roaster marks
   // one. A distinct relation from roastSessions below since a bean can
@@ -71,11 +81,14 @@ model Bean {
   goldenRoastId String?       @unique
   goldenRoast   RoastSession? @relation("BeanGoldenRoast", fields: [goldenRoastId], references: [id], onDelete: SetNull)
 
-  roastSessions  RoastSession[]  @relation("BeanRoasts")
-  dropItems      DropItem[]
-  dropOrderItems DropOrderItem[]
-  shopListing    BeanListing?
-  shopOrderItems ShopOrderItem[]
+  roastSessions   RoastSession[]   @relation("BeanRoasts")
+  productionPlans ProductionPlan[]
+  blendComponents BlendComponent[]
+  lotCuppingNotes CuppingNote[]
+  dropItems       DropItem[]
+  dropOrderItems  DropOrderItem[]
+  shopListing     BeanListing?
+  shopOrderItems  ShopOrderItem[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
   // actually draws down) is tracked per roast, not per bean — see Brew.
 
@@ -87,6 +100,83 @@ model Bean {
   @@index([origin])
   @@index([createdAt])
   @@index([teamId])
+}
+
+// A monthly roast commitment: how much roasted coffee to produce in a
+// given month, optionally tied to a bean and a roaster. The business
+// cycle is "buy green 1st–15th → roast/fulfill the following month", so
+// `month` is the *roast* month as "YYYY-MM" — a plain string, not a
+// DateTime, because no day or time is meaningful here (validated in
+// plan-actions.ts). Plans never move stock; they're commitments, and
+// actual RoastSessions decrement inventory when they happen.
+model ProductionPlan {
+  id          String  @id @default(cuid())
+  month       String
+  targetGrams Float
+  // planned | in-progress | completed — plain string, validated in the
+  // action (this schema uses strings, not enums, throughout).
+  status      String  @default("planned")
+  notes       String?
+
+  beanId String?
+  bean   Bean?   @relation(fields: [beanId], references: [id], onDelete: SetNull)
+
+  roasterDefinitionId String?
+  roasterDefinition   RoasterDefinition? @relation(fields: [roasterDefinitionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Plans belong to the team — shared by every member, like Bean, not
+  // per-user like Brew.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([month])
+}
+
+// A named blend: component beans plus their share of the blend (0–100,
+// must sum to 100 — validated in inventory-actions.ts). Logging a blend
+// roast creates one RoastSession per component (each deducting its own
+// bean's green stock) sharing a blendBatchId — so weight loss, cost, and
+// cupping all keep working per component through the existing models,
+// and the batch id is what groups them back into "one blend roast" for
+// display. Plans never move stock; blend recipes don't either — only the
+// RoastSessions created from them do.
+model BlendRecipe {
+  id    String  @id @default(cuid())
+  name  String
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Blend recipes belong to the team — shared by every member, like Bean,
+  // not per-user like Brew.
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  components    BlendComponent[]
+  roastSessions RoastSession[]
+
+  @@index([teamId])
+}
+
+model BlendComponent {
+  id String @id @default(cuid())
+
+  blendRecipeId String
+  blendRecipe   BlendRecipe @relation(fields: [blendRecipeId], references: [id], onDelete: Cascade)
+
+  beanId String
+  bean   Bean   @relation(fields: [beanId], references: [id], onDelete: Restrict)
+
+  // Share of the blend as a percentage (0–100); all components of one
+  // recipe must sum to exactly 100 (validated in the action, not the DB).
+  ratioPercent Float
+
+  @@index([blendRecipeId])
 }
 
 model RoastSession {
@@ -174,11 +264,21 @@ model RoastSession {
   teamId String
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  // Blend roasts: logging a blend creates one RoastSession per component
+  // bean (each deducting its own green stock); blendBatchId is the shared
+  // id grouping those component sessions back into one "blend roast" for
+  // display, and blendRecipeId is the soft link back to the recipe (SetNull
+  // so deleting a recipe doesn't delete the roast history).
+  blendRecipeId String?
+  blendRecipe   BlendRecipe? @relation(fields: [blendRecipeId], references: [id], onDelete: SetNull)
+  blendBatchId  String?
+
   @@index([beanId])
   @@index([startedAt])
   @@index([profileId])
   @@index([teamId])
   @@index([roasterDefinitionId])
+  @@index([blendBatchId])
 }
 
 // A catalog entry describing one physical roasting machine's controls and
@@ -210,7 +310,8 @@ model RoasterDefinition {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  roastSessions RoastSession[]
+  roastSessions   RoastSession[]
+  productionPlans ProductionPlan[]
 
   teamId String
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -335,10 +436,17 @@ model Sale {
 // score, or nothing quantitative at all. See src/lib/cupping.ts for the
 // field list/order and how these combine into a total score.
 model CuppingNote {
-  id             String       @id @default(cuid())
-  roastSessionId String
-  roastSession   RoastSession @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
-  cuppedAt       DateTime     @default(now())
+  id             String        @id @default(cuid())
+  // A cupping attaches to a roast OR directly to a green lot — exactly one
+  // must be set (enforced in the action, same app-level-constraint pattern
+  // as Brew's roastSessionId/beanName). Roast-attached cuppings are the
+  // original Q-grading flow; lot-attached ones are the inventory side's
+  // green-sample / arrival-sample notes.
+  roastSessionId String?
+  roastSession   RoastSession? @relation(fields: [roastSessionId], references: [id], onDelete: Cascade)
+  beanId         String?
+  bean           Bean?         @relation(fields: [beanId], references: [id], onDelete: Cascade)
+  cuppedAt       DateTime      @default(now())
 
   fragranceAroma Float?
   flavor         Float?
@@ -358,6 +466,7 @@ model CuppingNote {
   updatedAt DateTime @updatedAt
 
   @@index([roastSessionId])
+  @@index([beanId])
 }
 
 // A person drops go to — lets you see everything one friend has ever
@@ -601,18 +710,33 @@ model Team {
   name      String
   createdAt DateTime @default(now())
 
-  members            AllowedUser[]
-  beans              Bean[]
-  roastSessions      RoastSession[]
-  friends            Friend[]
-  drops              Drop[]
-  roastProfiles      RoastProfile[]
-  recipes            Recipe[]
-  roasterDefinitions RoasterDefinition[]
-  probeTokens        ProbeToken[]
-  beanListings       BeanListing[]
-  shopSettings       ShopSettings?
-  shopOrders         ShopOrder[]
+  members              AllowedUser[]
+  beans                Bean[]
+  roastSessions        RoastSession[]
+  productionPlans      ProductionPlan[]
+  blendRecipes         BlendRecipe[]
+  friends              Friend[]
+  drops                Drop[]
+  roastProfiles        RoastProfile[]
+  recipes              Recipe[]
+  roasterDefinitions   RoasterDefinition[]
+  probeTokens          ProbeToken[]
+  beanListings         BeanListing[]
+  shopSettings         ShopSettings?
+  shopOrders           ShopOrder[]
+  inventoryWidgetPrefs InventoryWidgetPrefs?
+}
+
+// Dashboard widget visibility for the inventory app — which widgets the
+// team has hidden on /inventory. One row per team, created on first save;
+// absent means everything visible (the default).
+model InventoryWidgetPrefs {
+  id            String   @id @default(cuid())
+  teamId        String   @unique
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  hiddenWidgets String   @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // A reusable brewing target — not tied to a bean, so the same "V60 4:6"
