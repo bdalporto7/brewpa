@@ -7,6 +7,8 @@ export interface PricedLine {
   beanId: string;
   slug: string;
   coffeeName: string;
+  origin: string;
+  photoUrl: string | null;
   label: string;
   grams: number;
   qty: number;
@@ -75,6 +77,8 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
       beanId: listing.beanId,
       slug: listing.slug,
       coffeeName: listing.bean.name,
+      origin: listing.bean.origin,
+      photoUrl: listing.bean.photoUrl,
       label: v.label,
       grams: v.grams,
       qty: w.qty,

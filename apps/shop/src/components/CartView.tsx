@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { createCheckout, priceCartAction } from "@/app/cart/actions";
@@ -69,36 +70,83 @@ export default function CartView({ settings, earliestPickup }: Props) {
 
   return (
     <div className="mt-8 grid gap-10 md:grid-cols-[1fr_22rem]">
-      <ul className="divide-y-2 divide-border">
-        {priced.lines.map((l) => (
-          <li key={l.variantId} className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div>
-              <Link href={`/coffee/${l.slug}`} className="text-lg font-bold underline-offset-4 hover:underline">
-                {l.coffeeName}
+      <div>
+        <ul className="space-y-4">
+          {priced.lines.map((l) => (
+            <li
+              key={l.variantId}
+              className="flex gap-4 rounded-lg border-2 border-[var(--border-strong)] bg-surface p-3 shadow-[3px_3px_0_var(--shadow-ink)] sm:p-4"
+            >
+              <Link
+                href={`/coffee/${l.slug}`}
+                aria-label={l.coffeeName}
+                className="kraft relative block h-24 w-24 shrink-0 overflow-hidden rounded-sm border-2 border-[var(--border-strong)] sm:h-28 sm:w-28"
+              >
+                {l.photoUrl ? (
+                  <Image src={l.photoUrl} alt="" fill sizes="112px" className="object-cover" />
+                ) : (
+                  <span className="flex h-full items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- static logo */}
+                    <img src="/cybar-mark.png" alt="" className="h-10 w-auto opacity-90" />
+                  </span>
+                )}
               </Link>
-              <p className="text-sm text-muted">
-                {l.label} · {formatCents(l.unitPriceCents)} each
-                {l.availability === "roast_to_order" && !l.problem
-                  ? ` · roasted to order, allow ${settings.noticeDays} days`
-                  : ""}
-              </p>
-              {l.problem && <p className="mt-1 text-sm font-semibold text-accent">{l.problem}</p>}
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center rounded-lg border-2 border-border">
-                <button type="button" aria-label={`Fewer ${l.coffeeName} ${l.label}`} className="px-3 py-1" onClick={() => setQty(l.variantId, l.qty - 1)}>
-                  −
-                </button>
-                <span className="min-w-6 text-center font-mono">{l.qty}</span>
-                <button type="button" aria-label={`More ${l.coffeeName} ${l.label}`} className="px-3 py-1" onClick={() => setQty(l.variantId, l.qty + 1)}>
-                  +
-                </button>
+
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link href={`/coffee/${l.slug}`} className="text-lg font-extrabold leading-tight underline-offset-4 hover:underline">
+                      {l.coffeeName}
+                    </Link>
+                    <p className="text-sm text-muted">
+                      {l.label} bag · {l.origin}
+                    </p>
+                  </div>
+                  <span className="font-mono font-semibold">{formatCents(l.lineCents)}</span>
+                </div>
+
+                {l.problem ? (
+                  <p className="mt-1 text-sm font-semibold text-accent">{l.problem}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted">
+                    {l.availability === "ready"
+                      ? "Roasted and ready"
+                      : `Roasted to order, allow ${settings.noticeDays} days`}
+                  </p>
+                )}
+
+                <div className="mt-auto flex items-center justify-between pt-3">
+                  <div className="flex items-center rounded-lg border-2 border-border">
+                    <button type="button" aria-label={`Fewer ${l.coffeeName} ${l.label}`} className="px-3 py-1 text-lg leading-none" onClick={() => setQty(l.variantId, l.qty - 1)}>
+                      −
+                    </button>
+                    <span className="min-w-7 text-center font-mono">{l.qty}</span>
+                    <button type="button" aria-label={`More ${l.coffeeName} ${l.label}`} className="px-3 py-1 text-lg leading-none" onClick={() => setQty(l.variantId, l.qty + 1)}>
+                      +
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => setQty(l.variantId, 0)} className="text-sm text-muted underline underline-offset-4 hover:text-foreground">
+                    Remove
+                  </button>
+                </div>
               </div>
-              <span className="w-16 text-right font-mono font-semibold">{formatCents(l.lineCents)}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+
+        {priced.subtotalCents < settings.freeShippingOverCents ? (
+          <p className="mt-4 rounded-lg border-2 border-dashed border-border px-4 py-3 text-sm text-muted">
+            Add {formatCents(settings.freeShippingOverCents - priced.subtotalCents)} more and shipping is free.
+          </p>
+        ) : (
+          <p className="mt-4 rounded-lg border-2 border-dashed border-[var(--border-strong)] px-4 py-3 text-sm font-semibold">
+            Your order qualifies for free shipping.
+          </p>
+        )}
+        <Link href="/shop" className="mt-4 inline-block text-sm font-medium underline underline-offset-4">
+          Keep shopping
+        </Link>
+      </div>
 
       <form onSubmit={submit} className="space-y-5 rounded-lg border-2 border-[var(--border-strong)] bg-surface p-5 shadow-[3px_3px_0_var(--shadow-ink)]">
         <fieldset>

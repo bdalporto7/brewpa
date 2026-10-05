@@ -29,7 +29,7 @@ export default async function OrderPage({ params }: { params: Promise<{ ref: str
           ? "This order wasn't completed and you haven't been charged."
           : pending
             ? "This usually takes a few seconds. This page updates on its own."
-            : "Your order is in. We sent a receipt to your email, and we'll be in touch about timing."}
+            : "Your order is in. Square will email your receipt, and we'll be in touch about timing."}
       </p>
 
       <div className="mt-8 rounded-lg border-2 border-[var(--border-strong)] bg-surface p-6 shadow-[3px_3px_0_var(--shadow-ink)]">
