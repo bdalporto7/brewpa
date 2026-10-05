@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/admin";
 import { DEFAULT_VARIANTS, slugify } from "@/lib/shop-stock";
+import { squareConfigured, syncListingToSquare, syncListingToSquareQuietly } from "@/lib/square-sync";
 
 function str(formData: FormData, key: string): string | null {
   const raw = formData.get(key);
@@ -66,6 +67,7 @@ export async function setListingListed(listingId: string, isListed: boolean) {
     throw new Error("Turn on at least one bag size before listing this coffee.");
   }
   await prisma.beanListing.update({ where: { id: listing.id }, data: { isListed } });
+  await syncListingToSquareQuietly(listing.id);
   revalidatePath(`/beans/${listing.beanId}`);
   revalidatePath("/shop");
 }
@@ -112,6 +114,7 @@ export async function updateShopListing(listingId: string, formData: FormData) {
     }),
     ...variantUpdates.map(({ id, ...data }) => prisma.listingVariant.update({ where: { id }, data })),
   ]);
+  await syncListingToSquareQuietly(listing.id);
   revalidatePath(`/beans/${listing.beanId}`);
   revalidatePath("/shop");
 }
@@ -202,4 +205,32 @@ export async function setShopOrderStatus(orderId: string, status: (typeof ORDER_
   });
   revalidatePath("/shop/orders");
   revalidatePath("/shop");
+}
+
+/**
+ * Pushes every listing to Square's catalog (the register's item list for
+ * pop-ups). Returns a plain-language summary for the button that calls it.
+ */
+export async function syncAllListingsToSquare(): Promise<string> {
+  const user = await requireUser();
+  if (!squareConfigured()) return "Square isn't connected to this app yet.";
+  const listings = await prisma.beanListing.findMany({ where: { teamId: user.teamId }, select: { id: true } });
+  let synced = 0;
+  let removed = 0;
+  const failed: string[] = [];
+  for (const l of listings) {
+    try {
+      const r = await syncListingToSquare(l.id);
+      if (r.status === "synced") synced++;
+      if (r.status === "removed") removed++;
+    } catch (err) {
+      console.error("Square catalog sync failed for listing", l.id, err);
+      failed.push(l.id);
+    }
+  }
+  revalidatePath("/shop");
+  const parts = [`${synced} on the register`];
+  if (removed > 0) parts.push(`${removed} removed`);
+  if (failed.length > 0) parts.push(`${failed.length} failed, try again`);
+  return parts.join(", ") + ".";
 }

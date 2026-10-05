@@ -5,6 +5,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import { beanStock, variantAvailability } from "@/lib/shop-stock";
 import SectionHeading from "@/components/ui/SectionHeading";
 import ShopManagerList, { type ManagerRow } from "@/components/shop/ShopManagerList";
+import SquareSyncButton from "@/components/shop/SquareSyncButton";
 import ShopSettingsForm from "@/components/shop/ShopSettingsForm";
 
 /**
@@ -100,6 +101,18 @@ export default async function ShopManagerPage() {
           <SectionHeading>Coffees</SectionHeading>
         </div>
         <ShopManagerList onShop={onShop} notOnShop={notOnShop} />
+      </section>
+
+      <section>
+        <div className="mb-3">
+          <SectionHeading>Pop-ups</SectionHeading>
+        </div>
+        <p className="mb-3 max-w-prose text-sm text-muted">
+          Listed coffees are copied to Square as register items (one per bag size) so you can ring them up at a
+          pop-up. Selling one there takes the grams out of stock automatically. This happens each time you save a
+          listing; use the button to resend everything.
+        </p>
+        <SquareSyncButton />
       </section>
 
       <section>

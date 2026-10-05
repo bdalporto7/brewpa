@@ -96,3 +96,63 @@ export async function markOrderPaid(squareOrderId: string, paidCents: number | n
     { timeout: 20000, maxWait: 10000 }
   );
 }
+
+/**
+ * A coffee sold in person (a pop-up, rung up on the Square register from the
+ * synced items). There's no ShopOrder: each line is matched to a bag size by
+ * its Square variation id and drawn from roasted stock only — a pop-up sells
+ * what's in the bag, it never roasts to order. Anything that can't be matched
+ * or isn't in stock is reported back so the webhook can log it.
+ */
+export async function recordPosSale(
+  lines: { variationId: string; quantity: number; totalCents: number }[],
+  squarePaymentId: string
+): Promise<{ drawnGrams: number; unmatched: string[]; shortGrams: number }> {
+  const variations = await prisma.listingVariant.findMany({
+    where: { squareVariationId: { in: lines.map((l) => l.variationId) } },
+    include: { listing: { select: { beanId: true } } },
+  });
+  const byVariation = new Map(variations.map((v) => [v.squareVariationId as string, v]));
+  const unmatched = lines.filter((l) => !byVariation.has(l.variationId)).map((l) => l.variationId);
+
+  return prisma.$transaction(
+    async (tx) => {
+      let drawnGrams = 0;
+      let shortGrams = 0;
+      for (const line of lines) {
+        const v = byVariation.get(line.variationId);
+        if (!v) continue;
+        const need = v.grams * line.quantity;
+        let remaining = need;
+        const sessions = await tx.roastSession.findMany({
+          where: { beanId: v.listing.beanId, endedAt: { not: null }, roastedRemainingGrams: { gt: 0 } },
+          orderBy: { endedAt: "asc" },
+          select: { id: true, roastedRemainingGrams: true },
+        });
+        for (const s of sessions) {
+          if (remaining <= 0) break;
+          const take = Math.min(s.roastedRemainingGrams ?? 0, remaining);
+          if (take <= 0) continue;
+          const upd = await tx.roastSession.updateMany({
+            where: { id: s.id, roastedRemainingGrams: { gte: take } },
+            data: { roastedRemainingGrams: { decrement: take } },
+          });
+          if (upd.count === 0) continue;
+          await tx.sale.create({
+            data: {
+              roastSessionId: s.id,
+              weightGrams: take,
+              price: Math.round((line.totalCents / 100) * (take / need) * 100) / 100,
+              notes: `Pop-up sale (Square ${squarePaymentId})`,
+            },
+          });
+          drawnGrams += take;
+          remaining -= take;
+        }
+        shortGrams += Math.max(0, remaining);
+      }
+      return { drawnGrams, unmatched, shortGrams };
+    },
+    { timeout: 20000, maxWait: 10000 }
+  );
+}
