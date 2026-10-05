@@ -115,7 +115,6 @@ export async function createCheckout(input: {
           ? { shippingFee: { name: "Shipping", charge: { amount: BigInt(shippingCents), currency: "USD" } } }
           : {}),
       },
-      prePopulatedData: { buyerEmail: email, buyerPhoneNumber: phone || undefined },
     });
     const link = res.paymentLink;
     if (!link?.url || !link.orderId) throw new Error(JSON.stringify(res.errors ?? "no payment link returned"));
