@@ -14,7 +14,8 @@ app being built.
 ```
 brewpa/
 ├── apps/
-│   └── roasting/        # ACTIVE — see below. Roasting + brewing both live here.
+│   ├── roasting/        # ACTIVE — see below. Roasting + brewing both live here.
+│   └── shop/            # Public online storefront (Square checkout) — see "Online shop" below.
 ├── start.sh              # `./start.sh` — installs deps, sets up the DB on first run, then
 │                         # runs apps/roasting's dev server. Safe to re-run.
 └── AGENTS.md             # this file
@@ -714,6 +715,36 @@ whoever picks this up next, not scoped or estimated further than this.
 Next dev server. The regenerated Prisma Client on disk doesn't get picked up
 by an already-running process — you'll see `PrismaClientValidationError:
 Unknown field` or similar until you restart.
+
+## Online shop (`apps/shop`, built 2026-10)
+
+A public storefront for selling roasted coffee, its own Vercel project
+(`cybar-shop`) on the same Turso database; `apps/roasting` still owns the
+schema. Admins control what's sold from the roasting app's **Shop** tab
+(`/shop`: listings, order, site settings; `/shop/orders`: fulfilment) and each
+bean's "Online shop" card. Payments go through **Square payment links**
+(sandbox until `SQUARE_ENVIRONMENT=production`); our database stays the
+inventory source of truth. How an order flows, env vars and what's not built
+yet are in `apps/shop/README.md`. Things worth knowing before touching it:
+
+- **Stock is mixed:** sellable grams = roasted stock + green stock × the bean's
+  own historical roast yield (0.85 fallback). `shop-stock.ts` exists in both
+  apps — keep the copies in sync.
+- **Paid = stock taken.** The webhook (`payment.updated`) takes roasted grams
+  out oldest-roast-first as real `Sale` rows (`Sale.shopOrderItemId`), then
+  green for the remainder, in one transaction; shortfalls flag the order
+  NEEDS_ATTENTION rather than failing (the money is already taken).
+- **Square can't let a buyer pick pickup vs shipping**, so the cart asks first
+  and each payment link carries exactly one fulfillment. Don't combine
+  `prePopulatedData` buyer fields with a fulfillment recipient — Square
+  rejects it.
+- **Secret Vercel env vars can't be read back.** A pasted token that looked
+  right produced 401s in production; re-setting it from the working local
+  value and redeploying fixed it. Env changes need a new deployment.
+- **Tested end to end in the sandbox** (pickup and shipping orders, replayed
+  and forged webhooks); test data was removed afterwards. Tax is not applied
+  (whole-bean coffee is believed exempt in California — confirm with an
+  accountant before launch).
 
 ## Brewing
 
