@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAllowedUser } from "@/lib/admin";
@@ -63,6 +64,9 @@ export default async function ShopManagerPage() {
     .filter((r) => !r.listing)
     .sort((a, b) => b.roastedGrams + b.roastableGrams - (a.roastedGrams + a.roastableGrams) || a.name.localeCompare(b.name));
 
+  const openOrders = await prisma.shopOrder.count({
+    where: { teamId: user.teamId, status: { in: ["PAID", "NEEDS_ATTENTION", "READY"] } },
+  });
   const shopUrl = process.env.SHOP_PUBLIC_URL ?? null;
 
   return (
@@ -82,6 +86,14 @@ export default async function ShopManagerPage() {
           )}
         </p>
       </div>
+
+      <Link
+        href="/shop/orders"
+        className="flex items-center justify-between rounded-xl border-2 border-[var(--border-strong)] bg-surface px-4 py-3 font-semibold shadow-[2px_2px_0_var(--shadow-ink)]"
+      >
+        <span>Online orders</span>
+        <span className="font-mono text-sm text-muted">{openOrders > 0 ? `${openOrders} open` : "none open"}</span>
+      </Link>
 
       <section>
         <div className="mb-3">

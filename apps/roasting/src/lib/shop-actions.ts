@@ -181,3 +181,25 @@ export async function saveShopSettings(formData: FormData) {
   });
   revalidatePath("/shop");
 }
+
+const ORDER_STATUS_STEPS = ["PAID", "READY", "FULFILLED"] as const;
+
+/**
+ * Moves a paid online order along: Paid → Ready → Fulfilled (or back a step,
+ * or out of "needs attention" once a human has sorted it). PENDING and
+ * CANCELED orders aren't touched — those are driven by Square, not by us.
+ */
+export async function setShopOrderStatus(orderId: string, status: (typeof ORDER_STATUS_STEPS)[number]) {
+  const user = await requireUser();
+  if (!ORDER_STATUS_STEPS.includes(status)) throw new Error("Unknown status.");
+  const order = await prisma.shopOrder.findFirstOrThrow({ where: { id: orderId, teamId: user.teamId } });
+  if (order.status === "PENDING" || order.status === "CANCELED") {
+    throw new Error("That order hasn't been paid.");
+  }
+  await prisma.shopOrder.update({
+    where: { id: order.id },
+    data: { status, ...(status === "PAID" ? {} : { attentionNote: null }) },
+  });
+  revalidatePath("/shop/orders");
+  revalidatePath("/shop");
+}
