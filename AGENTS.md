@@ -734,6 +734,10 @@ yet are in `apps/shop/README.md`. Things worth knowing before touching it:
   out oldest-roast-first as real `Sale` rows (`Sale.shopOrderItemId`), then
   green for the remainder, in one transaction; shortfalls flag the order
   NEEDS_ATTENTION rather than failing (the money is already taken).
+- **Pop-up sales:** listings are mirrored into Square's catalog by
+  `apps/roasting/src/lib/square-sync.ts` (on every listing save, plus a button
+  on `/shop`); the shop webhook draws register sales out of roasted stock. See
+  "Pop-up (register) sales" in `apps/shop/README.md`.
 - **Square can't let a buyer pick pickup vs shipping**, so the cart asks first
   and each payment link carries exactly one fulfillment. Don't combine
   `prePopulatedData` buyer fields with a fulfillment recipient — Square

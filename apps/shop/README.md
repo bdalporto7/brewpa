@@ -44,10 +44,21 @@ Sandbox until `SQUARE_ENVIRONMENT=production`. The webhook URL registered in
 Square must match `SHOP_BASE_URL` + `/api/square/webhook` exactly (or set
 `SQUARE_WEBHOOK_URL`). Env changes only take effect on a new deployment.
 
+## Pop-up (register) sales
+
+`apps/roasting` copies each listed coffee into Square's catalog (one item, one
+variation per bag size, SKU = our `ListingVariant.id`) every time a listing is
+saved, and from the "Sync to Square register" button on its `/shop` page
+(`src/lib/square-sync.ts` there). Unlisting a coffee removes it from Square.
+When a register payment completes, the webhook sees an order that isn't one of
+ours, fetches it from Square, and takes the matching grams out of roasted
+stock (oldest roast first, recorded as `Sale` rows). Register sales never
+roast to order, and non-coffee lines (drinks, merch) are ignored. The roasting
+project therefore also needs `SQUARE_ACCESS_TOKEN`, `SQUARE_ENVIRONMENT` and
+`SQUARE_LOCATION_ID`.
+
 ## Not built yet
 
-- Pop-up (in-person) Square sales drawing down stock: needs the coffee bags as
-  Square catalog items, then handling non-online payments in the webhook.
 - Refunds putting coffee back in stock (`refund.created`).
 - Cancelling a paid order from the roasting app.
 
