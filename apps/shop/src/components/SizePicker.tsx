@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { PublicVariant } from "@/lib/catalog";
 import { formatCents } from "@/lib/shop-stock";
+import Link from "next/link";
+import { addToCart } from "@/lib/cart-store";
 import AvailabilityNote from "@/components/AvailabilityNote";
 
 /**
@@ -21,6 +23,7 @@ export default function SizePicker({
 }) {
   const firstBuyable = variants.find((v) => v.availability !== "sold_out") ?? null;
   const [selectedId, setSelectedId] = useState<string | null>(firstBuyable?.id ?? null);
+  const [added, setAdded] = useState(false);
   const selected = variants.find((v) => v.id === selectedId) ?? null;
 
   return (
@@ -48,7 +51,10 @@ export default function SizePicker({
                   value={v.id}
                   checked={on}
                   disabled={disabled}
-                  onChange={() => setSelectedId(v.id)}
+                  onChange={() => {
+                    setSelectedId(v.id);
+                    setAdded(false);
+                  }}
                   className="sr-only"
                 />
                 <span className="font-semibold">{v.label}</span>{" "}
@@ -66,14 +72,25 @@ export default function SizePicker({
 
       <button
         type="button"
-        disabled
-        aria-describedby="checkout-soon"
-        className="mt-5 w-full rounded-lg border-2 border-[var(--border-strong)] bg-accent px-5 py-3 text-base font-semibold text-accent-foreground opacity-60 sm:w-auto"
+        disabled={!selected}
+        onClick={() => {
+          if (!selected) return;
+          addToCart(selected.id);
+          setAdded(true);
+        }}
+        className="mt-5 w-full rounded-lg border-2 border-[var(--border-strong)] bg-accent px-5 py-3 text-base font-semibold text-accent-foreground shadow-[3px_3px_0_var(--shadow-ink)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:opacity-60 sm:w-auto"
       >
         Add {selected ? `${selected.label} of ${coffeeName}` : "to bag"}
       </button>
-      <p id="checkout-soon" className="mt-2 text-sm text-muted">
-        Online ordering opens soon. Until then, message us on Instagram to reserve a bag.
+      <p className="mt-3 text-sm" role="status" aria-live="polite">
+        {added ? (
+          <>
+            Added to your bag.{" "}
+            <Link href="/cart" className="font-semibold underline underline-offset-4">
+              View bag and check out
+            </Link>
+          </>
+        ) : null}
       </p>
     </div>
   );

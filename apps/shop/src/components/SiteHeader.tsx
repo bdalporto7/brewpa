@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CartLink from "@/components/CartLink";
 
 const LINKS = [
   { href: "/shop", label: "Shop coffee" },
@@ -33,6 +34,9 @@ export default function SiteHeader() {
                 </Link>
               </li>
             ))}
+            <li>
+              <CartLink />
+            </li>
           </ul>
         </nav>
       </div>
