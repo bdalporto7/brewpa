@@ -52,6 +52,7 @@ export async function createCheckout(input: {
   if (cart.lines.length === 0) return { error: "Your bag is empty." };
   if (!cart.ok) return { error: "Something in your bag is no longer available. Review it and try again." };
 
+  const squareSourced = process.env.SHOP_SOURCE === "square";
   const shippingCents = input.fulfillment === "SHIPMENT" ? shippingCentsFor(settings, cart.subtotalCents) : 0;
   const publicRef = newRef();
 
@@ -70,6 +71,7 @@ export async function createCheckout(input: {
       items: {
         create: cart.lines.map((l) => ({
           beanId: l.beanId,
+          squareVariationId: squareSourced ? l.variantId : null,
           variantLabel: `${l.coffeeName}, ${l.label}`,
           grams: l.grams,
           quantity: l.qty,
@@ -86,11 +88,17 @@ export async function createCheckout(input: {
       order: {
         locationId: squareLocationId(),
         referenceId: publicRef,
-        lineItems: cart.lines.map((l) => ({
-          name: `${l.coffeeName}, ${l.label}`,
-          quantity: String(l.qty),
-          basePriceMoney: { amount: BigInt(l.unitPriceCents), currency: "USD" },
-        })),
+        // Square-sourced: real catalog items, so Square itself takes the bags out of
+        // inventory when the order is paid. Otherwise an ad hoc named line.
+        lineItems: cart.lines.map((l) =>
+          squareSourced
+            ? { catalogObjectId: l.variantId, quantity: String(l.qty) }
+            : {
+                name: `${l.coffeeName}, ${l.label}`,
+                quantity: String(l.qty),
+                basePriceMoney: { amount: BigInt(l.unitPriceCents), currency: "USD" as const },
+              }
+        ),
         fulfillments: [
           input.fulfillment === "PICKUP"
             ? {

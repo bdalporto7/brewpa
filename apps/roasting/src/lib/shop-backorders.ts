@@ -13,5 +13,5 @@ export async function backorderedGramsByBean(beanIds: string[]): Promise<Map<str
     where: { beanId: { in: beanIds }, gramsBackordered: { gt: 0 }, order: { status: { in: ["PAID", "NEEDS_ATTENTION"] } } },
     _sum: { gramsBackordered: true },
   });
-  return new Map(rows.map((r) => [r.beanId, r._sum.gramsBackordered ?? 0]));
+  return new Map(rows.flatMap((r) => (r.beanId ? [[r.beanId, r._sum.gramsBackordered ?? 0] as [string, number]] : [])));
 }

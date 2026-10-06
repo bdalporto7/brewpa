@@ -75,6 +75,8 @@ export async function POST(req: Request) {
  * once, keyed on its own id as well as the event id.
  */
 async function handlePosPayment(paymentId: string, squareOrderId: string): Promise<string> {
+  // When Square holds the bag counts it subtracts register sales itself.
+  if (process.env.SHOP_SOURCE === "square") return "square-managed";
   const key = `pos-payment:${paymentId}`;
   if (await prisma.processedSquareEvent.findUnique({ where: { eventId: key } })) return "duplicate-payment";
 

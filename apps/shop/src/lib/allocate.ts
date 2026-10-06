@@ -30,6 +30,8 @@ export async function markOrderPaid(squareOrderId: string, paidCents: number | n
 
       const notes: string[] = [];
       for (const item of order.items) {
+        // Sold from Square's catalog: Square subtracts the bags itself, nothing to draw here.
+        if (item.squareVariationId || !item.beanId) continue;
         const need = item.grams * item.quantity;
         const lineRevenue = (item.unitPriceCents * item.quantity) / 100;
         let remaining = need;

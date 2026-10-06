@@ -62,7 +62,9 @@ function OrderCard({ order }: { order: Order }) {
           <li key={i.id} className="flex flex-wrap justify-between gap-2 py-1.5">
             <span>{i.quantity} × {i.variantLabel}</span>
             <span className="text-muted">
-              {i.gramsToRoast > 0
+              {i.squareVariationId
+                ? "bags from Square stock"
+                : i.gramsToRoast > 0
                 ? `roast ${Math.round(i.gramsToRoast)} g${i.gramsBackordered > 0.01 ? ` (${Math.round(i.gramsBackordered)} g waiting on green beans)` : ""}${i.gramsFromRoasted > 0 ? `, ${Math.round(i.gramsFromRoasted)} g from stock` : ""}`
                 : "from roasted stock"}
             </span>
@@ -115,7 +117,7 @@ export default async function ShopOrdersPage() {
     const noticeDue = new Date((o.paidAt ?? o.createdAt).getTime() + 2 * 86400000);
     const due = o.fulfillment === "PICKUP" && o.pickupAt ? o.pickupAt : noticeDue;
     for (const i of o.items) {
-      if (i.gramsToRoast <= 0.01) continue;
+      if (i.gramsToRoast <= 0.01 || !i.beanId || !i.bean) continue;
       const yieldRatio = roastYield(i.bean.roastSessions);
       const row = backlog.get(i.beanId) ?? { name: i.bean.name, orders: new Set<string>(), roastedG: 0, greenG: 0, backorderedG: 0, greenOnHand: i.bean.remainingGrams, yieldRatio, due: null };
       row.orders.add(o.id);

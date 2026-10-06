@@ -1,11 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { backorderedGramsByBean } from "@/lib/backorders";
+import { getSquareCoffees } from "@/lib/square-catalog";
 import { beanStock, variantAvailability, type Availability } from "@/lib/shop-stock";
 
 export interface PricedLine {
   variantId: string;
-  beanId: string;
+  /** Our bean, when the coffee came from our database; null for Square-only coffees. */
+  beanId: string | null;
   slug: string;
   coffeeName: string;
   origin: string;
@@ -16,6 +18,8 @@ export interface PricedLine {
   unitPriceCents: number;
   lineCents: number;
   availability: Availability;
+  /** Most that can be bought (bags on hand), or null when unlimited (backorder). */
+  maxQty: number | null;
   /** Set when this line can't be bought as asked. */
   problem: string | null;
 }
@@ -41,6 +45,7 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
     .filter((l) => typeof l.variantId === "string" && Number.isInteger(l.qty) && l.qty > 0)
     .map((l) => ({ variantId: l.variantId, qty: Math.min(l.qty, MAX_QTY) }));
   if (wanted.length === 0) return { lines: [], subtotalCents: 0, ok: false };
+  if (process.env.SHOP_SOURCE === "square") return priceCartFromSquare(wanted);
 
   const variants = await prisma.listingVariant.findMany({
     where: { id: { in: wanted.map((w) => w.variantId) } },
@@ -87,13 +92,14 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
       unitPriceCents: v.priceCents,
       lineCents: v.priceCents * w.qty,
       availability: variantAvailability(stock, v.grams, listing.allowBackorder),
+      maxQty: null,
       problem: sellable ? null : "No longer available",
     });
     if (sellable) gramsByBean.set(listing.beanId, (gramsByBean.get(listing.beanId) ?? 0) + v.grams * w.qty);
   }
 
   for (const line of lines) {
-    if (line.problem) continue;
+    if (line.problem || !line.beanId) continue;
     const { listing } = byId.get(line.variantId)!;
     const stock = beanStock(listing.bean, listing.bean.roastSessions, backordered.get(line.beanId) ?? 0);
     const total = gramsByBean.get(line.beanId) ?? 0;
@@ -120,3 +126,43 @@ export function earliestPickupDate(noticeDays: number): string {
   return new Date(Date.UTC(y, m - 1, d + noticeDays)).toISOString().slice(0, 10);
 }
 
+
+/**
+ * The Square-sourced cart: prices and bag counts come from Square's catalog and
+ * inventory, and variant ids are Square variation ids. A bag size can't be
+ * bought beyond what's on hand unless that coffee allows backorders.
+ */
+async function priceCartFromSquare(wanted: { variantId: string; qty: number }[]): Promise<PricedCart> {
+  const coffees = await getSquareCoffees();
+  const lines: PricedLine[] = [];
+  for (const w of wanted) {
+    const coffee = coffees.find((c) => c.variants.some((v) => v.id === w.variantId));
+    const v = coffee?.variants.find((x) => x.id === w.variantId);
+    if (!coffee || !v) continue; // no longer sold (or an id from before the switch)
+    const stock = v.stock ?? 0;
+    let problem: string | null = null;
+    if (v.availability === "sold_out") problem = "Sold out";
+    else if (v.availability !== "backorder" && w.qty > stock) problem = stock > 0 ? `Only ${stock} left` : "Sold out";
+    lines.push({
+      variantId: v.id,
+      beanId: null,
+      slug: coffee.slug,
+      coffeeName: coffee.name,
+      origin: coffee.origin,
+      photoUrl: coffee.photoUrl,
+      label: v.label,
+      grams: 0,
+      qty: w.qty,
+      unitPriceCents: v.priceCents,
+      lineCents: v.priceCents * w.qty,
+      availability: v.availability,
+      maxQty: v.availability === "backorder" ? null : stock,
+      problem,
+    });
+  }
+  return {
+    lines,
+    subtotalCents: lines.reduce((sum, l) => sum + l.lineCents, 0),
+    ok: lines.length > 0 && lines.every((l) => !l.problem),
+  };
+}

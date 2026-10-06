@@ -925,8 +925,12 @@ model ShopOrderItem {
   id               String    @id @default(cuid())
   orderId          String
   order            ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  beanId           String
-  bean             Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
+  // Null for coffees that exist only in Square (no Bean in this app).
+  beanId           String?
+  bean             Bean?     @relation(fields: [beanId], references: [id], onDelete: SetNull)
+  // Set when the coffee is sold from Square's catalog and inventory: Square then
+  // subtracts the bags itself and no grams are drawn from roasts.
+  squareVariationId String?
   variantLabel     String
   grams            Float
   quantity         Int

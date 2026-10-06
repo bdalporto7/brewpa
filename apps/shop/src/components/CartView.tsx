@@ -27,7 +27,13 @@ export default function CartView({ settings, earliestPickup }: Props) {
   useEffect(() => {
     let live = true;
     if (lines.length === 0) return;
-    priceCartAction(lines).then((p) => live && setPriced(p));
+    priceCartAction(lines).then((p) => {
+      if (!live) return;
+      setPriced(p);
+      // Drop anything the shop no longer sells (e.g. ids from before a catalog change).
+      const known = new Set(p.lines.map((l) => l.variantId));
+      for (const l of lines) if (!known.has(l.variantId)) setQty(l.variantId, 0);
+    });
     return () => {
       live = false;
     };
@@ -123,7 +129,7 @@ export default function CartView({ settings, earliestPickup }: Props) {
                       −
                     </button>
                     <span className="min-w-7 text-center font-mono">{l.qty}</span>
-                    <button type="button" aria-label={`More ${l.coffeeName} ${l.label}`} className="px-3 py-1 text-lg leading-none" onClick={() => setQty(l.variantId, l.qty + 1)}>
+                    <button type="button" aria-label={`More ${l.coffeeName} ${l.label}`} className="px-3 py-1 text-lg leading-none" disabled={l.maxQty != null && l.qty >= l.maxQty} onClick={() => setQty(l.variantId, l.qty + 1)}>
                       +
                     </button>
                   </div>

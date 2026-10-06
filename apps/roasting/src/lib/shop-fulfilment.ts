@@ -14,9 +14,10 @@ export async function convertRoastToOrderItems(orderId: string) {
   await prisma.$transaction(
     async (tx) => {
       const order = await tx.shopOrder.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } });
-      for (const item of order.items.filter((i) => i.gramsToRoast > 0.01)) {
+      for (const item of order.items.filter((i) => i.beanId && i.gramsToRoast > 0.01)) {
+        const beanId = item.beanId as string;
         const sessions = await tx.roastSession.findMany({
-          where: { beanId: item.beanId, endedAt: { not: null } },
+          where: { beanId, endedAt: { not: null } },
           orderBy: { endedAt: "asc" },
           select: { id: true, roastedRemainingGrams: true, endedAt: true, greenWeightGrams: true, roastedWeightGrams: true },
         });
@@ -45,7 +46,7 @@ export async function convertRoastToOrderItems(orderId: string) {
         }
         // Backordered grams never had green set aside, so only the rest is handed back.
         const green = Math.max(0, item.gramsToRoast - item.gramsBackordered) / roastYield(sessions);
-        if (green > 0) await tx.bean.update({ where: { id: item.beanId }, data: { remainingGrams: { increment: green } } });
+        if (green > 0) await tx.bean.update({ where: { id: beanId }, data: { remainingGrams: { increment: green } } });
         await tx.shopOrderItem.update({
           where: { id: item.id },
           data: { gramsFromRoasted: { increment: item.gramsToRoast }, gramsToRoast: 0, gramsBackordered: 0 },
