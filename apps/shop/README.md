@@ -119,6 +119,20 @@ hand unless the coffee allows backorders; a negative Square count is bags owed.
 (grams, roast sessions, backorder grams) still exists for `SHOP_SOURCE` unset
 and is slated for removal after the cutover.
 
+### Production setup (done 2026-10-05)
+
+Run against the real Square account with
+`node --env-file=.env.local --env-file=.env.live scripts/<script>.mjs`
+(`.env.live` holds the production Square values and is gitignored): `square-setup.mjs`
+(custom fields + "Shop" category) then `migrate-to-square.mjs --hidden` (creates the
+coffees hidden, stock 0). In production the migration matches coffees **by name**
+and never writes Square ids back to our database (those ids are the sandbox's).
+The admin only lists coffees this shop manages (a pool variation, or in the Shop
+category) and refuses to edit or remove anything else, because the real account also
+holds the cafe menu and wholesale items. Going live = copy the `.env.live` values to
+Vercel (replacing the sandbox ones), set `SHOP_SOURCE=square`, redeploy, add stock,
+and show the coffees.
+
 ## Roast backlog
 
 A roast-to-order bag sets its green coffee aside at payment (`gramsToRoast` on

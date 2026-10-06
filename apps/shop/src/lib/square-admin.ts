@@ -141,6 +141,9 @@ export async function listAdminCoffees(): Promise<{ coffees: AdminCoffee[]; hasS
           .sort((a, b) => a.priceCents - b.priceCents),
       };
     })
+    // Only items this shop manages: set up for pooled stock, or already shown on the site. Everything
+    // else in the Square account (the cafe menu, wholesale, older items) is left out so it can't be edited or removed here.
+    .filter((c) => c.poolId !== null || c.listed)
     .sort((a, b) => Number(b.listed) - Number(a.listed) || a.name.localeCompare(b.name));
   return { coffees, hasShopCategory: !!shopCategoryId };
 }
@@ -151,6 +154,10 @@ async function updateItem(itemId: string, change: (item: SqObject, shopCategoryI
   const got = await squareFetch<{ object?: SqObject }>("GET", `/v2/catalog/object/${itemId}`);
   const item = got.object;
   if (!item || item.type !== "ITEM") throw new Error("That coffee wasn't found in Square.");
+  const managed =
+    item.item_data?.variations?.some((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false) ||
+    (!!shopCategoryId && !!item.item_data?.categories?.some((c) => c.id === shopCategoryId));
+  if (!managed) throw new Error("That item isn't a shop coffee, so it can't be edited here.");
   change(item, shopCategoryId);
   await squareFetch("POST", "/v2/catalog/object", { idempotency_key: `${itemId}-${Date.now()}`, object: item });
 }
@@ -375,5 +382,8 @@ export async function createCoffee(input: {
 
 /** Permanently removes a coffee from Square (and so from the site and register). Past orders keep their own record. */
 export async function deleteCoffee(itemId: string) {
+  // Only coffees this shop manages can be removed here, never other items in the Square account.
+  const { coffees } = await listAdminCoffees();
+  if (!coffees.some((c) => c.id === itemId)) throw new Error("That item isn't a shop coffee, so it can't be removed here.");
   await squareFetch("POST", "/v2/catalog/batch-delete", { object_ids: [itemId] });
 }

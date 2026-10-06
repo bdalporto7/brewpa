@@ -13,6 +13,8 @@ import { call, upload, locationId, SHOP_CATEGORY } from "./square-lib.mjs";
 const db = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
 const rows = async (sql) => (await db.execute(sql)).rows.map((r) => ({ ...r }));
 
+const hidden = process.argv.includes("--hidden"); // create without adding to the Shop category
+const production = process.env.SQUARE_ENVIRONMENT === "production";
 const ozArg = process.argv.indexOf("--oz");
 const pools = new Map();
 if (ozArg > -1) for (const part of process.argv[ozArg + 1].split(",")) { const [k, n] = part.split("="); pools.set(k.trim(), Number(n)); }
@@ -37,6 +39,10 @@ async function unitFor(oz) {
   return unitIds.get(name);
 }
 
+// Existing coffees are matched by name (the ids stored in our database belong to the sandbox).
+const allItems = (await call("POST", "/v2/catalog/search", { object_types: ["ITEM"] })).objects ?? [];
+const byName = new Map(allItems.map((o) => [String(o.item_data?.name ?? "").trim().toLowerCase(), o]));
+
 const listings = await rows(`select l.id, l.slug, l.isListed, l.headline, l.description, l.roastStyle, l.brewNotes, l.allowBackorder, l.squareItemId,
   b.name, b.origin, b.producer, b.process, b.variety, b.photoUrl, b.tastingNotes
   from BeanListing l join Bean b on b.id = l.beanId order by l.sortOrder, l.createdAt`);
@@ -49,7 +55,8 @@ for (const l of listings) {
 
   // Existing item: reuse its pool and any size that already converts; otherwise build fresh.
   let existing = null;
-  if (l.squareItemId) { try { const o = (await call("GET", `/v2/catalog/object/${l.squareItemId}`)).object; if (o && !o.is_deleted) existing = o; } catch { /* gone */ } }
+  const named = byName.get(l.name.trim().toLowerCase());
+  if (named && !named.is_deleted) existing = named;
   const exVars = existing?.item_data?.variations ?? [];
   const keptRef = existing?.custom_attribute_values?.cybar_stock_ref;
   const newOz = pools.get(l.slug);
@@ -74,7 +81,7 @@ for (const l of listings) {
       item_variation_data: { item_id: itemId, name: POOL_NAME, pricing_type: "VARIABLE_PRICING", track_inventory: true, sellable: false, stockable: true } };
     const r = await call("POST", "/v2/catalog/batch-upsert", { idempotency_key: `mig-${l.id}-${Date.now()}`, batches: [{ objects: [{
       type: "ITEM", id: itemId, ...(reuse && existing ? { version: existing.version } : {}), present_at_all_locations: true, custom_attribute_values: customAttrs,
-      item_data: { name: l.name, description: l.description ?? l.tastingNotes ?? undefined, product_type: "REGULAR", is_taxable: false, categories: [{ id: cat.id }],
+      item_data: { name: l.name, description: l.description ?? l.tastingNotes ?? undefined, product_type: "REGULAR", is_taxable: false, categories: hidden ? [] : [{ id: cat.id }],
         variations: [pool, ...sizeVars] } }] }] });
     return r.objects.find((o) => o.type === "ITEM");
   }
@@ -94,7 +101,8 @@ for (const l of listings) {
   const bySku = new Map(vars.filter((v) => v.item_variation_data.sku).map((v) => [v.item_variation_data.sku, v.id]));
   const poolId = vars.find((v) => v.item_variation_data.stockable === true && v.item_variation_data.sellable === false).id;
 
-  await db.batch([
+  // In production, don't overwrite the ids our database keeps for the sandbox.
+  if (!production) await db.batch([
     { sql: "update BeanListing set squareItemId=? where id=?", args: [saved.id, l.id] },
     ...variants.map((v) => ({ sql: "update ListingVariant set squareVariationId=? where id=?", args: [bySku.get(v.id), v.id] })),
   ], "write");
