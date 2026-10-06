@@ -4,6 +4,7 @@ import { getAdminUser } from "@/lib/admin";
 import { formatCents } from "@/lib/shop-stock";
 import { captureShippingAddress, parseShippingAddress, type ShippingAddress } from "@/lib/shipping-address";
 import OrderActions from "@/components/OrderActions";
+import { reconcilePendingOrders } from "@/lib/order-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ const dateFmt = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateStr
 export default async function OrdersPage() {
   const user = await getAdminUser();
   if (!user) redirect("/admin/login");
+  // Catch any payment whose notification never arrived before listing orders.
+  await reconcilePendingOrders().catch((err) => console.error("Reconcile failed", err));
   const orders = await prisma.shopOrder.findMany({
     where: { teamId: user.teamId, status: { in: ["NEEDS_ATTENTION", "PAID", "READY", "FULFILLED"] } },
     include: { items: true },

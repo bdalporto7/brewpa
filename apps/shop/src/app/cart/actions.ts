@@ -38,6 +38,14 @@ export async function createCheckout(input: {
   if (!EMAIL.test(email)) return { error: "Enter a valid email so we can send your receipt." };
   if (input.fulfillment !== "PICKUP" && input.fulfillment !== "SHIPMENT") return { error: "Choose pickup or shipping." };
 
+  // Cheap abuse guard: unpaid checkouts pile up if someone hammers this, so cap recent ones.
+  const since = new Date(Date.now() - 10 * 60_000);
+  const [byEmail, overall] = await Promise.all([
+    prisma.shopOrder.count({ where: { status: "PENDING", customerEmail: email, createdAt: { gt: since } } }),
+    prisma.shopOrder.count({ where: { status: "PENDING", createdAt: { gt: since } } }),
+  ]);
+  if (byEmail >= 5 || overall >= 40) return { error: "Too many checkouts started just now. Please wait a few minutes and try again." };
+
   const settings = await getSiteSettings();
   let pickupAt: Date | null = null;
   if (input.fulfillment === "PICKUP") {

@@ -1,8 +1,8 @@
 import { WebhooksHelper } from "square";
 import { prisma } from "@/lib/prisma";
-import { markOrderPaid, recordPosSale } from "@/lib/allocate";
+import { recordPosSale } from "@/lib/allocate";
+import { applyRefund, settleOrder } from "@/lib/order-sync";
 import { squareClient, webhookUrl } from "@/lib/square";
-import { captureShippingAddress } from "@/lib/shipping-address";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ interface PaymentEvent {
   type?: string;
   data?: {
     object?: {
-      payment?: { id?: string; status?: string; order_id?: string; total_money?: { amount?: number | string } };
+      payment?: { id?: string; status?: string; order_id?: string; total_money?: { amount?: number | string }; refunded_money?: { amount?: number | string } };
     };
   };
 }
@@ -56,12 +56,9 @@ export async function POST(req: Request) {
     select: { id: true, fulfillment: true },
   });
   if (isOnlineOrder) {
-    result = await markOrderPaid(payment.order_id, Number.isFinite(paid) ? paid : null);
-    if (isOnlineOrder.fulfillment === "SHIPMENT") {
-      await captureShippingAddress(isOnlineOrder.id, payment.order_id).catch((err) =>
-        console.error("Could not read the shipping address for", payment.order_id, err)
-      );
-    }
+    result = await settleOrder(payment.order_id, Number.isFinite(paid) ? paid : null);
+    const refunded = Number(payment.refunded_money?.amount ?? 0);
+    if (refunded > 0) result = await applyRefund(payment.order_id, refunded);
   } else {
     result = await handlePosPayment(payment.id ?? payment.order_id, payment.order_id);
   }
