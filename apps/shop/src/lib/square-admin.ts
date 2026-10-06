@@ -7,7 +7,7 @@ import { squareFetch, squareLocationId } from "@/lib/square";
  * bag counts. Square stays the source of truth; nothing here is cached.
  */
 
-export const SHOP_CATEGORY = "Shop";
+export const SHOP_CATEGORY = "Roasted Coffee";
 
 interface SqObject {
   id: string;
@@ -180,10 +180,10 @@ export async function saveCoffeeDetails(
   });
 }
 
-/** Shows or hides a coffee on the website by adding or removing it from the "Shop" category. */
+/** Shows or hides a coffee on the website by adding or removing it from the "Roasted Coffee" category. */
 export async function setCoffeeListed(itemId: string, listed: boolean) {
   await updateItem(itemId, (item, shopCategoryId) => {
-    if (!shopCategoryId) throw new Error('Square has no "Shop" category yet. Run the one-time setup first.');
+    if (!shopCategoryId) throw new Error('Square has no "Roasted Coffee" category yet. Run the one-time setup first.');
     const rest = (item.item_data?.categories ?? []).filter((c) => c.id !== shopCategoryId);
     item.item_data = { ...item.item_data, categories: listed ? [...rest, { id: shopCategoryId }] : rest };
   });
@@ -305,7 +305,7 @@ export async function createCoffee(input: {
   if (items.some((i) => (i.item_data?.name ?? "").trim().toLowerCase() === name.toLowerCase())) {
     throw new Error("A coffee with that name already exists.");
   }
-  if (input.listed && !shopCategoryId) throw new Error('Square has no "Shop" category yet. Run the one-time setup first.');
+  if (input.listed && !shopCategoryId) throw new Error('Square has no "Roasted Coffee" category yet. Run the one-time setup first.');
 
   const units = new Map<string, string>();
   const found = await squareFetch<{ objects?: { id: string; measurement_unit_data?: { measurement_unit?: { custom_unit?: { name?: string } } } }[] }>(

@@ -18,7 +18,7 @@ Forward moves are mirrored to Square's fulfillment state
 (`src/lib/square-fulfillment.ts`: PROPOSED → RESERVED → PREPARED → COMPLETED);
 "move back" isn't mirrored because Square can't reopen a completed fulfillment.
 **Coffees** (`/admin/coffees`): "Add a coffee" (name, description, bag sizes and prices from the five presets, optional starting pool; creates the pooled structure in Square via `createCoffee`) and "Remove" (permanent delete from Square, with a confirm), plus every coffee in Square with show/hide (adds or
-removes the "Shop" category), per-size bag counts (add packed bags, or recount;
+removes the "Roasted Coffee" category), per-size bag counts (add packed bags, or recount;
 a negative count shows as "N owed"), and the details form (description, headline,
 origin, producer, process, variety, roast style, roasted-on, brew notes, and the
 backorder switch), all written straight to Square (`src/lib/square-admin.ts`,
@@ -83,7 +83,7 @@ Square must match `SHOP_BASE_URL` + `/api/square/webhook` exactly (or set
 ## Square as the source of truth (`SHOP_SOURCE=square`)
 
 With `SHOP_SOURCE=square` the shop stops reading coffees from our database:
-coffees are Square catalog items in the **"Shop"** category, bag sizes are their
+coffees are Square catalog items in the **"Roasted Coffee"** category, bag sizes are their
 variations, stock is **one pool of coffee in ounces per coffee** (see below),
 and details (headline, origin, producer, process, variety, roast style, brew
 notes, roasted-on, backorder switch, full stock level) are Square custom fields.
@@ -124,7 +124,7 @@ and is slated for removal after the cutover.
 Run against the real Square account with
 `node --env-file=.env.local --env-file=.env.live scripts/<script>.mjs`
 (`.env.live` holds the production Square values and is gitignored): `square-setup.mjs`
-(custom fields + "Shop" category) then `migrate-to-square.mjs --hidden` (creates the
+(custom fields + the "Roasted Coffee" category, which is what marks a coffee as shown on the site and is also its section on the register) then `migrate-to-square.mjs --hidden` (creates the
 coffees hidden, stock 0). In production the migration matches coffees **by name**
 and never writes Square ids back to our database (those ids are the sandbox's).
 The admin only lists coffees this shop manages (a pool variation, or in the Shop

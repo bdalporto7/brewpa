@@ -27,7 +27,7 @@ export async function upload(path, fields, file) {
   return json;
 }
 
-export const SHOP_CATEGORY = "Shop";
+export const SHOP_CATEGORY = "Roasted Coffee";
 
 /**
  * The fields a coffee carries on the website, as Square custom attributes.

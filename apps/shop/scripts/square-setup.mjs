@@ -1,5 +1,5 @@
 // One-time (re-runnable) Square setup for the shop: the custom fields a coffee
-// carries on the website, and the "Shop" category that marks which items are
+// carries on the website, and the "Roasted Coffee" category that marks which items are
 // listed. Idempotent: anything that exists is left alone.
 import { call, FIELDS, SHOP_CATEGORY } from "./square-lib.mjs";
 
@@ -14,6 +14,12 @@ for (const d of defs) {
   }
 }
 const have = new Set((existing.objects ?? []).filter((o) => o.type === "CUSTOM_ATTRIBUTE_DEFINITION").map((o) => o.custom_attribute_definition_data.key));
+const legacy = (existing.objects ?? []).find((o) => o.type === "CATEGORY" && o.category_data?.name === "Shop");
+if (legacy && !(existing.objects ?? []).some((o) => o.type === "CATEGORY" && o.category_data?.name === SHOP_CATEGORY)) {
+  await call("POST", "/v2/catalog/object", { idempotency_key: `rename-${Date.now()}`, object: { ...legacy, category_data: { ...legacy.category_data, name: SHOP_CATEGORY } } });
+  legacy.category_data.name = SHOP_CATEGORY;
+  console.log(`renamed category "Shop" -> "${SHOP_CATEGORY}"`);
+}
 let category = (existing.objects ?? []).find((o) => o.type === "CATEGORY" && o.category_data?.name === SHOP_CATEGORY);
 
 for (const f of FIELDS) {

@@ -6,14 +6,14 @@ import { slugify } from "@/lib/shop-stock";
 import { squareFetch, squareLocationId } from "@/lib/square";
 
 /**
- * The shop's catalog as Square holds it: coffees are items in the "Shop"
+ * The shop's catalog as Square holds it: coffees are items in the "Roasted Coffee"
  * category, bag sizes are their variations, bag counts come from Square's
  * inventory, and the coffee's details are custom fields (set up by
  * scripts/square-setup.mjs). Returns the same narrow public shape the pages
  * already render, so nothing else about the site changes.
  */
 
-const SHOP_CATEGORY = "Shop";
+const SHOP_CATEGORY = "Roasted Coffee";
 /** Backorders are off for now: out of stock means customers can't order it. Set SHOP_BACKORDERS=1 to bring them back. */
 const BACKORDERS = process.env.SHOP_BACKORDERS === "1";
 /** A coffee is "low" at this fraction of its full stock level or less. */

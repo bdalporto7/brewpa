@@ -23,7 +23,7 @@ const POOL_NAME = "Coffee in stock (oz)";
 const ozOf = (grams) => Math.max(1, Math.round(grams / 28.3495));
 
 const cat = (await call("POST", "/v2/catalog/search", { object_types: ["CATEGORY"] })).objects?.find((o) => o.category_data?.name === SHOP_CATEGORY);
-if (!cat) throw new Error('Run square-setup.mjs first (no "Shop" category).');
+if (!cat) throw new Error('Run square-setup.mjs first (no "Roasted Coffee" category).');
 
 // One custom unit per bag size, shared by every coffee ("4 oz bag", "12 oz bag", ...).
 const unitIds = new Map();
