@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/admin";
 import { DEFAULT_VARIANTS, slugify } from "@/lib/shop-stock";
+import { convertRoastToOrderItems } from "@/lib/shop-fulfilment";
 import { squareConfigured, syncListingToSquare, syncListingToSquareQuietly } from "@/lib/square-sync";
 
 function str(formData: FormData, key: string): string | null {
@@ -199,6 +200,7 @@ export async function setShopOrderStatus(orderId: string, status: (typeof ORDER_
   if (order.status === "PENDING" || order.status === "CANCELED") {
     throw new Error("That order hasn't been paid.");
   }
+  if (status === "READY") await convertRoastToOrderItems(order.id);
   await prisma.shopOrder.update({
     where: { id: order.id },
     data: { status, ...(status === "PAID" ? {} : { attentionNote: null }) },

@@ -44,6 +44,19 @@ Sandbox until `SQUARE_ENVIRONMENT=production`. The webhook URL registered in
 Square must match `SHOP_BASE_URL` + `/api/square/webhook` exactly (or set
 `SQUARE_WEBHOOK_URL`). Env changes only take effect on a new deployment.
 
+## Roast backlog
+
+A roast-to-order bag sets its green coffee aside at payment (`gramsToRoast` on
+the order item) so the shop can't oversell it. `/shop/orders` in the roasting
+app lists that as the roast backlog (per coffee: orders waiting, roasted grams,
+green to load, earliest due date), and the dashboard shows a banner while any
+exist. Roast the coffee normally and log its roasted weight; then **Mark ready**
+on the order (`src/lib/shop-fulfilment.ts` in roasting) gives the set-aside green
+back and takes the same grams out of the new roasted stock as `Sale` rows on the
+order. It refuses, saying how much is missing, if that roasted weight isn't in
+stock yet. Without this handoff, roasting the coffee normally would take the
+green twice.
+
 ## Pop-up (register) sales
 
 `apps/roasting` copies each listed coffee into Square's catalog (one item, one

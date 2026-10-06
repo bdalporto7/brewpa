@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAllowedUser } from "@/lib/admin";
-import { formatCents } from "@/lib/shop-stock";
+import { formatCents, roastYield } from "@/lib/shop-stock";
 import Card from "@/components/ui/Card";
 import SectionHeading from "@/components/ui/SectionHeading";
 import ShopOrderActions from "@/components/shop/ShopOrderActions";
@@ -14,7 +14,18 @@ type Order = Awaited<ReturnType<typeof loadOrders>>[number];
 function loadOrders(teamId: string) {
   return prisma.shopOrder.findMany({
     where: { teamId, status: { in: ["NEEDS_ATTENTION", "PAID", "READY", "FULFILLED"] } },
-    include: { items: { include: { bean: { select: { name: true } } } } },
+    include: {
+      items: {
+        include: {
+          bean: {
+            select: {
+              name: true,
+              roastSessions: { select: { endedAt: true, greenWeightGrams: true, roastedWeightGrams: true } },
+            },
+          },
+        },
+      },
+    },
     orderBy: { paidAt: "desc" },
     take: 80,
   });
@@ -96,11 +107,23 @@ export default async function ShopOrdersPage() {
   const ready = orders.filter((o) => o.status === "READY");
   const done = orders.filter((o) => o.status === "FULFILLED").slice(0, 20);
 
-  // What still has to be roasted for orders that are paid but not yet ready.
-  const toRoast = new Map<string, number>();
+  // The roast backlog: per coffee, what open orders still need roasted, the
+  // green to load for it, and the earliest date any of those orders is due.
+  const backlog = new Map<string, { name: string; orders: Set<string>; roastedG: number; greenG: number; due: Date | null }>();
   for (const o of [...attention, ...fresh]) {
-    for (const i of o.items) if (i.gramsToRoast > 0) toRoast.set(i.bean.name, (toRoast.get(i.bean.name) ?? 0) + i.gramsToRoast);
+    const noticeDue = new Date((o.paidAt ?? o.createdAt).getTime() + 2 * 86400000);
+    const due = o.fulfillment === "PICKUP" && o.pickupAt ? o.pickupAt : noticeDue;
+    for (const i of o.items) {
+      if (i.gramsToRoast <= 0.01) continue;
+      const row = backlog.get(i.beanId) ?? { name: i.bean.name, orders: new Set<string>(), roastedG: 0, greenG: 0, due: null };
+      row.orders.add(o.id);
+      row.roastedG += i.gramsToRoast;
+      row.greenG += i.gramsToRoast / roastYield(i.bean.roastSessions);
+      if (!row.due || due < row.due) row.due = due;
+      backlog.set(i.beanId, row);
+    }
   }
+  const backlogRows = [...backlog.values()].sort((a, b) => (a.due?.getTime() ?? 0) - (b.due?.getTime() ?? 0));
 
   return (
     <div className="flex flex-col gap-10">
@@ -113,15 +136,37 @@ export default async function ShopOrdersPage() {
         </p>
       </div>
 
-      {toRoast.size > 0 && (
-        <Card interactive={false} className="p-4">
-          <p className="font-bold">To roast for open orders</p>
-          <ul className="mt-2 text-sm">
-            {[...toRoast].map(([name, g]) => (
-              <li key={name} className="flex justify-between gap-4"><span>{name}</span><span className="font-mono">{Math.round(g)} g roasted</span></li>
-            ))}
-          </ul>
-        </Card>
+      {backlogRows.length > 0 && (
+        <section>
+          <div className="mb-3">
+            <SectionHeading>Roast backlog</SectionHeading>
+          </div>
+          <Card interactive={false} className="p-4">
+            <p className="mb-3 text-sm text-muted">
+              Coffee that paid orders are waiting on. Roast it as usual, log the roasted weight, then mark those orders
+              Ready and the new batch is assigned to them.
+            </p>
+            <ul className="divide-y divide-border">
+              {backlogRows.map((r) => (
+                <li key={r.name} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-2">
+                  <div>
+                    <p className="font-bold">{r.name}</p>
+                    <p className="text-sm text-muted">
+                      {r.orders.size} {r.orders.size === 1 ? "order" : "orders"}
+                      {r.due ? `, first needed ${r.due.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Los_Angeles" })}` : ""}
+                    </p>
+                  </div>
+                  <p className="font-mono text-sm">
+                    {Math.round(r.roastedG)} g roasted <span className="text-muted">· load about {Math.round(r.greenG)} g green</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <Link href="/roasts" className="mt-3 inline-block text-sm font-medium underline underline-offset-4">
+              Start a roast
+            </Link>
+          </Card>
+        </section>
       )}
 
       <Group title="Needs attention" list={attention} />

@@ -734,6 +734,10 @@ yet are in `apps/shop/README.md`. Things worth knowing before touching it:
   out oldest-roast-first as real `Sale` rows (`Sale.shopOrderItemId`), then
   green for the remainder, in one transaction; shortfalls flag the order
   NEEDS_ATTENTION rather than failing (the money is already taken).
+- **Roast backlog:** paid roast-to-order items hold green coffee aside; marking
+  the order Ready swaps that for real roasted stock
+  (`apps/roasting/src/lib/shop-fulfilment.ts`). See "Roast backlog" in
+  `apps/shop/README.md`.
 - **Pop-up sales:** listings are mirrored into Square's catalog by
   `apps/roasting/src/lib/square-sync.ts` (on every listing save, plus a button
   on `/shop`); the shop webhook draws register sales out of roasted stock. See
