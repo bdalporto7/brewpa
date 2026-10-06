@@ -14,6 +14,10 @@ import { squareFetch, squareLocationId } from "@/lib/square";
  */
 
 const SHOP_CATEGORY = "Shop";
+/** Backorders are off for now: out of stock means customers can't order it. Set SHOP_BACKORDERS=1 to bring them back. */
+const BACKORDERS = process.env.SHOP_BACKORDERS === "1";
+/** A coffee is "low" at this fraction of its full stock level or less. */
+const LOW_STOCK_FRACTION = 0.1;
 
 interface SqObject {
   id: string;
@@ -94,7 +98,7 @@ export const getSquareCoffees = cache(async (): Promise<PublicCoffee[]> => {
     if (used.has(slug)) slug = `${slug}-${item.id.slice(0, 4).toLowerCase()}`;
     used.add(slug);
 
-    const backorder = attr(item, "backorder")?.toLowerCase() === "yes";
+    const backorder = BACKORDERS && attr(item, "backorder")?.toLowerCase() === "yes";
     const all = (d.variations ?? []).filter((v) => !v.is_deleted);
     // Pooled stock: a hidden stockable variation holds the ounces; each sellable size converts from it.
     const pool = all.find((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false);
@@ -110,9 +114,12 @@ export const getSquareCoffees = cache(async (): Promise<PublicCoffee[]> => {
         return { id: v.id, label: v.item_variation_data?.name ?? "Bag", grams: 0, priceCents: v.item_variation_data!.price_money!.amount!, availability, stock: units, ozEach };
       });
     const best = variants.reduce<Availability>((acc, v) => (RANK[v.availability] < RANK[acc] ? v.availability : acc), "sold_out");
+    const ref = Number(attr(item, "stock_ref"));
+    const lowStock = poolOz !== undefined && poolOz > 0 && Number.isFinite(ref) && ref > 0 && poolOz <= ref * LOW_STOCK_FRACTION;
     const roasted = attr(item, "roasted_on");
     return {
       poolOz,
+      lowStock,
       backorder,
       slug,
       name: d.name ?? "Coffee",

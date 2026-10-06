@@ -69,7 +69,7 @@ export default async function CoffeePage({ params }: { params: Promise<{ slug: s
           </h1>
           {coffee.headline && <p className="mt-3 text-xl leading-snug">{coffee.headline}</p>}
 
-          <SizePicker variants={coffee.variants} coffeeName={coffee.name} noticeDays={settings.noticeDays} />
+          <SizePicker variants={coffee.variants} coffeeName={coffee.name} noticeDays={settings.noticeDays} lowStock={coffee.lowStock} />
 
           {coffee.description && (
             <div className="mt-10">

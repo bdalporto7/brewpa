@@ -71,7 +71,12 @@ export default function BagTile({
             {coffee.roastStyle ? `, ${coffee.roastStyle.toLowerCase()} roast` : ""}
           </p>
           <div className="mt-3 flex items-end justify-between gap-3 border-t border-dashed border-[#2b1d14]/30 pt-2.5">
-            <AvailabilityNote availability={coffee.availability} noticeDays={noticeDays} tone="label" />
+            <span className="flex flex-col gap-1">
+              <AvailabilityNote availability={coffee.availability} noticeDays={noticeDays} tone="label" />
+              {coffee.lowStock && coffee.availability !== "sold_out" && (
+                <span className="inline-flex w-fit items-center gap-1 rounded-sm border border-[#8a3a24] px-1.5 py-px text-[11px] font-bold text-[#8a3a24]">Low stock</span>
+              )}
+            </span>
             {coffee.fromPriceCents != null && (
               <span className="font-mono text-sm font-semibold">from {formatCents(coffee.fromPriceCents)}</span>
             )}

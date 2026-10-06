@@ -51,6 +51,10 @@ for (const l of listings) {
   let existing = null;
   if (l.squareItemId) { try { const o = (await call("GET", `/v2/catalog/object/${l.squareItemId}`)).object; if (o && !o.is_deleted) existing = o; } catch { /* gone */ } }
   const exVars = existing?.item_data?.variations ?? [];
+  const keptRef = existing?.custom_attribute_values?.cybar_stock_ref;
+  const newOz = pools.get(l.slug);
+  if (newOz !== undefined) customAttrs.cybar_stock_ref = { name: "cybar_stock_ref", type: "STRING", string_value: String(newOz) };
+  else if (keptRef) customAttrs.cybar_stock_ref = keptRef;
   const poolVar = exVars.find((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false);
   const imageIds = existing?.item_data?.image_ids ?? [];
 

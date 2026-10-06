@@ -16,10 +16,12 @@ export default function SizePicker({
   variants,
   coffeeName,
   noticeDays,
+  lowStock = false,
 }: {
   variants: PublicVariant[];
   coffeeName: string;
   noticeDays: number;
+  lowStock?: boolean;
 }) {
   const firstBuyable = variants.find((v) => v.availability !== "sold_out") ?? null;
   const [selectedId, setSelectedId] = useState<string | null>(firstBuyable?.id ?? null);
@@ -68,6 +70,9 @@ export default function SizePicker({
       <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
         <span className="font-mono text-3xl font-bold">{selected ? formatCents(selected.priceCents) : "Sold out"}</span>
         {selected && <AvailabilityNote availability={selected.availability} noticeDays={noticeDays} />}
+        {selected && lowStock && (
+          <span className="inline-flex items-center rounded-md border-2 border-accent px-2 py-0.5 text-xs font-bold text-accent">Low stock</span>
+        )}
       </div>
 
       <button

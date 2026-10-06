@@ -43,4 +43,5 @@ export const FIELDS = [
   ["brew_notes", "Brew notes"],
   ["roasted_on", "Roasted on (YYYY-MM-DD)"],
   ["backorder", "Keep selling when out of stock (yes/no)"],
+  ["stock_ref", "Full stock level (oz)"],
 ].map(([key, name]) => ({ key: `cybar_${key}`, name }));

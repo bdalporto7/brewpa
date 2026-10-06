@@ -86,12 +86,12 @@ With `SHOP_SOURCE=square` the shop stops reading coffees from our database:
 coffees are Square catalog items in the **"Shop"** category, bag sizes are their
 variations, stock is **one pool of coffee in ounces per coffee** (see below),
 and details (headline, origin, producer, process, variety, roast style, brew
-notes, roasted-on, "keep selling when out of stock") are Square custom fields.
+notes, roasted-on, backorder switch, full stock level) are Square custom fields.
 `scripts/square-setup.mjs` creates the fields and category;
 `scripts/migrate-to-square.mjs` copies coffees (and optionally starting counts)
 from our database. Both run with `node --env-file=.env.local scripts/<name>.mjs`,
 are re-runnable, and target the sandbox until `SQUARE_ENVIRONMENT=production`.
-Square allows an app only 10 custom fields, so there are 9. URLs come from the
+Square allows an app only 10 custom fields, and all 10 are in use. URLs come from the
 coffee name; order is availability then name.
 
 **Pooled stock** uses Square's stock conversion: each coffee has a hidden
@@ -101,7 +101,12 @@ Square allows only one sold size per unit type per item, so each size has its ow
 custom unit ("12 oz bag"). The shop computes bags per size as floor(pool / oz per
 bag) and checks a cart's sizes together against the pool
 (`src/lib/checkout.ts`). In the admin, stock is entered in pounds and ounces
-(`src/lib/pool-format.ts`). A negative pool means coffee owed to customers.
+(`src/lib/pool-format.ts`). **Backorders are off**: a sold-out coffee can't be
+ordered. The code is kept behind `SHOP_BACKORDERS=1` (the `cybar_backorder` field
+is ignored otherwise). **Low stock**: each coffee records a full stock level
+(`cybar_stock_ref`, ounces): a recount resets it, and adding coffee raises it if the
+new total is higher. The site shows a "Low stock" badge at 10% or less of it.
+Register sales can still push a pool below zero; the admin shows "short by".
 
 Checkout then builds the Square order from real catalog items, and **Square
 itself subtracts the ounces when the order is paid** (verified in the sandbox for

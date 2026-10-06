@@ -30,6 +30,8 @@ export interface PublicVariant {
 export interface PublicCoffee {
   /** Ounces of this coffee in stock, when stock is pooled (Square stock conversion). */
   poolOz?: number;
+  /** True at 10% or less of the coffee's full stock level (and not sold out). */
+  lowStock?: boolean;
   /** Keeps selling past zero; the pool goes negative and the roaster sees what's owed. */
   backorder?: boolean;
   slug: string;

@@ -46,7 +46,18 @@ function PoolControls({ coffee }: { coffee: AdminCoffee }) {
   return (
     <div>
       <p className="text-sm text-muted">Coffee in stock</p>
-      <p className={`text-3xl font-extrabold tracking-tight ${coffee.poolOz < 0 ? "text-accent" : ""}`}>{formatPool(coffee.poolOz)}</p>
+      <p className={`text-3xl font-extrabold tracking-tight ${coffee.poolOz < 0 ? "text-accent" : ""}`}>
+        {formatPool(coffee.poolOz)}
+        {coffee.stockRefOz != null && coffee.poolOz > 0 && coffee.poolOz <= coffee.stockRefOz * 0.1 && (
+          <span className="ml-3 rounded-md border-2 border-accent px-2 py-0.5 align-middle text-sm font-bold text-accent">Low stock</span>
+        )}
+      </p>
+      {coffee.stockRefOz != null && (
+        <p className="text-xs text-muted">
+          Full stock level {formatPool(coffee.stockRefOz)}. Customers see &ldquo;Low stock&rdquo; at 10% of that. A
+          recount resets it.
+        </p>
+      )}
       {coffee.poolOz < 0 && (
         <p className="mt-1 text-sm font-semibold text-accent">Customers are waiting on this much. Roast it, then add it below.</p>
       )}
@@ -66,7 +77,7 @@ function PoolControls({ coffee }: { coffee: AdminCoffee }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <input aria-label="Pounds to add" className={small} inputMode="decimal" placeholder="lb" value={addLb} onChange={(e) => setAddLb(e.target.value)} />
             <input aria-label="Ounces to add" className={small} inputMode="decimal" placeholder="oz" value={addOz} onChange={(e) => setAddOz(e.target.value)} />
-            <button type="button" className={smallBtn} disabled={pending || !hasAdd} onClick={() => run(() => addCoffeeOunces(poolId, addTotal), () => { setAddLb(""); setAddOz(""); })}>Add</button>
+            <button type="button" className={smallBtn} disabled={pending || !hasAdd} onClick={() => run(() => addCoffeeOunces(coffee.id, poolId, addTotal), () => { setAddLb(""); setAddOz(""); })}>Add</button>
           </div>
         </div>
         <div>
@@ -74,7 +85,7 @@ function PoolControls({ coffee }: { coffee: AdminCoffee }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <input aria-label="Pounds in stock" className={small} inputMode="decimal" placeholder="lb" value={setLb} onChange={(e) => setSetLb(e.target.value)} />
             <input aria-label="Ounces in stock" className={small} inputMode="decimal" placeholder="oz" value={setOz} onChange={(e) => setSetOz(e.target.value)} />
-            <button type="button" className={smallBtn} disabled={pending || !hasSet} onClick={() => run(() => recountCoffeeOunces(poolId, setTotal), () => { setSetLb(""); setSetOz(""); })}>Set</button>
+            <button type="button" className={smallBtn} disabled={pending || !hasSet} onClick={() => run(() => recountCoffeeOunces(coffee.id, poolId, setTotal), () => { setSetLb(""); setSetOz(""); })}>Set</button>
           </div>
         </div>
       </div>
@@ -87,7 +98,7 @@ function PoolControls({ coffee }: { coffee: AdminCoffee }) {
   );
 }
 
-export default function CoffeeEditor({ coffee }: { coffee: AdminCoffee }) {
+export default function CoffeeEditor({ coffee, backordersEnabled }: { coffee: AdminCoffee; backordersEnabled: boolean }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -137,6 +148,9 @@ export default function CoffeeEditor({ coffee }: { coffee: AdminCoffee }) {
               {"hint" in f && <span className="mt-1 block text-xs text-muted">{f.hint}</span>}
             </label>
           ))}
+          {backordersEnabled && (
+            <>
+              <input type="hidden" name="backorderPresent" value="1" />
           <label className="flex items-start gap-2 sm:col-span-2">
             <input type="checkbox" name="backorder" defaultChecked={coffee.backorder} className="mt-0.5 h-4 w-4 accent-[var(--accent)]" />
             <span className="text-sm">
@@ -144,6 +158,8 @@ export default function CoffeeEditor({ coffee }: { coffee: AdminCoffee }) {
               <span className="block text-xs text-muted">Customers pay now and see &ldquo;on backorder&rdquo;. Your stock goes below zero and this page shows how much coffee is owed.</span>
             </span>
           </label>
+            </>
+          )}
         </AdminForm>
       </details>
     </article>

@@ -59,6 +59,8 @@ export interface AdminCoffee {
   poolId: string | null;
   /** Ounces of coffee in stock (negative means owed to customers). */
   poolOz: number;
+  /** The coffee's full stock level in ounces (basis for the 10% low-stock badge), or null if never set. */
+  stockRefOz: number | null;
   variations: AdminVariation[];
 }
 
@@ -115,6 +117,7 @@ export async function listAdminCoffees(): Promise<{ coffees: AdminCoffee[]; hasS
         fields: Object.fromEntries(DETAIL_FIELDS.map((f) => [f.key, attr(i, f.key)])),
         poolId: pool?.id ?? null,
         poolOz: pool ? (stock.get(pool.id) ?? 0) : 0,
+        stockRefOz: Number(attr(i, "stock_ref")) > 0 ? Number(attr(i, "stock_ref")) : null,
         variations: all
           .filter((v) => v.item_variation_data?.sellable !== false)
           .map((v) => {
@@ -145,7 +148,7 @@ async function updateItem(itemId: string, change: (item: SqObject, shopCategoryI
 
 export async function saveCoffeeDetails(
   itemId: string,
-  input: { description: string; backorder: boolean; fields: Record<string, string> }
+  input: { description: string; backorder?: boolean; fields: Record<string, string> }
 ) {
   await updateItem(itemId, (item) => {
     const values = { ...(item.custom_attribute_values ?? {}) };
@@ -155,7 +158,7 @@ export async function saveCoffeeDetails(
       else delete values[k];
     };
     for (const f of DETAIL_FIELDS) set(f.key, input.fields[f.key] ?? "");
-    set("backorder", input.backorder ? "yes" : "no");
+    if (input.backorder !== undefined) set("backorder", input.backorder ? "yes" : "no");
     item.custom_attribute_values = values;
     item.item_data = { ...item.item_data, description: input.description.trim() || undefined };
   });
@@ -209,4 +212,18 @@ export async function setBagCount(variationId: string, quantity: number) {
       },
     ],
   });
+}
+
+/** Records a coffee's full stock level (ounces), the basis for the low-stock badge. */
+export async function setStockReference(itemId: string, ounces: number) {
+  await updateItem(itemId, (item) => {
+    const values = { ...(item.custom_attribute_values ?? {}) };
+    values.cybar_stock_ref = { ...(values.cybar_stock_ref ?? {}), name: "cybar_stock_ref", type: "STRING", string_value: String(Math.round(ounces)) };
+    item.custom_attribute_values = values;
+  });
+}
+
+/** Current ounces in a coffee's pool, read fresh. */
+export async function readPool(poolId: string): Promise<number> {
+  return (await counts([poolId])).get(poolId) ?? 0;
 }

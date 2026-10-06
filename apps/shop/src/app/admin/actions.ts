@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { syncFulfillmentToSquare } from "@/lib/square-fulfillment";
-import { DETAIL_FIELDS, addBags, saveCoffeeDetails, setBagCount, setCoffeeListed } from "@/lib/square-admin";
+import { DETAIL_FIELDS, addBags, readPool, saveCoffeeDetails, setBagCount, setCoffeeListed, setStockReference } from "@/lib/square-admin";
 
 const STEPS = ["PAID", "READY", "FULFILLED"] as const;
 
@@ -88,7 +88,8 @@ export async function saveCoffee(itemId: string, formData: FormData) {
   if (fields.roasted_on && Number.isNaN(Date.parse(fields.roasted_on))) throw new Error("Roasted on should be a date.");
   await saveCoffeeDetails(itemId, {
     description: String(formData.get("description") ?? ""),
-    backorder: formData.get("backorder") === "on",
+    // Only touched when the form offers the switch (backorders are off for now).
+    backorder: formData.has("backorderPresent") ? formData.get("backorder") === "on" : undefined,
     fields,
   });
   refreshShop();
@@ -100,16 +101,37 @@ export async function toggleCoffeeListed(itemId: string, listed: boolean) {
   refreshShop();
 }
 
-/** Adds roasted coffee (in ounces) to a coffee's pool. */
-export async function addCoffeeOunces(poolId: string, ounces: number) {
+/**
+ * Adds roasted coffee (in ounces) to a coffee's pool. The coffee's "full stock
+ * level" (the basis for the low-stock badge) rises to the new total if that's
+ * higher than before, so topping up a nearly empty coffee doesn't hide that it's low.
+ */
+export async function addCoffeeOunces(itemId: string, poolId: string, ounces: number) {
   await requireAdmin();
+  const before = await readPool(poolId);
   await addBags(poolId, ounces);
+  await updateReference(itemId, Math.max(0, before) + ounces, "raise");
   refreshShop();
 }
 
-/** Sets a coffee's pool to an exact number of ounces. */
-export async function recountCoffeeOunces(poolId: string, ounces: number) {
+/** Sets a coffee's pool to an exact number of ounces and treats that as its new full stock level. */
+export async function recountCoffeeOunces(itemId: string, poolId: string, ounces: number) {
   await requireAdmin();
   await setBagCount(poolId, ounces);
+  await updateReference(itemId, ounces, "reset");
   refreshShop();
+}
+
+async function updateReference(itemId: string, ounces: number, mode: "raise" | "reset") {
+  try {
+    if (mode === "raise") {
+      const { listAdminCoffees } = await import("@/lib/square-admin");
+      const current = (await listAdminCoffees()).coffees.find((c) => c.id === itemId)?.stockRefOz ?? 0;
+      if (ounces <= current) return;
+    }
+    await setStockReference(itemId, ounces);
+  } catch (err) {
+    // The stock itself is already saved; the badge just won't move this time.
+    console.error("Could not update the full stock level for", itemId, err);
+  }
 }

@@ -42,7 +42,7 @@ export default async function CoffeesPage() {
       )}
 
       <div className="mt-8 space-y-6">
-        {data?.coffees.map((c) => <CoffeeEditor key={c.id} coffee={c} />)}
+        {data?.coffees.map((c) => <CoffeeEditor key={c.id} coffee={c} backordersEnabled={process.env.SHOP_BACKORDERS === "1"} />)}
       </div>
     </div>
   );
