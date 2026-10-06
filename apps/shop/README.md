@@ -44,6 +44,31 @@ Sandbox until `SQUARE_ENVIRONMENT=production`. The webhook URL registered in
 Square must match `SHOP_BASE_URL` + `/api/square/webhook` exactly (or set
 `SQUARE_WEBHOOK_URL`). Env changes only take effect on a new deployment.
 
+## Square as the source of truth (`SHOP_SOURCE=square`)
+
+With `SHOP_SOURCE=square` the shop stops reading coffees from our database:
+coffees are Square catalog items in the **"Shop"** category, bag sizes are their
+variations (inventory tracking on), bag counts come from Square's inventory,
+and details (headline, origin, producer, process, variety, roast style, brew
+notes, roasted-on, "keep selling when out of stock") are Square custom fields.
+`scripts/square-setup.mjs` creates the fields and category;
+`scripts/migrate-to-square.mjs` copies coffees (and optionally starting counts)
+from our database. Both run with `node --env-file=.env.local scripts/<name>.mjs`,
+are re-runnable, and target the sandbox until `SQUARE_ENVIRONMENT=production`.
+Square allows an app only 10 custom fields, so there are 9. URLs come from the
+coffee name; order is availability then name.
+
+Checkout then builds the Square order from real catalog items, and **Square
+itself subtracts the bags when the order is paid** (verified in the sandbox for
+payment links and for register/API orders; it lags a few seconds). Our webhook
+therefore only marks the order PAID and must never also draw stock: order items
+with a `squareVariationId` are skipped by `allocate.ts`, and register-sale
+handling is off while `SHOP_SOURCE=square`. A cart can't exceed the bags on
+hand unless the coffee allows backorders; a negative Square count is bags owed.
+`ShopOrderItem.beanId` is optional for this reason. The database path
+(grams, roast sessions, backorder grams) still exists for `SHOP_SOURCE` unset
+and is slated for removal after the cutover.
+
 ## Roast backlog
 
 A roast-to-order bag sets its green coffee aside at payment (`gramsToRoast` on

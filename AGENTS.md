@@ -734,6 +734,11 @@ yet are in `apps/shop/README.md`. Things worth knowing before touching it:
   out oldest-roast-first as real `Sale` rows (`Sale.shopOrderItemId`), then
   green for the remainder, in one transaction; shortfalls flag the order
   NEEDS_ATTENTION rather than failing (the money is already taken).
+- **Direction (2026-10): Square holds stock and product content.** With
+  `SHOP_SOURCE=square` the shop reads Square's catalog and inventory and Square
+  subtracts bags itself; do not also draw stock in the webhook. The gram-based
+  paths below remain only until cutover. See "Square as the source of truth"
+  in `apps/shop/README.md`.
 - **Roast backlog:** paid roast-to-order items hold green coffee aside; marking
   the order Ready swaps that for real roasted stock
   (`apps/roasting/src/lib/shop-fulfilment.ts`). See "Roast backlog" in
