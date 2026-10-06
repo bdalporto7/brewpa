@@ -11,8 +11,13 @@ const nextConfig: NextConfig = {
   // external.
   serverExternalPackages: ["@libsql/client", "@prisma/adapter-libsql", "@prisma/client"],
   images: {
-    // Bean photos are uploaded by apps/roasting to Vercel Blob (public URLs).
-    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
+    // Bean photos: Vercel Blob (uploaded by apps/roasting) or Square's catalog
+    // image storage (sandbox and production buckets).
+    remotePatterns: [
+      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+      { protocol: "https", hostname: "items-images-sandbox.s3.us-west-2.amazonaws.com" },
+      { protocol: "https", hostname: "items-images-production.s3.us-west-2.amazonaws.com" },
+    ],
   },
 };
 

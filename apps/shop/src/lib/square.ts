@@ -28,3 +28,19 @@ export function shopBaseUrl(): string {
 export function webhookUrl(): string {
   return process.env.SQUARE_WEBHOOK_URL ?? `${shopBaseUrl()}/api/square/webhook`;
 }
+
+/** Plain REST call to Square (used where the SDK's paging types get in the way). */
+export async function squareFetch<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+  const token = process.env.SQUARE_ACCESS_TOKEN;
+  if (!token) throw new Error("SQUARE_ACCESS_TOKEN must be set.");
+  const host = process.env.SQUARE_ENVIRONMENT === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
+  const res = await fetch(host + path, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Square-Version": "2025-10-16", "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const json = (await res.json()) as T & { errors?: unknown };
+  if (!res.ok || json.errors) throw new Error(`Square ${method} ${path} failed: ${JSON.stringify(json.errors ?? res.status)}`);
+  return json;
+}

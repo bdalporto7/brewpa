@@ -2,6 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { backorderedGramsByBean } from "@/lib/backorders";
+import { getSquareCoffees } from "@/lib/square-catalog";
+
+/** Where coffees come from: our database (default) or Square's catalog and inventory. */
+const fromSquare = () => process.env.SHOP_SOURCE === "square";
 import { beanStock, variantAvailability, type Availability } from "@/lib/shop-stock";
 
 /**
@@ -17,6 +21,8 @@ export interface PublicVariant {
   grams: number;
   priceCents: number;
   availability: Availability;
+  /** Bags on hand, when the source counts bags (Square). */
+  stock?: number;
 }
 
 export interface PublicCoffee {
@@ -111,6 +117,7 @@ function toPublic(row: ListingRow, backordered: Map<string, number>): PublicCoff
 
 /** Every listed coffee, in-stock first, then by the roaster's sort order. */
 export const getListedCoffees = cache(async (): Promise<PublicCoffee[]> => {
+  if (fromSquare()) return getSquareCoffees();
   const rows = await prisma.beanListing.findMany({
     where: { teamId: teamId(), isListed: true },
     include: listingInclude,
@@ -124,6 +131,7 @@ export const getListedCoffees = cache(async (): Promise<PublicCoffee[]> => {
 });
 
 export const getCoffee = cache(async (slug: string): Promise<PublicCoffee | null> => {
+  if (fromSquare()) return (await getSquareCoffees()).find((c) => c.slug === slug) ?? null;
   const row = await prisma.beanListing.findFirst({
     where: { slug, teamId: teamId(), isListed: true },
     include: listingInclude,
