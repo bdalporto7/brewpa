@@ -847,6 +847,8 @@ model BeanListing {
   beanId       String   @unique
   bean         Bean     @relation(fields: [beanId], references: [id], onDelete: Cascade)
   isListed     Boolean  @default(false)
+  // Keep taking orders when stock runs out; the roaster buys more green to fill them.
+  allowBackorder Boolean @default(false)
   slug         String   @unique
   headline     String?
   // Customer-facing copy. Falls back to Bean.tastingNotes when null.
@@ -931,6 +933,10 @@ model ShopOrderItem {
   unitPriceCents   Int
   gramsFromRoasted Float     @default(0)
   gramsToRoast     Float     @default(0)
+  // Part of gramsToRoast that no roasted stock and no free green coffee covered
+  // when the order was paid — it waits on the roaster buying more green. Only
+  // ever non-zero for listings with allowBackorder. Cleared when marked Ready.
+  gramsBackordered Float     @default(0)
 
   sales Sale[]
 

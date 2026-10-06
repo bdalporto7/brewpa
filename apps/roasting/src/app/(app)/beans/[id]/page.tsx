@@ -8,6 +8,7 @@ import BeanMeta from "@/components/beans/BeanMeta";
 import SupplierTastingNotes from "@/components/beans/SupplierTastingNotes";
 import ShopListingCard from "@/components/beans/ShopListingCard";
 import { beanStock } from "@/lib/shop-stock";
+import { backorderedGramsByBean } from "@/lib/shop-backorders";
 import RoastSessionCard from "@/components/roasts/RoastSessionCard";
 import DropCard from "@/components/friends/DropCard";
 import CreateDropToggle from "@/components/drops/CreateDropToggle";
@@ -86,7 +87,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       <ShopListingCard
         beanId={bean.id}
         listing={bean.shopListing}
-        stock={beanStock(bean, bean.roastSessions)}
+        stock={beanStock(bean, bean.roastSessions, (await backorderedGramsByBean([bean.id])).get(bean.id) ?? 0)}
       />
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Roasted on hand" value={`${Math.round(roastedTotal * 10) / 10}g`} />

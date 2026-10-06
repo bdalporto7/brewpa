@@ -111,6 +111,7 @@ export async function updateShopListing(listingId: string, formData: FormData) {
         description: str(formData, "description"),
         roastStyle: str(formData, "roastStyle"),
         brewNotes: str(formData, "brewNotes"),
+        allowBackorder: formData.get("allowBackorder") === "on",
       },
     }),
     ...variantUpdates.map(({ id, ...data }) => prisma.listingVariant.update({ where: { id }, data })),

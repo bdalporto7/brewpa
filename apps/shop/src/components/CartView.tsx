@@ -111,7 +111,9 @@ export default function CartView({ settings, earliestPickup }: Props) {
                   <p className="mt-1 text-sm text-muted">
                     {l.availability === "ready"
                       ? "Roasted and ready"
-                      : `Roasted to order, allow ${settings.noticeDays} days`}
+                      : l.availability === "backorder"
+                        ? "On backorder. We'll be in touch with timing"
+                        : `Roasted to order, allow ${settings.noticeDays} days`}
                   </p>
                 )}
 

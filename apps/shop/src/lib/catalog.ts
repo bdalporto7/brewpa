@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { backorderedGramsByBean } from "@/lib/backorders";
 import { beanStock, variantAvailability, type Availability } from "@/lib/shop-stock";
 
 /**
@@ -64,11 +65,11 @@ type ListingRow = NonNullable<
   Awaited<ReturnType<typeof prisma.beanListing.findFirst<{ include: typeof listingInclude }>>>
 >;
 
-const RANK: Record<Availability, number> = { ready: 0, roast_to_order: 1, sold_out: 2 };
+const RANK: Record<Availability, number> = { ready: 0, roast_to_order: 1, backorder: 2, sold_out: 3 };
 
-function toPublic(row: ListingRow): PublicCoffee {
+function toPublic(row: ListingRow, backordered: Map<string, number>): PublicCoffee {
   const { bean } = row;
-  const stock = beanStock(bean, bean.roastSessions);
+  const stock = beanStock(bean, bean.roastSessions, backordered.get(bean.id) ?? 0);
   const variants = row.variants
     .filter((v) => v.active)
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -77,7 +78,7 @@ function toPublic(row: ListingRow): PublicCoffee {
       label: v.label,
       grams: v.grams,
       priceCents: v.priceCents,
-      availability: variantAvailability(stock, v.grams),
+      availability: variantAvailability(stock, v.grams, row.allowBackorder),
     }));
   const best = variants.reduce<Availability>(
     (acc, v) => (RANK[v.availability] < RANK[acc] ? v.availability : acc),
@@ -115,8 +116,9 @@ export const getListedCoffees = cache(async (): Promise<PublicCoffee[]> => {
     include: listingInclude,
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
+  const backordered = await backorderedGramsByBean(rows.map((r) => r.beanId));
   return rows
-    .map(toPublic)
+    .map((r) => toPublic(r, backordered))
     .filter((c) => c.variants.length > 0)
     .sort((a, b) => RANK[a.availability] - RANK[b.availability]);
 });
@@ -127,6 +129,6 @@ export const getCoffee = cache(async (slug: string): Promise<PublicCoffee | null
     include: listingInclude,
   });
   if (!row) return null;
-  const coffee = toPublic(row);
+  const coffee = toPublic(row, await backorderedGramsByBean([row.beanId]));
   return coffee.variants.length > 0 ? coffee : null;
 });

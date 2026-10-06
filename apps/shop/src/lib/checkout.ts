@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { backorderedGramsByBean } from "@/lib/backorders";
 import { beanStock, variantAvailability, type Availability } from "@/lib/shop-stock";
 
 export interface PricedLine {
@@ -63,6 +64,7 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
     },
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
+  const backordered = await backorderedGramsByBean([...new Set(variants.map((v) => v.listing.beanId))]);
 
   const gramsByBean = new Map<string, number>();
   const lines: PricedLine[] = [];
@@ -71,7 +73,7 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
     if (!v) continue;
     const { listing } = v;
     const sellable = v.active && listing.isListed && listing.teamId === teamId;
-    const stock = beanStock(listing.bean, listing.bean.roastSessions);
+    const stock = beanStock(listing.bean, listing.bean.roastSessions, backordered.get(listing.beanId) ?? 0);
     lines.push({
       variantId: v.id,
       beanId: listing.beanId,
@@ -84,7 +86,7 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
       qty: w.qty,
       unitPriceCents: v.priceCents,
       lineCents: v.priceCents * w.qty,
-      availability: variantAvailability(stock, v.grams),
+      availability: variantAvailability(stock, v.grams, listing.allowBackorder),
       problem: sellable ? null : "No longer available",
     });
     if (sellable) gramsByBean.set(listing.beanId, (gramsByBean.get(listing.beanId) ?? 0) + v.grams * w.qty);
@@ -92,11 +94,13 @@ export async function priceCart(input: { variantId: string; qty: number }[]): Pr
 
   for (const line of lines) {
     if (line.problem) continue;
-    const bean = byId.get(line.variantId)!.listing.bean;
-    const stock = beanStock(bean, bean.roastSessions);
+    const { listing } = byId.get(line.variantId)!;
+    const stock = beanStock(listing.bean, listing.bean.roastSessions, backordered.get(line.beanId) ?? 0);
     const total = gramsByBean.get(line.beanId) ?? 0;
     if (line.availability === "sold_out") line.problem = "Sold out";
-    else if (total > stock.roastedGrams + stock.roastableGrams) line.problem = "Not enough left for this quantity";
+    else if (!listing.allowBackorder && total > stock.roastedGrams + stock.roastableGrams) {
+      line.problem = "Not enough left for this quantity";
+    }
   }
 
   return {

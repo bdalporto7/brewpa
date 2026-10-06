@@ -20,6 +20,7 @@ export default function AvailabilityNote({
       text: noticeDays > 0 ? `Roasted to order, about ${noticeDays} ${noticeDays === 1 ? "day" : "days"}` : "Roasted to order",
       dot: "bg-warning",
     },
+    backorder: { text: "Out of stock, on backorder. We'll confirm timing", dot: "bg-warning" },
     sold_out: { text: "Sold out for now", dot: "bg-[#9a8b7c]" },
   };
   const c = copy[availability];

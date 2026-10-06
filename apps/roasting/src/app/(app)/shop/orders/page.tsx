@@ -20,6 +20,7 @@ function loadOrders(teamId: string) {
           bean: {
             select: {
               name: true,
+              remainingGrams: true,
               roastSessions: { select: { endedAt: true, greenWeightGrams: true, roastedWeightGrams: true } },
             },
           },
@@ -62,7 +63,7 @@ function OrderCard({ order }: { order: Order }) {
             <span>{i.quantity} × {i.variantLabel}</span>
             <span className="text-muted">
               {i.gramsToRoast > 0
-                ? `roast ${Math.round(i.gramsToRoast)} g${i.gramsFromRoasted > 0 ? `, ${Math.round(i.gramsFromRoasted)} g from stock` : ""}`
+                ? `roast ${Math.round(i.gramsToRoast)} g${i.gramsBackordered > 0.01 ? ` (${Math.round(i.gramsBackordered)} g waiting on green beans)` : ""}${i.gramsFromRoasted > 0 ? `, ${Math.round(i.gramsFromRoasted)} g from stock` : ""}`
                 : "from roasted stock"}
             </span>
           </li>
@@ -109,20 +110,29 @@ export default async function ShopOrdersPage() {
 
   // The roast backlog: per coffee, what open orders still need roasted, the
   // green to load for it, and the earliest date any of those orders is due.
-  const backlog = new Map<string, { name: string; orders: Set<string>; roastedG: number; greenG: number; due: Date | null }>();
+  const backlog = new Map<string, { name: string; orders: Set<string>; roastedG: number; greenG: number; backorderedG: number; greenOnHand: number; yieldRatio: number; due: Date | null }>();
   for (const o of [...attention, ...fresh]) {
     const noticeDue = new Date((o.paidAt ?? o.createdAt).getTime() + 2 * 86400000);
     const due = o.fulfillment === "PICKUP" && o.pickupAt ? o.pickupAt : noticeDue;
     for (const i of o.items) {
       if (i.gramsToRoast <= 0.01) continue;
-      const row = backlog.get(i.beanId) ?? { name: i.bean.name, orders: new Set<string>(), roastedG: 0, greenG: 0, due: null };
+      const yieldRatio = roastYield(i.bean.roastSessions);
+      const row = backlog.get(i.beanId) ?? { name: i.bean.name, orders: new Set<string>(), roastedG: 0, greenG: 0, backorderedG: 0, greenOnHand: i.bean.remainingGrams, yieldRatio, due: null };
       row.orders.add(o.id);
       row.roastedG += i.gramsToRoast;
-      row.greenG += i.gramsToRoast / roastYield(i.bean.roastSessions);
+      row.greenG += i.gramsToRoast / yieldRatio;
+      row.backorderedG += i.gramsBackordered;
       if (!row.due || due < row.due) row.due = due;
       backlog.set(i.beanId, row);
     }
   }
+  // Green coffee to buy: what backordered orders still need, beyond the green on hand now.
+  const toBuy = [...backlog.values()]
+    .map((r) => {
+      const needGreen = r.backorderedG / r.yieldRatio;
+      return { name: r.name, orders: r.orders.size, needGreen, onHand: r.greenOnHand, buy: Math.max(0, needGreen - r.greenOnHand) };
+    })
+    .filter((r) => r.needGreen > 0.5 && r.buy > 0.5);
   const backlogRows = [...backlog.values()].sort((a, b) => (a.due?.getTime() ?? 0) - (b.due?.getTime() ?? 0));
 
   return (
@@ -135,6 +145,33 @@ export default async function ShopOrdersPage() {
           getting it roasted, packed and handed over.
         </p>
       </div>
+
+      {toBuy.length > 0 && (
+        <section>
+          <div className="mb-3">
+            <SectionHeading>Green coffee to order</SectionHeading>
+          </div>
+          <Card interactive={false} className="p-4">
+            <p className="mb-3 text-sm text-muted">
+              Customers have paid for coffee you don&apos;t have the beans for. Buy at least this much, then add it to
+              stock as usual.
+            </p>
+            <ul className="divide-y divide-border">
+              {toBuy.map((r) => (
+                <li key={r.name} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-2">
+                  <div>
+                    <p className="font-bold">{r.name}</p>
+                    <p className="text-sm text-muted">
+                      {r.orders} {r.orders === 1 ? "order" : "orders"} waiting · {Math.round(r.onHand)} g green on hand
+                    </p>
+                  </div>
+                  <p className="font-mono text-sm font-bold">buy about {Math.round(r.buy)} g</p>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
 
       {backlogRows.length > 0 && (
         <section>

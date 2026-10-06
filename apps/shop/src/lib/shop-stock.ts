@@ -48,24 +48,35 @@ export interface BeanStock {
   yield: number;
 }
 
+/**
+ * `backorderedGrams` is roasted coffee that paid orders are already waiting on
+ * and that no stock covered when they were paid. Green stock added later is
+ * spoken for by those orders first, so it's subtracted from what new customers
+ * can buy.
+ */
 export function beanStock(
   bean: Pick<Bean, "remainingGrams">,
-  sessions: StockSession[]
+  sessions: StockSession[],
+  backorderedGrams = 0
 ): BeanStock {
   const roastedGrams = sessions
     .filter((s) => s.endedAt != null)
     .reduce((sum, s) => sum + Math.max(0, s.roastedRemainingGrams ?? 0), 0);
   const y = roastYield(sessions);
-  return { roastedGrams, roastableGrams: Math.max(0, bean.remainingGrams) * y, yield: y };
+  return { roastedGrams, roastableGrams: Math.max(0, Math.max(0, bean.remainingGrams) * y - backorderedGrams), yield: y };
 }
 
-export type Availability = "ready" | "roast_to_order" | "sold_out";
+export type Availability = "ready" | "roast_to_order" | "backorder" | "sold_out";
 
-/** Whether one bag of `grams` can be sold, and how it would be fulfilled. */
-export function variantAvailability(stock: BeanStock, grams: number): Availability {
+/**
+ * Whether one bag of `grams` can be sold, and how it would be fulfilled.
+ * With `allowBackorder`, a bag we can't cover is still sold — the roaster buys
+ * more green to fill it — instead of showing as sold out.
+ */
+export function variantAvailability(stock: BeanStock, grams: number, allowBackorder = false): Availability {
   if (stock.roastedGrams >= grams) return "ready";
   if (stock.roastedGrams + stock.roastableGrams >= grams) return "roast_to_order";
-  return "sold_out";
+  return allowBackorder ? "backorder" : "sold_out";
 }
 
 /** URL slug for a listing: "Kercha Haruse — Ethiopia" → "kercha-haruse-ethiopia". */

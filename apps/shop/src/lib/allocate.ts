@@ -63,24 +63,54 @@ export async function markOrderPaid(squareOrderId: string, paidCents: number | n
         }
 
         let toRoast = 0;
+        let backordered = 0;
         if (remaining > 0.01) {
-          const bean = await tx.bean.findUnique({
-            where: { id: item.beanId },
-            select: { remainingGrams: true, roastSessions: { select: { endedAt: true, greenWeightGrams: true, roastedWeightGrams: true } } },
-          });
+          const [bean, listing, others] = await Promise.all([
+            tx.bean.findUnique({
+              where: { id: item.beanId },
+              select: { remainingGrams: true, roastSessions: { select: { endedAt: true, greenWeightGrams: true, roastedWeightGrams: true } } },
+            }),
+            tx.beanListing.findUnique({ where: { beanId: item.beanId }, select: { allowBackorder: true } }),
+            // Roasted grams other paid orders are already waiting on: green stock belongs to them first.
+            tx.shopOrderItem.aggregate({
+              where: {
+                beanId: item.beanId,
+                orderId: { not: order.id },
+                gramsBackordered: { gt: 0 },
+                order: { status: { in: ["PAID", "NEEDS_ATTENTION"] } },
+              },
+              _sum: { gramsBackordered: true },
+            }),
+          ]);
           const yieldRatio = roastYield(bean?.roastSessions ?? []);
-          const green = remaining / yieldRatio;
-          const upd = await tx.bean.updateMany({
-            where: { id: item.beanId, remainingGrams: { gte: green } },
-            data: { remainingGrams: { decrement: green } },
-          });
+          const owedGreen = (others._sum.gramsBackordered ?? 0) / yieldRatio;
+          const freeGreen = Math.max(0, (bean?.remainingGrams ?? 0) - owedGreen);
+          const needGreen = remaining / yieldRatio;
           toRoast = remaining;
-          if (upd.count === 0) notes.push(`Not enough green stock for ${item.variantLabel}.`);
+
+          if (needGreen <= freeGreen + 0.001) {
+            const upd = await tx.bean.updateMany({
+              where: { id: item.beanId, remainingGrams: { gte: needGreen } },
+              data: { remainingGrams: { decrement: needGreen } },
+            });
+            if (upd.count === 0) notes.push(`Not enough green stock for ${item.variantLabel}.`);
+          } else if (listing?.allowBackorder) {
+            // Set aside whatever free green exists; the rest waits on the roaster buying more.
+            if (freeGreen > 0.001) {
+              await tx.bean.updateMany({
+                where: { id: item.beanId, remainingGrams: { gte: freeGreen } },
+                data: { remainingGrams: { decrement: freeGreen } },
+              });
+            }
+            backordered = (needGreen - freeGreen) * yieldRatio;
+          } else {
+            notes.push(`Not enough green stock for ${item.variantLabel}.`);
+          }
         }
 
         await tx.shopOrderItem.update({
           where: { id: item.id },
-          data: { gramsFromRoasted: fromRoasted, gramsToRoast: toRoast },
+          data: { gramsFromRoasted: fromRoasted, gramsToRoast: toRoast, gramsBackordered: backordered },
         });
       }
 

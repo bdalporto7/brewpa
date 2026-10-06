@@ -15,6 +15,7 @@ const ROAST_STYLES = ["Light", "Light-medium", "Medium", "Medium-dark", "Dark", 
 const AVAILABILITY_LABEL: Record<Availability, { text: string; className: string }> = {
   ready: { text: "Ready", className: "text-success" },
   roast_to_order: { text: "Roast to order", className: "text-warning" },
+  backorder: { text: "Backorder", className: "text-warning" },
   sold_out: { text: "Not enough stock", className: "text-danger" },
 };
 
@@ -135,6 +136,17 @@ export default function ShopListingCard({
           />
         </div>
 
+        <label className="flex items-start gap-2 sm:col-span-2">
+          <input type="checkbox" name="allowBackorder" defaultChecked={listing.allowBackorder} className="mt-0.5 h-4 w-4 accent-accent" />
+          <span className="text-sm">
+            <span className="font-medium">Keep taking orders when out of stock</span>
+            <span className="block text-xs text-muted">
+              Customers pay now and see &ldquo;on backorder.&rdquo; The coffee they&apos;re waiting on shows up on the
+              Online orders page as green to buy.
+            </span>
+          </span>
+        </label>
+
         <div className="sm:col-span-2">
           <p className="mb-1.5 text-xs font-medium text-muted">Bag sizes</p>
           <div className="overflow-x-auto">
@@ -150,7 +162,7 @@ export default function ShopListingCard({
               </thead>
               <tbody>
                 {variants.map((v) => {
-                  const a = AVAILABILITY_LABEL[variantAvailability(stock, v.grams)];
+                  const a = AVAILABILITY_LABEL[variantAvailability(stock, v.grams, listing.allowBackorder)];
                   return (
                     <tr key={v.id} className="border-t border-border">
                       <td className="py-1.5 pr-2">

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAllowedUser } from "@/lib/admin";
 import { beanStock, variantAvailability } from "@/lib/shop-stock";
+import { backorderedGramsByBean } from "@/lib/shop-backorders";
 import SectionHeading from "@/components/ui/SectionHeading";
 import ShopManagerList, { type ManagerRow } from "@/components/shop/ShopManagerList";
 import SquareSyncButton from "@/components/shop/SquareSyncButton";
@@ -32,8 +33,9 @@ export default async function ShopManagerPage() {
     prisma.shopSettings.findUnique({ where: { teamId: user.teamId } }),
   ]);
 
+  const backordered = await backorderedGramsByBean(beans.map((b) => b.id));
   const rows: ManagerRow[] = beans.map((bean) => {
-    const stock = beanStock(bean, bean.roastSessions);
+    const stock = beanStock(bean, bean.roastSessions, backordered.get(bean.id) ?? 0);
     const listing = bean.shopListing;
     const active = (listing?.variants ?? []).filter((v) => v.active);
     return {
@@ -52,7 +54,7 @@ export default async function ShopManagerPage() {
             createdAt: listing.createdAt.getTime(),
             sizes: active
               .sort((a, b) => a.sortOrder - b.sortOrder)
-              .map((v) => ({ label: v.label, priceCents: v.priceCents, availability: variantAvailability(stock, v.grams) })),
+              .map((v) => ({ label: v.label, priceCents: v.priceCents, availability: variantAvailability(stock, v.grams, listing?.allowBackorder ?? false) })),
           }
         : null,
     };

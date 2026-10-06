@@ -28,6 +28,7 @@ export interface ManagerRow {
 const DOT: Record<Availability, string> = {
   ready: "bg-success",
   roast_to_order: "bg-warning",
+  backorder: "bg-warning",
   sold_out: "bg-border",
 };
 

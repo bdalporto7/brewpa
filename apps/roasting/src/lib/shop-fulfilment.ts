@@ -43,11 +43,12 @@ export async function convertRoastToOrderItems(orderId: string) {
           });
           remaining -= take;
         }
-        const green = item.gramsToRoast / roastYield(sessions);
-        await tx.bean.update({ where: { id: item.beanId }, data: { remainingGrams: { increment: green } } });
+        // Backordered grams never had green set aside, so only the rest is handed back.
+        const green = Math.max(0, item.gramsToRoast - item.gramsBackordered) / roastYield(sessions);
+        if (green > 0) await tx.bean.update({ where: { id: item.beanId }, data: { remainingGrams: { increment: green } } });
         await tx.shopOrderItem.update({
           where: { id: item.id },
-          data: { gramsFromRoasted: { increment: item.gramsToRoast }, gramsToRoast: 0 },
+          data: { gramsFromRoasted: { increment: item.gramsToRoast }, gramsToRoast: 0, gramsBackordered: 0 },
         });
       }
     },
