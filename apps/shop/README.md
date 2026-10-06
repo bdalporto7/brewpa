@@ -17,7 +17,7 @@ paid, with a retry when the page opens), and Mark ready / picked up / shipped.
 Forward moves are mirrored to Square's fulfillment state
 (`src/lib/square-fulfillment.ts`: PROPOSED → RESERVED → PREPARED → COMPLETED);
 "move back" isn't mirrored because Square can't reopen a completed fulfillment.
-**Coffees** (`/admin/coffees`): every coffee in Square with show/hide (adds or
+**Coffees** (`/admin/coffees`): "Add a coffee" (name, description, bag sizes and prices from the five presets, optional starting pool; creates the pooled structure in Square via `createCoffee`) and "Remove" (permanent delete from Square, with a confirm), plus every coffee in Square with show/hide (adds or
 removes the "Shop" category), per-size bag counts (add packed bags, or recount;
 a negative count shows as "N owed"), and the details form (description, headline,
 origin, producer, process, variety, roast style, roasted-on, brew notes, and the

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { syncFulfillmentToSquare } from "@/lib/square-fulfillment";
-import { DETAIL_FIELDS, addBags, readPool, saveCoffeeDetails, setBagCount, setCoffeeListed, setStockReference, uploadCoffeePhoto } from "@/lib/square-admin";
+import { DETAIL_FIELDS, SIZE_PRESETS, addBags, createCoffee, deleteCoffee, readPool, saveCoffeeDetails, setBagCount, setCoffeeListed, setStockReference, uploadCoffeePhoto } from "@/lib/square-admin";
 
 const STEPS = ["PAID", "READY", "FULFILLED"] as const;
 
@@ -142,5 +142,32 @@ export async function saveCoffeePhoto(itemId: string, formData: FormData) {
   const file = formData.get("photo");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose a photo first.");
   await uploadCoffeePhoto(itemId, file);
+  refreshShop();
+}
+
+/** Adds a new coffee to Square, set up for pooled stock, from the admin's "Add a coffee" form. */
+export async function addCoffee(formData: FormData) {
+  await requireAdmin();
+  const sizes = SIZE_PRESETS.filter((s) => formData.get(`size.${s.oz}`) === "on").map((s) => {
+    const dollars = Number(formData.get(`price.${s.oz}`));
+    return { label: s.label, oz: s.oz, cents: Number.isFinite(dollars) ? Math.round(dollars * 100) : NaN };
+  });
+  const lb = Number(formData.get("stockLb") || 0);
+  const oz = Number(formData.get("stockOz") || 0);
+  if (![lb, oz].every((n) => Number.isFinite(n) && n >= 0)) throw new Error("Starting stock should be a number of pounds and ounces.");
+  await createCoffee({
+    name: String(formData.get("name") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    sizes,
+    poolOz: Math.round(lb * 16 + oz),
+    listed: formData.get("listed") === "on",
+  });
+  refreshShop();
+}
+
+/** Removes a coffee from Square for good. */
+export async function removeCoffee(itemId: string) {
+  await requireAdmin();
+  await deleteCoffee(itemId);
   refreshShop();
 }

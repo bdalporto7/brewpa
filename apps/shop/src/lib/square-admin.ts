@@ -42,6 +42,7 @@ interface SqObject {
 
 import { DETAIL_FIELDS } from "@/lib/square-admin-fields";
 export { DETAIL_FIELDS };
+export { SIZE_PRESETS } from "@/lib/square-admin-fields";
 
 export interface AdminVariation {
   id: string;
@@ -254,4 +255,125 @@ export async function uploadCoffeePhoto(itemId: string, file: File) {
   const res = await fetch(`${host}/v2/catalog/images`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Square-Version": "2025-10-16" }, body: form });
   const json = (await res.json()) as { errors?: unknown };
   if (!res.ok || json.errors) throw new Error("Square didn't accept that photo. Try a different one.");
+}
+
+const POOL_NAME = "Coffee in stock (oz)";
+
+/** One custom unit per bag size ("12 oz bag"): Square allows only one sold size per unit type per item. */
+async function unitFor(oz: number, known: Map<string, string>): Promise<string> {
+  const name = `${oz} oz bag`;
+  const hit = known.get(name);
+  if (hit) return hit;
+  const res = await squareFetch<{ catalog_object?: { id: string } }>("POST", "/v2/catalog/object", {
+    idempotency_key: `unit-${oz}-${Date.now()}`,
+    object: {
+      type: "MEASUREMENT_UNIT",
+      id: `#u${oz}`,
+      measurement_unit_data: { measurement_unit: { type: "TYPE_CUSTOM", custom_unit: { name, abbreviation: `${oz}oz` } }, precision: 0 },
+    },
+  });
+  known.set(name, res.catalog_object!.id);
+  return res.catalog_object!.id;
+}
+
+/**
+ * Creates a coffee in Square set up for pooled stock: one hidden "Coffee in stock
+ * (oz)" variation holding the pool, and one sellable variation per chosen bag size
+ * converting from it. Photos are added afterwards.
+ */
+export async function createCoffee(input: {
+  name: string;
+  description: string;
+  sizes: { label: string; oz: number; cents: number }[];
+  poolOz: number;
+  listed: boolean;
+}): Promise<string> {
+  const name = input.name.trim();
+  if (!name || name.length > 80) throw new Error("Give the coffee a name (up to 80 characters).");
+  if (input.sizes.length === 0) throw new Error("Choose at least one bag size.");
+  for (const s of input.sizes) if (!Number.isInteger(s.cents) || s.cents < 100) throw new Error(`${s.label} needs a price of at least $1.`);
+  if (!Number.isInteger(input.poolOz) || input.poolOz < 0) throw new Error("Starting stock can't be negative.");
+
+  const { items, shopCategoryId } = await searchItems();
+  if (items.some((i) => (i.item_data?.name ?? "").trim().toLowerCase() === name.toLowerCase())) {
+    throw new Error("A coffee with that name already exists.");
+  }
+  if (input.listed && !shopCategoryId) throw new Error('Square has no "Shop" category yet. Run the one-time setup first.');
+
+  const units = new Map<string, string>();
+  const found = await squareFetch<{ objects?: { id: string; measurement_unit_data?: { measurement_unit?: { custom_unit?: { name?: string } } } }[] }>(
+    "POST",
+    "/v2/catalog/search",
+    { object_types: ["MEASUREMENT_UNIT"] }
+  );
+  for (const u of found.objects ?? []) {
+    const n = u.measurement_unit_data?.measurement_unit?.custom_unit?.name;
+    if (n) units.set(n, u.id);
+  }
+
+  const sizeVariations = [];
+  for (const s of input.sizes) {
+    sizeVariations.push({
+      type: "ITEM_VARIATION",
+      id: `#size-${s.oz}`,
+      present_at_all_locations: true,
+      item_variation_data: {
+        item_id: "#coffee",
+        name: s.label,
+        pricing_type: "FIXED_PRICING",
+        price_money: { amount: s.cents, currency: "USD" },
+        track_inventory: true,
+        sellable: true,
+        stockable: false,
+        measurement_unit_id: await unitFor(s.oz, units),
+        stockable_conversion: { stockable_item_variation_id: "#pool", stockable_quantity: String(s.oz), nonstockable_quantity: "1" },
+      },
+    });
+  }
+  const custom: Record<string, { name: string; type: "STRING"; string_value: string }> = {
+    cybar_backorder: { name: "cybar_backorder", type: "STRING", string_value: "no" },
+  };
+  if (input.poolOz > 0) custom.cybar_stock_ref = { name: "cybar_stock_ref", type: "STRING", string_value: String(input.poolOz) };
+
+  const res = await squareFetch<{ objects?: SqObject[] }>("POST", "/v2/catalog/batch-upsert", {
+    idempotency_key: `create-${name}-${Date.now()}`,
+    batches: [
+      {
+        objects: [
+          {
+            type: "ITEM",
+            id: "#coffee",
+            present_at_all_locations: true,
+            custom_attribute_values: custom,
+            item_data: {
+              name,
+              description: input.description.trim() || undefined,
+              product_type: "REGULAR",
+              is_taxable: false,
+              categories: input.listed && shopCategoryId ? [{ id: shopCategoryId }] : [],
+              variations: [
+                {
+                  type: "ITEM_VARIATION",
+                  id: "#pool",
+                  present_at_all_locations: true,
+                  item_variation_data: { item_id: "#coffee", name: POOL_NAME, pricing_type: "VARIABLE_PRICING", track_inventory: true, sellable: false, stockable: true },
+                },
+                ...sizeVariations,
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const saved = res.objects?.find((o) => o.type === "ITEM");
+  if (!saved) throw new Error("Square didn't save the coffee.");
+  const pool = saved.item_data?.variations?.find((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false);
+  if (pool && input.poolOz > 0) await setBagCount(pool.id, input.poolOz);
+  return saved.id;
+}
+
+/** Permanently removes a coffee from Square (and so from the site and register). Past orders keep their own record. */
+export async function deleteCoffee(itemId: string) {
+  await squareFetch("POST", "/v2/catalog/batch-delete", { object_ids: [itemId] });
 }

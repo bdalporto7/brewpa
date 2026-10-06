@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addCoffeeOunces, recountCoffeeOunces, saveCoffee, toggleCoffeeListed } from "@/app/admin/actions";
+import { addCoffeeOunces, recountCoffeeOunces, removeCoffee, saveCoffee, toggleCoffeeListed } from "@/app/admin/actions";
 import { formatPool, toOunces } from "@/lib/pool-format";
 import AdminForm from "@/components/AdminForm";
 import PhotoUploader from "@/components/PhotoUploader";
@@ -166,6 +166,31 @@ export default function CoffeeEditor({ coffee, backordersEnabled }: { coffee: Ad
             </>
           )}
         </AdminForm>
+      </details>
+      <details className="mt-4 border-t-2 border-border pt-4">
+        <summary className="cursor-pointer text-sm font-semibold text-muted">Remove this coffee</summary>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          To take it off the website for now, use the &ldquo;Shown on the website&rdquo; switch above instead. Removing
+          deletes it from Square entirely, including the register. Past orders keep their own record.
+        </p>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            if (!window.confirm(`Permanently remove ${coffee.name} from Square and the website? This can't be undone.`)) return;
+            setError(null);
+            start(async () => {
+              try {
+                await removeCoffee(coffee.id);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Something went wrong.");
+              }
+            });
+          }}
+          className="mt-3 rounded-md border-2 border-accent px-3 py-1.5 text-sm font-semibold text-accent disabled:opacity-60"
+        >
+          Remove {coffee.name}
+        </button>
       </details>
     </article>
   );

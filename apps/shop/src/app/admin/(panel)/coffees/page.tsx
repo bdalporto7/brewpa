@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/admin";
 import { listAdminCoffees } from "@/lib/square-admin";
+import AddCoffeeForm from "@/components/AddCoffeeForm";
 import CoffeeEditor from "@/components/CoffeeEditor";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,10 @@ export default async function CoffeesPage() {
         Show or hide coffees, keep bag counts right, and edit the details customers read. Everything here is saved
         straight to Square, so the register and the website always agree.
       </p>
+
+      <div className="mt-6">
+        <AddCoffeeForm />
+      </div>
 
       {failure && <p role="alert" className="mt-6 rounded-lg border-2 border-accent px-4 py-3 font-semibold">{failure}</p>}
 
