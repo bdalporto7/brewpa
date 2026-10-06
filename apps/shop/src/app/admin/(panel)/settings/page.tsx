@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAdminUser } from "@/lib/admin";
 import { saveSiteSettings } from "@/app/admin/actions";
@@ -19,7 +20,8 @@ function Field({ label, children, hint }: { label: string; children: React.React
 }
 
 export default async function SettingsPage() {
-  const user = (await getAdminUser())!;
+  const user = await getAdminUser();
+  if (!user) redirect("/admin/login");
   const [row, site] = await Promise.all([prisma.shopSettings.findUnique({ where: { teamId: user.teamId } }), getSiteSettings()]);
   const s = {
     announcement: row?.announcement ?? "",

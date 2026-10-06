@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAdminUser } from "@/lib/admin";
 import { formatCents } from "@/lib/shop-stock";
@@ -9,7 +10,8 @@ export const dynamic = "force-dynamic";
 const dateFmt = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { timeZone: "America/Los_Angeles", ...opts });
 
 export default async function OrdersPage() {
-  const user = (await getAdminUser())!;
+  const user = await getAdminUser();
+  if (!user) redirect("/admin/login");
   const orders = await prisma.shopOrder.findMany({
     where: { teamId: user.teamId, status: { in: ["NEEDS_ATTENTION", "PAID", "READY", "FULFILLED"] } },
     include: { items: true },

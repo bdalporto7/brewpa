@@ -29,6 +29,9 @@ export default async function SiteFooter() {
             <li><Link href="/shop" className="hover:text-white">Shop coffee</Link></li>
             <li><Link href="/about" className="hover:text-white">About Cybar</Link></li>
             <li><Link href="/pickup-shipping" className="hover:text-white">Pickup & shipping</Link></li>
+            <li><Link href="/returns" className="hover:text-white">Returns & refunds</Link></li>
+            <li><Link href="/terms" className="hover:text-white">Terms of sale</Link></li>
+            <li><Link href="/privacy" className="hover:text-white">Privacy policy</Link></li>
           </ul>
         </nav>
       </div>

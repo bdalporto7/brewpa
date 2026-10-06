@@ -6,6 +6,36 @@ Root Directory `apps/shop`) that reads the **same Turso database** as
 copies the schema at install time (`scripts/sync-schema.mjs`, run by
 `postinstall`) and never migrates anything itself.
 
+## Shop admin (`/admin`, in this app)
+
+Sign in with Google or GitHub; only emails on the `AllowedUser` list (the same
+table the roasting app manages) get a session (`src/auth.ts`, `src/lib/admin.ts`;
+every admin Server Action re-checks `requireAdmin()`). **Orders**
+(`/admin/orders`): paid orders grouped New / Ready / Completed / Needs
+attention, with the shipping address (read back from Square when the order is
+paid, with a retry when the page opens), and Mark ready / picked up / shipped.
+Forward moves are mirrored to Square's fulfillment state
+(`src/lib/square-fulfillment.ts`: PROPOSED → RESERVED → PREPARED → COMPLETED);
+"move back" isn't mirrored because Square can't reopen a completed fulfillment.
+**Site text** (`/admin/settings`): announcement, homepage, About, pickup notice
+and shipping terms (`ShopSettings`). OAuth callback URLs
+`https://<shop domain>/api/auth/callback/github` and `/google` must be added to
+the existing OAuth apps. For local work set `SHOP_DEV_LOGIN=1` to get a
+development-only test login (never present in production builds).
+Square's sandbox payment simulation doesn't collect a shipping address, so that
+path is covered by a unit-style check of the parser, not an end-to-end run.
+
+## Legal pages
+
+`/privacy`, `/terms` and `/returns` are linked from the footer and the checkout
+button. **They are drafts written to match what the site does (no analytics or
+ad cookies; cart in browser storage; payments on Square) and have not been
+reviewed by a lawyer.** Policy choices in them (7-day problem window, no
+cancellation once roasted, California governing law) are the owner's to confirm.
+`SHOP_CONTACT_EMAIL` sets the contact address shown; without it they point to
+Instagram. If analytics or other trackers are added, add a consent banner and
+update `/privacy`.
+
 ## What the team controls (from the roasting app)
 
 - `/shop` in the roasting app: which coffees are listed and their order, plus
@@ -98,7 +128,8 @@ project therefore also needs `SQUARE_ACCESS_TOKEN`, `SQUARE_ENVIRONMENT` and
 ## Not built yet
 
 - Refunds putting coffee back in stock (`refund.created`).
-- Cancelling a paid order from the roasting app.
+- Cancelling a paid order from an admin.
+- Customer accounts / order lookup (guest checkout only today).
 
 ## Commands
 

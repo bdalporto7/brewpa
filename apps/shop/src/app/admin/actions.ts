@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
+import { syncFulfillmentToSquare } from "@/lib/square-fulfillment";
 
 const STEPS = ["PAID", "READY", "FULFILLED"] as const;
 
@@ -20,6 +21,13 @@ export async function setOrderStatus(orderId: string, status: (typeof STEPS)[num
     where: { id: order.id },
     data: { status, ...(status === "PAID" ? {} : { attentionNote: null }) },
   });
+  // Mirror forward moves in Square. Our status is already saved, so a Square hiccup
+  // is logged rather than blocking the person packing orders.
+  if ((status === "READY" || status === "FULFILLED") && order.squareOrderId) {
+    await syncFulfillmentToSquare(order.squareOrderId, status).catch((err) =>
+      console.error("Could not update the Square fulfillment for", order.publicRef, err)
+    );
+  }
   revalidatePath("/admin/orders");
 }
 

@@ -214,7 +214,12 @@ export default function CartView({ settings, earliestPickup }: Props) {
         >
           {pending ? "Opening checkout…" : "Pay with Square"}
         </button>
-        <p className="text-center text-xs text-muted">You&apos;ll enter payment on Square&apos;s secure page.</p>
+        <p className="text-center text-xs text-muted">
+          You&apos;ll enter payment on Square&apos;s secure page. By paying you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-2">terms of sale</Link>,{" "}
+          <Link href="/returns" className="underline underline-offset-2">returns policy</Link> and{" "}
+          <Link href="/privacy" className="underline underline-offset-2">privacy policy</Link>.
+        </p>
       </form>
     </div>
   );
