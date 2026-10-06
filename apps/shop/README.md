@@ -17,7 +17,13 @@ paid, with a retry when the page opens), and Mark ready / picked up / shipped.
 Forward moves are mirrored to Square's fulfillment state
 (`src/lib/square-fulfillment.ts`: PROPOSED → RESERVED → PREPARED → COMPLETED);
 "move back" isn't mirrored because Square can't reopen a completed fulfillment.
-**Site text** (`/admin/settings`): announcement, homepage, About, pickup notice
+**Coffees** (`/admin/coffees`): every coffee in Square with show/hide (adds or
+removes the "Shop" category), per-size bag counts (add packed bags, or recount;
+a negative count shows as "N owed"), and the details form (description, headline,
+origin, producer, process, variety, roast style, roasted-on, brew notes, and the
+backorder switch), all written straight to Square (`src/lib/square-admin.ts`,
+a retrieve → change → upsert of the whole item so bag sizes are never dropped).
+Prices, sizes and photos are still edited in Square itself. **Site text** (`/admin/settings`): announcement, homepage, About, pickup notice
 and shipping terms (`ShopSettings`). OAuth callback URLs
 `https://<shop domain>/api/auth/callback/github` and `/google` must be added to
 the existing OAuth apps. For local work set `SHOP_DEV_LOGIN=1` to get a

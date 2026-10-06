@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { syncFulfillmentToSquare } from "@/lib/square-fulfillment";
+import { DETAIL_FIELDS, addBags, saveCoffeeDetails, setBagCount, setCoffeeListed } from "@/lib/square-admin";
 
 const STEPS = ["PAID", "READY", "FULFILLED"] as const;
 
@@ -75,4 +76,38 @@ export async function saveSiteSettings(formData: FormData) {
     update: data,
   });
   revalidatePath("/", "layout");
+}
+
+const refreshShop = () => revalidatePath("/", "layout");
+
+/** Saves a coffee's description, backorder switch and detail fields into Square. */
+export async function saveCoffee(itemId: string, formData: FormData) {
+  await requireAdmin();
+  const fields: Record<string, string> = {};
+  for (const f of DETAIL_FIELDS) fields[f.key] = String(formData.get(f.key) ?? "");
+  if (fields.roasted_on && Number.isNaN(Date.parse(fields.roasted_on))) throw new Error("Roasted on should be a date.");
+  await saveCoffeeDetails(itemId, {
+    description: String(formData.get("description") ?? ""),
+    backorder: formData.get("backorder") === "on",
+    fields,
+  });
+  refreshShop();
+}
+
+export async function toggleCoffeeListed(itemId: string, listed: boolean) {
+  await requireAdmin();
+  await setCoffeeListed(itemId, listed);
+  refreshShop();
+}
+
+export async function addPackedBags(variationId: string, quantity: number) {
+  await requireAdmin();
+  await addBags(variationId, quantity);
+  refreshShop();
+}
+
+export async function recountBags(variationId: string, quantity: number) {
+  await requireAdmin();
+  await setBagCount(variationId, quantity);
+  refreshShop();
 }
