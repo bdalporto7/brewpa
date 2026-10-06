@@ -2,6 +2,7 @@ import { WebhooksHelper } from "square";
 import { prisma } from "@/lib/prisma";
 import { markOrderPaid, recordPosSale } from "@/lib/allocate";
 import { squareClient, webhookUrl } from "@/lib/square";
+import { captureShippingAddress } from "@/lib/shipping-address";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +53,15 @@ export async function POST(req: Request) {
   let result: string;
   const isOnlineOrder = await prisma.shopOrder.findUnique({
     where: { squareOrderId: payment.order_id },
-    select: { id: true },
+    select: { id: true, fulfillment: true },
   });
   if (isOnlineOrder) {
     result = await markOrderPaid(payment.order_id, Number.isFinite(paid) ? paid : null);
+    if (isOnlineOrder.fulfillment === "SHIPMENT") {
+      await captureShippingAddress(isOnlineOrder.id, payment.order_id).catch((err) =>
+        console.error("Could not read the shipping address for", payment.order_id, err)
+      );
+    }
   } else {
     result = await handlePosPayment(payment.id ?? payment.order_id, payment.order_id);
   }

@@ -908,6 +908,8 @@ model ShopOrder {
   team          Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  // Shipping address as Square collected it, stored as JSON when the order is paid.
+  shippingAddress String?
 
   items ShopOrderItem[]
 
