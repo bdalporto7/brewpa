@@ -29,7 +29,14 @@ interface SqObject {
     image_ids?: string[];
     variations?: SqObject[];
   };
-  item_variation_data?: { name?: string; price_money?: { amount?: number }; track_inventory?: boolean };
+  item_variation_data?: {
+    name?: string;
+    price_money?: { amount?: number };
+    track_inventory?: boolean;
+    sellable?: boolean;
+    stockable?: boolean;
+    stockable_conversion?: { stockable_item_variation_id?: string; stockable_quantity?: string; nonstockable_quantity?: string };
+  };
   image_data?: { url?: string };
 }
 
@@ -88,17 +95,25 @@ export const getSquareCoffees = cache(async (): Promise<PublicCoffee[]> => {
     used.add(slug);
 
     const backorder = attr(item, "backorder")?.toLowerCase() === "yes";
-    const variants: PublicVariant[] = (d.variations ?? [])
-      .filter((v) => !v.is_deleted && v.item_variation_data?.price_money?.amount != null)
+    const all = (d.variations ?? []).filter((v) => !v.is_deleted);
+    // Pooled stock: a hidden stockable variation holds the ounces; each sellable size converts from it.
+    const pool = all.find((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false);
+    const poolOz = pool ? (stock.get(pool.id) ?? 0) : undefined;
+    const variants: PublicVariant[] = all
+      .filter((v) => v.item_variation_data?.sellable !== false && v.item_variation_data?.price_money?.amount != null)
       .sort((a, b) => (a.item_variation_data!.price_money!.amount ?? 0) - (b.item_variation_data!.price_money!.amount ?? 0))
       .map((v) => {
-        const onHand = stock.get(v.id) ?? 0;
-        const availability: Availability = onHand > 0 ? "ready" : backorder ? "backorder" : "sold_out";
-        return { id: v.id, label: v.item_variation_data?.name ?? "Bag", grams: 0, priceCents: v.item_variation_data!.price_money!.amount!, availability, stock: onHand };
+        const conv = v.item_variation_data!.stockable_conversion;
+        const ozEach = conv?.stockable_quantity && conv.nonstockable_quantity ? Number(conv.stockable_quantity) / Number(conv.nonstockable_quantity) : undefined;
+        const units = poolOz !== undefined && ozEach ? Math.max(0, Math.floor(poolOz / ozEach)) : Math.max(0, stock.get(v.id) ?? 0);
+        const availability: Availability = units > 0 ? "ready" : backorder ? "backorder" : "sold_out";
+        return { id: v.id, label: v.item_variation_data?.name ?? "Bag", grams: 0, priceCents: v.item_variation_data!.price_money!.amount!, availability, stock: units, ozEach };
       });
     const best = variants.reduce<Availability>((acc, v) => (RANK[v.availability] < RANK[acc] ? v.availability : acc), "sold_out");
     const roasted = attr(item, "roasted_on");
     return {
+      poolOz,
+      backorder,
       slug,
       name: d.name ?? "Coffee",
       origin: attr(item, "origin") ?? "",

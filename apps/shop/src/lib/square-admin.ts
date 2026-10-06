@@ -28,7 +28,13 @@ interface SqObject {
     variations?: SqObject[];
     [k: string]: unknown;
   };
-  item_variation_data?: { name?: string; price_money?: { amount?: number } };
+  item_variation_data?: {
+    name?: string;
+    price_money?: { amount?: number };
+    sellable?: boolean;
+    stockable?: boolean;
+    stockable_conversion?: { stockable_quantity?: string; nonstockable_quantity?: string };
+  };
   [k: string]: unknown;
 }
 
@@ -39,7 +45,8 @@ export interface AdminVariation {
   id: string;
   name: string;
   priceCents: number;
-  count: number;
+  /** Ounces one bag of this size takes from the coffee's pool. */
+  ozEach: number | null;
 }
 export interface AdminCoffee {
   id: string;
@@ -48,6 +55,10 @@ export interface AdminCoffee {
   listed: boolean;
   backorder: boolean;
   fields: Record<string, string>;
+  /** The hidden stockable variation holding this coffee's pool, or null if it isn't set up for pooled stock. */
+  poolId: string | null;
+  /** Ounces of coffee in stock (negative means owed to customers). */
+  poolOz: number;
   variations: AdminVariation[];
 }
 
@@ -92,18 +103,32 @@ export async function listAdminCoffees(): Promise<{ coffees: AdminCoffee[]; hasS
   const stock = await counts(items.flatMap((i) => (i.item_data?.variations ?? []).map((v) => v.id)));
   const coffees = items
     .filter((i) => i.item_data?.variations?.length)
-    .map((i): AdminCoffee => ({
-      id: i.id,
-      name: i.item_data!.name ?? "Untitled",
-      description: i.item_data!.description_plaintext ?? i.item_data!.description ?? "",
-      listed: !!shopCategoryId && !!i.item_data!.categories?.some((c) => c.id === shopCategoryId),
-      backorder: attr(i, "backorder").toLowerCase() === "yes",
-      fields: Object.fromEntries(DETAIL_FIELDS.map((f) => [f.key, attr(i, f.key)])),
-      variations: (i.item_data!.variations ?? [])
-        .filter((v) => !v.is_deleted)
-        .map((v) => ({ id: v.id, name: v.item_variation_data?.name ?? "Bag", priceCents: v.item_variation_data?.price_money?.amount ?? 0, count: stock.get(v.id) ?? 0 }))
-        .sort((a, b) => a.priceCents - b.priceCents),
-    }))
+    .map((i): AdminCoffee => {
+      const all = (i.item_data!.variations ?? []).filter((v) => !v.is_deleted);
+      const pool = all.find((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false);
+      return {
+        id: i.id,
+        name: i.item_data!.name ?? "Untitled",
+        description: i.item_data!.description_plaintext ?? i.item_data!.description ?? "",
+        listed: !!shopCategoryId && !!i.item_data!.categories?.some((c) => c.id === shopCategoryId),
+        backorder: attr(i, "backorder").toLowerCase() === "yes",
+        fields: Object.fromEntries(DETAIL_FIELDS.map((f) => [f.key, attr(i, f.key)])),
+        poolId: pool?.id ?? null,
+        poolOz: pool ? (stock.get(pool.id) ?? 0) : 0,
+        variations: all
+          .filter((v) => v.item_variation_data?.sellable !== false)
+          .map((v) => {
+            const c = v.item_variation_data?.stockable_conversion;
+            return {
+              id: v.id,
+              name: v.item_variation_data?.name ?? "Bag",
+              priceCents: v.item_variation_data?.price_money?.amount ?? 0,
+              ozEach: c?.stockable_quantity && c.nonstockable_quantity ? Number(c.stockable_quantity) / Number(c.nonstockable_quantity) : null,
+            };
+          })
+          .sort((a, b) => a.priceCents - b.priceCents),
+      };
+    })
     .sort((a, b) => Number(b.listed) - Number(a.listed) || a.name.localeCompare(b.name));
   return { coffees, hasShopCategory: !!shopCategoryId };
 }
@@ -145,9 +170,9 @@ export async function setCoffeeListed(itemId: string, listed: boolean) {
   });
 }
 
-/** Adds freshly packed bags to a size's count (Square keeps the running total). */
+/** Adds ounces of coffee to a coffee's pool (Square keeps the running total). */
 export async function addBags(variationId: string, quantity: number) {
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 1000) throw new Error("Enter a whole number of bags, 1 to 1000.");
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100000) throw new Error("Enter an amount of coffee above zero.");
   await squareFetch("POST", "/v2/inventory/changes/batch-create", {
     idempotency_key: `add-${variationId}-${Date.now()}`,
     changes: [
@@ -166,9 +191,9 @@ export async function addBags(variationId: string, quantity: number) {
   });
 }
 
-/** Sets a size's count to exactly this many bags (a recount). Can't be negative. */
+/** Sets a coffee's pool to exactly this many ounces (a recount). Can't be negative. */
 export async function setBagCount(variationId: string, quantity: number) {
-  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 100000) throw new Error("Enter a whole number of bags, 0 or more.");
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 100000) throw new Error("Enter an amount of coffee, 0 or more.");
   await squareFetch("POST", "/v2/inventory/changes/batch-create", {
     idempotency_key: `set-${variationId}-${Date.now()}`,
     changes: [

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addPackedBags, recountBags, saveCoffee, toggleCoffeeListed } from "@/app/admin/actions";
+import { addCoffeeOunces, recountCoffeeOunces, saveCoffee, toggleCoffeeListed } from "@/app/admin/actions";
+import { formatPool, toOunces } from "@/lib/pool-format";
 import AdminForm from "@/components/AdminForm";
 import { formatCents } from "@/lib/shop-stock";
 import type { AdminCoffee } from "@/lib/square-admin";
@@ -11,12 +12,21 @@ const input = "w-full rounded-lg border-2 border-border bg-surface px-3 py-2 foc
 const small = "w-20 rounded-md border-2 border-border bg-surface px-2 py-1 font-mono text-sm focus-visible:border-[var(--border-strong)] focus-visible:outline-none";
 const smallBtn = "rounded-md border-2 border-[var(--border-strong)] bg-surface px-2.5 py-1 text-xs font-semibold disabled:opacity-60";
 
-function SizeRow({ v }: { v: AdminCoffee["variations"][number] }) {
+function PoolControls({ coffee }: { coffee: AdminCoffee }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [add, setAdd] = useState("");
-  const [set, setSet] = useState("");
-
+  const [addLb, setAddLb] = useState("");
+  const [addOz, setAddOz] = useState("");
+  const [setLb, setSetLb] = useState("");
+  const [setOz, setSetOz] = useState("");
+  if (!coffee.poolId) {
+    return (
+      <p className="rounded-md border-2 border-dashed border-border px-3 py-2 text-sm text-muted">
+        This coffee isn&apos;t set up for pooled stock yet. Run the Square setup to enable it.
+      </p>
+    );
+  }
+  const poolId = coffee.poolId;
   const run = (fn: () => Promise<void>, clear: () => void) => {
     setError(null);
     start(async () => {
@@ -28,41 +38,58 @@ function SizeRow({ v }: { v: AdminCoffee["variations"][number] }) {
       }
     });
   };
+  const addTotal = toOunces(addLb, addOz);
+  const setTotal = toOunces(setLb, setOz);
+  const hasAdd = addLb.trim() !== "" || addOz.trim() !== "";
+  const hasSet = setLb.trim() !== "" || setOz.trim() !== "";
 
   return (
-    <tr className="border-t border-border align-top">
-      <td className="py-2 pr-3 font-semibold">{v.name}</td>
-      <td className="py-2 pr-3 font-mono text-sm">{formatCents(v.priceCents)}</td>
-      <td className="py-2 pr-3">
-        {v.count < 0 ? (
-          <span className="font-semibold text-accent">{-v.count} owed</span>
-        ) : v.count === 0 ? (
-          <span className="text-muted">out</span>
-        ) : (
-          <span className="font-mono font-semibold">{v.count}</span>
-        )}
-      </td>
-      <td className="py-2 pr-3">
-        <div className="flex items-center gap-1.5">
-          <input aria-label={`Add packed ${v.name} bags`} className={small} inputMode="numeric" placeholder="+ bags" value={add} onChange={(e) => setAdd(e.target.value)} />
-          <button type="button" className={smallBtn} disabled={pending || !add} onClick={() => run(() => addPackedBags(v.id, Number(add)), () => setAdd(""))}>Add</button>
+    <div>
+      <p className="text-sm text-muted">Coffee in stock</p>
+      <p className={`text-3xl font-extrabold tracking-tight ${coffee.poolOz < 0 ? "text-accent" : ""}`}>{formatPool(coffee.poolOz)}</p>
+      {coffee.poolOz < 0 && (
+        <p className="mt-1 text-sm font-semibold text-accent">Customers are waiting on this much. Roast it, then add it below.</p>
+      )}
+
+      <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
+        {coffee.variations.map((v) => (
+          <li key={v.id}>
+            <span className="font-semibold text-foreground">{v.name}</span>{" "}
+            {v.ozEach ? `${Math.max(0, Math.floor(coffee.poolOz / v.ozEach))} bags` : "n/a"} · {formatCents(v.priceCents)}
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <p className="mb-1 text-sm font-semibold">Add roasted coffee</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input aria-label="Pounds to add" className={small} inputMode="decimal" placeholder="lb" value={addLb} onChange={(e) => setAddLb(e.target.value)} />
+            <input aria-label="Ounces to add" className={small} inputMode="decimal" placeholder="oz" value={addOz} onChange={(e) => setAddOz(e.target.value)} />
+            <button type="button" className={smallBtn} disabled={pending || !hasAdd} onClick={() => run(() => addCoffeeOunces(poolId, addTotal), () => { setAddLb(""); setAddOz(""); })}>Add</button>
+          </div>
         </div>
-      </td>
-      <td className="py-2">
-        <div className="flex items-center gap-1.5">
-          <input aria-label={`Set ${v.name} count`} className={small} inputMode="numeric" placeholder="exact" value={set} onChange={(e) => setSet(e.target.value)} />
-          <button type="button" className={smallBtn} disabled={pending || !set} onClick={() => run(() => recountBags(v.id, Number(set)), () => setSet(""))}>Set</button>
+        <div>
+          <p className="mb-1 text-sm font-semibold">Recount to exactly</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input aria-label="Pounds in stock" className={small} inputMode="decimal" placeholder="lb" value={setLb} onChange={(e) => setSetLb(e.target.value)} />
+            <input aria-label="Ounces in stock" className={small} inputMode="decimal" placeholder="oz" value={setOz} onChange={(e) => setSetOz(e.target.value)} />
+            <button type="button" className={smallBtn} disabled={pending || !hasSet} onClick={() => run(() => recountCoffeeOunces(poolId, setTotal), () => { setSetLb(""); setSetOz(""); })}>Set</button>
+          </div>
         </div>
-        {error && <p role="alert" className="mt-1 text-xs font-semibold text-accent">{error}</p>}
-      </td>
-    </tr>
+      </div>
+      {error && <p role="alert" className="mt-2 text-sm font-semibold text-accent">{error}</p>}
+      <p className="mt-2 text-xs text-muted">
+        One pool per coffee: every bag size draws from it, on the website and at the register. Prices, sizes and
+        photos are edited in Square.
+      </p>
+    </div>
   );
 }
 
 export default function CoffeeEditor({ coffee }: { coffee: AdminCoffee }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const owed = coffee.variations.filter((v) => v.count < 0);
 
   return (
     <article className="rounded-lg border-2 border-[var(--border-strong)] bg-surface p-5 shadow-[3px_3px_0_var(--shadow-ink)]">
@@ -92,33 +119,8 @@ export default function CoffeeEditor({ coffee }: { coffee: AdminCoffee }) {
       </div>
       {error && <p role="alert" className="mt-2 text-sm font-semibold text-accent">{error}</p>}
 
-      {owed.length > 0 && (
-        <p className="mt-3 rounded-md border-2 border-accent px-3 py-2 text-sm font-semibold">
-          Bags owed to customers: {owed.map((v) => `${-v.count} × ${v.name}`).join(", ")}. Pack or order the coffee, then add the bags below.
-        </p>
-      )}
-
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-xs text-muted">
-              <th className="pb-1 font-medium">Size</th>
-              <th className="pb-1 font-medium">Price</th>
-              <th className="pb-1 font-medium">In stock</th>
-              <th className="pb-1 font-medium">Packed more</th>
-              <th className="pb-1 font-medium">Recount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {coffee.variations.map((v) => (
-              <SizeRow key={v.id} v={v} />
-            ))}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-muted">
-          Prices, sizes and photos are edited in Square. &ldquo;Packed more&rdquo; adds bags to what&apos;s there;
-          &ldquo;Recount&rdquo; sets the exact number.
-        </p>
+      <div className="mt-4">
+        <PoolControls coffee={coffee} />
       </div>
 
       <details className="mt-5 border-t-2 border-border pt-4">
@@ -139,7 +141,7 @@ export default function CoffeeEditor({ coffee }: { coffee: AdminCoffee }) {
             <input type="checkbox" name="backorder" defaultChecked={coffee.backorder} className="mt-0.5 h-4 w-4 accent-[var(--accent)]" />
             <span className="text-sm">
               <span className="font-semibold">Keep taking orders when out of stock</span>
-              <span className="block text-xs text-muted">Customers pay now and see &ldquo;on backorder&rdquo;. The count goes below zero, and this page shows what&apos;s owed.</span>
+              <span className="block text-xs text-muted">Customers pay now and see &ldquo;on backorder&rdquo;. Your stock goes below zero and this page shows how much coffee is owed.</span>
             </span>
           </label>
         </AdminForm>

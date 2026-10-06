@@ -21,11 +21,17 @@ export interface PublicVariant {
   grams: number;
   priceCents: number;
   availability: Availability;
-  /** Bags on hand, when the source counts bags (Square). */
+  /** Bags this size could be filled right now (from the coffee's pool, or its own count). */
   stock?: number;
+  /** Ounces one bag of this size takes from the coffee's pool, when stock is pooled. */
+  ozEach?: number;
 }
 
 export interface PublicCoffee {
+  /** Ounces of this coffee in stock, when stock is pooled (Square stock conversion). */
+  poolOz?: number;
+  /** Keeps selling past zero; the pool goes negative and the roaster sees what's owed. */
+  backorder?: boolean;
   slug: string;
   name: string;
   origin: string;

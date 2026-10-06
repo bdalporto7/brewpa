@@ -84,7 +84,7 @@ Square must match `SHOP_BASE_URL` + `/api/square/webhook` exactly (or set
 
 With `SHOP_SOURCE=square` the shop stops reading coffees from our database:
 coffees are Square catalog items in the **"Shop"** category, bag sizes are their
-variations (inventory tracking on), bag counts come from Square's inventory,
+variations, stock is **one pool of coffee in ounces per coffee** (see below),
 and details (headline, origin, producer, process, variety, roast style, brew
 notes, roasted-on, "keep selling when out of stock") are Square custom fields.
 `scripts/square-setup.mjs` creates the fields and category;
@@ -94,8 +94,17 @@ are re-runnable, and target the sandbox until `SQUARE_ENVIRONMENT=production`.
 Square allows an app only 10 custom fields, so there are 9. URLs come from the
 coffee name; order is availability then name.
 
+**Pooled stock** uses Square's stock conversion: each coffee has a hidden
+stockable variation "Coffee in stock (oz)" holding the pool, and every bag size
+is a sellable variation converting from it (a 12 oz bag takes 12 from the pool).
+Square allows only one sold size per unit type per item, so each size has its own
+custom unit ("12 oz bag"). The shop computes bags per size as floor(pool / oz per
+bag) and checks a cart's sizes together against the pool
+(`src/lib/checkout.ts`). In the admin, stock is entered in pounds and ounces
+(`src/lib/pool-format.ts`). A negative pool means coffee owed to customers.
+
 Checkout then builds the Square order from real catalog items, and **Square
-itself subtracts the bags when the order is paid** (verified in the sandbox for
+itself subtracts the ounces when the order is paid** (verified in the sandbox for
 payment links and for register/API orders; it lags a few seconds). Our webhook
 therefore only marks the order PAID and must never also draw stock: order items
 with a `squareVariationId` are skipped by `allocate.ts`, and register-sale

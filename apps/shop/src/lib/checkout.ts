@@ -135,14 +135,11 @@ export function earliestPickupDate(noticeDays: number): string {
 async function priceCartFromSquare(wanted: { variantId: string; qty: number }[]): Promise<PricedCart> {
   const coffees = await getSquareCoffees();
   const lines: PricedLine[] = [];
+  const ozByCoffee = new Map<string, number>();
   for (const w of wanted) {
     const coffee = coffees.find((c) => c.variants.some((v) => v.id === w.variantId));
     const v = coffee?.variants.find((x) => x.id === w.variantId);
-    if (!coffee || !v) continue; // no longer sold (or an id from before the switch)
-    const stock = v.stock ?? 0;
-    let problem: string | null = null;
-    if (v.availability === "sold_out") problem = "Sold out";
-    else if (v.availability !== "backorder" && w.qty > stock) problem = stock > 0 ? `Only ${stock} left` : "Sold out";
+    if (!coffee || !v) continue; // no longer sold (or an id from before a catalog change)
     lines.push({
       variantId: v.id,
       beanId: null,
@@ -156,9 +153,31 @@ async function priceCartFromSquare(wanted: { variantId: string; qty: number }[])
       unitPriceCents: v.priceCents,
       lineCents: v.priceCents * w.qty,
       availability: v.availability,
-      maxQty: v.availability === "backorder" ? null : stock,
-      problem,
+      maxQty: null,
+      problem: null,
     });
+    if (v.ozEach) ozByCoffee.set(coffee.slug, (ozByCoffee.get(coffee.slug) ?? 0) + v.ozEach * w.qty);
+  }
+
+  // Stock is one pool per coffee, so sizes are checked together: three 12 oz bags
+  // and a 5 lb bag draw from the same ounces.
+  for (const line of lines) {
+    const coffee = coffees.find((c) => c.slug === line.slug)!;
+    const v = coffee.variants.find((x) => x.id === line.variantId)!;
+    if (v.availability === "sold_out") {
+      line.problem = "Sold out";
+      continue;
+    }
+    if (coffee.backorder || coffee.poolOz === undefined || !v.ozEach) {
+      // Backorder (or unpooled legacy stock): per-size count only when not backordering.
+      if (!coffee.backorder && coffee.poolOz === undefined && line.qty > (v.stock ?? 0)) line.problem = (v.stock ?? 0) > 0 ? `Only ${v.stock} left` : "Sold out";
+      line.maxQty = coffee.backorder ? null : coffee.poolOz === undefined ? (v.stock ?? 0) : null;
+      continue;
+    }
+    const othersOz = (ozByCoffee.get(coffee.slug) ?? 0) - v.ozEach * line.qty;
+    const room = Math.max(0, Math.floor((coffee.poolOz - othersOz) / v.ozEach));
+    line.maxQty = room;
+    if (line.qty > room) line.problem = room > 0 ? `Only ${room} left with the rest of your bag` : "Not enough left with the rest of your bag";
   }
   return {
     lines,

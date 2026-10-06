@@ -100,14 +100,16 @@ export async function toggleCoffeeListed(itemId: string, listed: boolean) {
   refreshShop();
 }
 
-export async function addPackedBags(variationId: string, quantity: number) {
+/** Adds roasted coffee (in ounces) to a coffee's pool. */
+export async function addCoffeeOunces(poolId: string, ounces: number) {
   await requireAdmin();
-  await addBags(variationId, quantity);
+  await addBags(poolId, ounces);
   refreshShop();
 }
 
-export async function recountBags(variationId: string, quantity: number) {
+/** Sets a coffee's pool to an exact number of ounces. */
+export async function recountCoffeeOunces(poolId: string, ounces: number) {
   await requireAdmin();
-  await setBagCount(variationId, quantity);
+  await setBagCount(poolId, ounces);
   refreshShop();
 }
