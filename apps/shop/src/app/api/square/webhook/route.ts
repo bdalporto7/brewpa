@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     requestBody: body,
     signatureHeader: req.headers.get("x-square-hmacsha256-signature") ?? "",
     signatureKey: key,
-    notificationUrl: webhookUrl(),
+    notificationUrl: webhookUrl(new URL(req.url).pathname),
   });
   if (!valid) return new Response("Invalid signature", { status: 401 });
 

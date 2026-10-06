@@ -24,9 +24,14 @@ export function shopBaseUrl(): string {
   return (process.env.SHOP_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "");
 }
 
-/** The exact URL registered in Square's webhook subscription — signatures cover it. */
-export function webhookUrl(): string {
-  return process.env.SQUARE_WEBHOOK_URL ?? `${shopBaseUrl()}/api/square/webhook`;
+/**
+ * The exact URL registered in Square's webhook subscription — signatures cover it.
+ * Built from the path that was actually called, so the sandbox subscription
+ * (/api/square/webhook) and the production one (/api/square/webhook/prod) each
+ * verify against their own URL. SQUARE_WEBHOOK_URL overrides it for one-off setups.
+ */
+export function webhookUrl(pathname = "/api/square/webhook"): string {
+  return process.env.SQUARE_WEBHOOK_URL ?? `${shopBaseUrl()}${pathname}`;
 }
 
 /** Plain REST call to Square (used where the SDK's paging types get in the way). */
