@@ -25,9 +25,11 @@ interface SqObject {
     description_plaintext?: string;
     is_archived?: boolean;
     categories?: { id: string; ordinal?: number }[];
+    image_ids?: string[];
     variations?: SqObject[];
     [k: string]: unknown;
   };
+  image_data?: { url?: string };
   item_variation_data?: {
     name?: string;
     price_money?: { amount?: number };
@@ -50,6 +52,8 @@ export interface AdminVariation {
 }
 export interface AdminCoffee {
   id: string;
+  /** The coffee's main photo in Square, if it has one. */
+  photoUrl: string | null;
   name: string;
   description: string;
   listed: boolean;
@@ -64,22 +68,25 @@ export interface AdminCoffee {
   variations: AdminVariation[];
 }
 
-async function searchItems(): Promise<{ items: SqObject[]; shopCategoryId: string | null }> {
+async function searchItems(): Promise<{ items: SqObject[]; shopCategoryId: string | null; images: Map<string, string> }> {
   const items: SqObject[] = [];
+  const images = new Map<string, string>();
   let shopCategoryId: string | null = null;
   let cursor: string | undefined;
   do {
-    const res = await squareFetch<{ objects?: SqObject[]; cursor?: string }>("POST", "/v2/catalog/search", {
+    const res = await squareFetch<{ objects?: SqObject[]; related_objects?: SqObject[]; cursor?: string }>("POST", "/v2/catalog/search", {
       object_types: ["ITEM", "CATEGORY"],
+      include_related_objects: true,
       cursor,
     });
-    for (const o of res.objects ?? []) {
+    for (const o of [...(res.objects ?? []), ...(res.related_objects ?? [])]) {
+      if (o.type === "IMAGE" && o.image_data?.url) images.set(o.id, o.image_data.url);
       if (o.type === "CATEGORY" && o.category_data?.name === SHOP_CATEGORY) shopCategoryId = o.id;
       if (o.type === "ITEM" && !o.is_deleted && !o.item_data?.is_archived) items.push(o);
     }
     cursor = res.cursor;
   } while (cursor);
-  return { items, shopCategoryId };
+  return { items, shopCategoryId, images };
 }
 
 async function counts(ids: string[]): Promise<Map<string, number>> {
@@ -101,7 +108,7 @@ async function counts(ids: string[]): Promise<Map<string, number>> {
 const attr = (o: SqObject, key: string) => o.custom_attribute_values?.[`cybar_${key}`]?.string_value ?? "";
 
 export async function listAdminCoffees(): Promise<{ coffees: AdminCoffee[]; hasShopCategory: boolean }> {
-  const { items, shopCategoryId } = await searchItems();
+  const { items, shopCategoryId, images } = await searchItems();
   const stock = await counts(items.flatMap((i) => (i.item_data?.variations ?? []).map((v) => v.id)));
   const coffees = items
     .filter((i) => i.item_data?.variations?.length)
@@ -110,6 +117,7 @@ export async function listAdminCoffees(): Promise<{ coffees: AdminCoffee[]; hasS
       const pool = all.find((v) => v.item_variation_data?.stockable === true && v.item_variation_data?.sellable === false);
       return {
         id: i.id,
+        photoUrl: images.get(i.item_data!.image_ids?.[0] ?? "") ?? null,
         name: i.item_data!.name ?? "Untitled",
         description: i.item_data!.description_plaintext ?? i.item_data!.description ?? "",
         listed: !!shopCategoryId && !!i.item_data!.categories?.some((c) => c.id === shopCategoryId),
@@ -226,4 +234,24 @@ export async function setStockReference(itemId: string, ounces: number) {
 /** Current ounces in a coffee's pool, read fresh. */
 export async function readPool(poolId: string): Promise<number> {
   return (await counts([poolId])).get(poolId) ?? 0;
+}
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** Uploads a photo to Square and makes it the coffee's main picture (shown on the site and the register). */
+export async function uploadCoffeePhoto(itemId: string, file: File) {
+  if (!IMAGE_TYPES.includes(file.type)) throw new Error("Use a JPG, PNG or WebP photo.");
+  if (file.size > 4 * 1024 * 1024) throw new Error("That photo is too large. Try a smaller one.");
+  const token = process.env.SQUARE_ACCESS_TOKEN;
+  if (!token) throw new Error("SQUARE_ACCESS_TOKEN must be set.");
+  const host = process.env.SQUARE_ENVIRONMENT === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
+  const form = new FormData();
+  form.append(
+    "request",
+    new Blob([JSON.stringify({ idempotency_key: `photo-${itemId}-${Date.now()}`, object_id: itemId, is_primary: true, image: { type: "IMAGE", id: "#photo", image_data: { caption: "Coffee photo" } } })], { type: "application/json" })
+  );
+  form.append("image_file", file, file.name || "coffee.jpg");
+  const res = await fetch(`${host}/v2/catalog/images`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Square-Version": "2025-10-16" }, body: form });
+  const json = (await res.json()) as { errors?: unknown };
+  if (!res.ok || json.errors) throw new Error("Square didn't accept that photo. Try a different one.");
 }

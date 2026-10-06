@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { syncFulfillmentToSquare } from "@/lib/square-fulfillment";
-import { DETAIL_FIELDS, addBags, readPool, saveCoffeeDetails, setBagCount, setCoffeeListed, setStockReference } from "@/lib/square-admin";
+import { DETAIL_FIELDS, addBags, readPool, saveCoffeeDetails, setBagCount, setCoffeeListed, setStockReference, uploadCoffeePhoto } from "@/lib/square-admin";
 
 const STEPS = ["PAID", "READY", "FULFILLED"] as const;
 
@@ -134,4 +134,13 @@ async function updateReference(itemId: string, ounces: number, mode: "raise" | "
     // The stock itself is already saved; the badge just won't move this time.
     console.error("Could not update the full stock level for", itemId, err);
   }
+}
+
+/** Saves a photo (already shrunk in the browser) as the coffee's main picture in Square. */
+export async function saveCoffeePhoto(itemId: string, formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Choose a photo first.");
+  await uploadCoffeePhoto(itemId, file);
+  refreshShop();
 }

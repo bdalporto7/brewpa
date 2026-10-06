@@ -23,7 +23,7 @@ a negative count shows as "N owed"), and the details form (description, headline
 origin, producer, process, variety, roast style, roasted-on, brew notes, and the
 backorder switch), all written straight to Square (`src/lib/square-admin.ts`,
 a retrieve → change → upsert of the whole item so bag sizes are never dropped).
-Prices, sizes and photos are still edited in Square itself. **Site text** (`/admin/settings`): announcement, homepage, About, pickup notice
+Photos: a coffee's first Square image is what the site shows; the admin's photo uploader shrinks the picture in the browser and saves it to Square as the main photo (`uploadCoffeePhoto`), so adding one in either place shows up in both. Square-hosted image URLs must be allowed in `next.config.ts` (`items-images-production.s3.us-west-2.amazonaws.com` is an assumption until verified with a real production upload). Prices and sizes are still edited in Square itself. **Site text** (`/admin/settings`): announcement, homepage, About, pickup notice
 and shipping terms (`ShopSettings`). OAuth callback URLs
 `https://<shop domain>/api/auth/callback/github` and `/google` must be added to
 the existing OAuth apps. For local work set `SHOP_DEV_LOGIN=1` to get a

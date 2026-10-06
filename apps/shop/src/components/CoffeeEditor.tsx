@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { addCoffeeOunces, recountCoffeeOunces, saveCoffee, toggleCoffeeListed } from "@/app/admin/actions";
 import { formatPool, toOunces } from "@/lib/pool-format";
 import AdminForm from "@/components/AdminForm";
+import PhotoUploader from "@/components/PhotoUploader";
 import { formatCents } from "@/lib/shop-stock";
 import type { AdminCoffee } from "@/lib/square-admin";
 import { DETAIL_FIELDS } from "@/lib/square-admin-fields";
@@ -131,6 +132,10 @@ export default function CoffeeEditor({ coffee, backordersEnabled }: { coffee: Ad
       {error && <p role="alert" className="mt-2 text-sm font-semibold text-accent">{error}</p>}
 
       <div className="mt-4">
+        <PhotoUploader itemId={coffee.id} photoUrl={coffee.photoUrl} name={coffee.name} />
+      </div>
+
+      <div className="mt-5 border-t-2 border-border pt-4">
         <PoolControls coffee={coffee} />
       </div>
 

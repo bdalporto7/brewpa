@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   // libsql resolves a native addon via a dynamic require. Keep all three
   // external.
   serverExternalPackages: ["@libsql/client", "@prisma/adapter-libsql", "@prisma/client"],
+  // Admin photo uploads are shrunk in the browser first; this just lifts the 1 MB default.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   images: {
     // Bean photos: Vercel Blob (uploaded by apps/roasting) or Square's catalog
     // image storage (sandbox and production buckets).
