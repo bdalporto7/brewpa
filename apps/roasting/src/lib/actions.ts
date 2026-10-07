@@ -809,7 +809,8 @@ export async function importArtisanRoast(formData: FormData) {
         endedAt: result.endedAt,
         roastLevel,
         rating,
-        notes,
+        // The form's own notes win; Artisan's roasting notes only fill in when it's left blank.
+        notes: notes ?? result.roastingNotes,
         teamId: user.teamId,
       },
     });

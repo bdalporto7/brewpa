@@ -43,6 +43,14 @@
   --mark-second-crack: #8a3a24;
   --mark-drop: #2b1d14;
 
+  /* Roast-phase colors — the temp curve and PhaseBar share these so the two
+     read as one system. Deliberately the actual color progression of the
+     bean (green → yellow → caramel → dark roast), not arbitrary hues. */
+  --phase-drying: #7f9560;
+  --phase-yellowing: #c4a23a;
+  --phase-browning: #b0662b;
+  --phase-development: #6b2f1a;
+
   /* Rate-of-rise line — deliberately the one cool tone in an otherwise warm
      palette, so it reads as a clearly distinct series from the temp curve
      (which owns --accent) rather than a shade of the same color. */
@@ -113,6 +121,11 @@
     --mark-first-crack: #d99a3f;
     --mark-second-crack: #d97a4f;
     --mark-drop: #f3eadd;
+
+    --phase-drying: #93ab70;
+    --phase-yellowing: #d8bb55;
+    --phase-browning: #d68a4c;
+    --phase-development: #c8553a;
 
     --ror: #7fc2bd;
   }

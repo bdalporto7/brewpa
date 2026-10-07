@@ -8,9 +8,11 @@ import {
   getEnvTempPoints,
   getChartLayout,
   nearestCurveReading,
+  phaseClassifier,
+  PHASE_STYLES,
   CHART_WIDTH,
-  CHART_HEIGHT,
   type CurveReading,
+  type RorLayout,
   type RoastCurveTargets,
   type RoastCurveForecast,
   type ProbePoint,
@@ -65,6 +67,25 @@ export default function RoastCurveChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<CurveReading | null>(null);
   const [showRor, setShowRor] = useState(false);
+  // Two panels by default; some viewers prefer RoR drawn over the temp curve.
+  // Remembered per browser (a viewer convenience, not shared state).
+  // Read in the initializer: RoR starts off, so nothing rendered on first
+  // paint depends on this and server/client markup still match.
+  const [rorLayout, setRorLayout] = useState<RorLayout>(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("roastCurveRorLayout") === "overlay"
+        ? "overlay"
+        : "panel";
+    } catch {
+      return "panel";
+    }
+  });
+  function chooseRorLayout(next: RorLayout) {
+    setRorLayout(next);
+    try {
+      localStorage.setItem("roastCurveRorLayout", next);
+    } catch {}
+  }
   const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed);
 
   const svg = useMemo(
@@ -79,22 +100,60 @@ export default function RoastCurveChart({
         targets,
         forecast,
         animateIn: !!title,
+        rorLayout,
       }),
-    [events, totalSeconds, controls, showRor, probeReadings, envProbeReadings, targets, forecast, title]
+    [events, totalSeconds, controls, showRor, probeReadings, envProbeReadings, targets, forecast, title, rorLayout]
   );
   const readings = useMemo(() => getCurveReadings(events, probeReadings, controls), [events, probeReadings, controls]);
-  const envTempPoints = useMemo(() => getEnvTempPoints(envProbeReadings), [envProbeReadings]);
+  const envTempPoints = useMemo(
+    () => getEnvTempPoints(envProbeReadings, events.find((e) => e.type === "DROP")?.atSeconds),
+    [envProbeReadings, events]
+  );
   const layout = useMemo(
     () =>
       readings.length > 0
         ? getChartLayout(
             readings,
             totalSeconds,
-            envTempPoints.map((p) => p.temp)
+            envTempPoints.map((p) => p.temp),
+            showRor && rorLayout === "panel"
           )
         : null,
-    [readings, totalSeconds, envTempPoints]
+    [readings, totalSeconds, envTempPoints, showRor, rorLayout]
   );
+
+  // Same phase boundaries the curve itself is colored by (null until
+  // DRY_END is logged — the curve stays one plain color then, so there's
+  // nothing to label either).
+  const classifyPhase = useMemo(() => phaseClassifier(events), [events]);
+  const phaseLegend = useMemo(() => {
+    if (!classifyPhase) return [];
+    const present = new Set(readings.map((r) => classifyPhase(r.atSeconds)));
+    return PHASE_STYLES.filter((s) => present.has(s.key));
+  }, [classifyPhase, readings]);
+  const hoveredPhase =
+    hovered && classifyPhase ? PHASE_STYLES.find((s) => s.key === classifyPhase(hovered.atSeconds)) : undefined;
+
+  const phaseKey =
+    phaseLegend.length > 0 || envTempPoints.length >= 2 ? (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        {phaseLegend.map((s) => (
+          <span key={s.key} className="inline-flex items-center gap-1.5">
+            <span
+              className="h-2.5 w-4 rounded-sm border"
+              style={{ background: `color-mix(in srgb, ${s.color} 30%, transparent)`, borderColor: s.color }}
+            />
+            {s.label}
+          </span>
+        ))}
+        {envTempPoints.length >= 2 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-0.5 w-4 rounded-full" style={{ background: "var(--mark-dry-end)" }} />
+            Exhaust temp
+          </span>
+        )}
+      </div>
+    ) : null;
 
   const rorToggle = (
     <button
@@ -117,6 +176,37 @@ export default function RoastCurveChart({
     </button>
   );
 
+  const rorControls = (
+    <div className="flex items-center gap-2">
+      {showRor && (
+        <div role="group" aria-label="Rate of rise layout" className="inline-flex overflow-hidden rounded-full border border-border text-xs font-medium">
+          {(
+            [
+              ["panel", "Separate"],
+              ["overlay", "Overlay"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => chooseRorLayout(value)}
+              aria-pressed={rorLayout === value}
+              className="px-2.5 py-1 transition"
+              style={
+                rorLayout === value
+                  ? { background: "color-mix(in srgb, var(--ror) 14%, transparent)", color: "var(--ror)" }
+                  : { color: "var(--muted)" }
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {rorToggle}
+    </div>
+  );
+
   const titleHeader = title && (
     <div className="mb-3 flex items-center justify-between">
       <button
@@ -131,7 +221,7 @@ export default function RoastCurveChart({
           <ChevronDown className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-180"}`} />
         )}
       </button>
-      {!collapsed && rorToggle}
+      {!collapsed && rorControls}
     </div>
   );
 
@@ -192,19 +282,27 @@ export default function RoastCurveChart({
       {hovered && (
         <>
           <svg
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+            viewBox={`0 0 ${CHART_WIDTH} ${layout.height}`}
             className="roast-curve-svg pointer-events-none absolute inset-0"
           >
-            <line
-              x1={crosshairX}
-              x2={crosshairX}
-              y1={layout.tempChartTop}
-              y2={layout.tempChartBottom}
-              style={{ stroke: "var(--foreground)" }}
-              strokeOpacity={0.35}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-            />
+            {[
+              [layout.tempChartTop, layout.tempChartBottom],
+              ...(layout.rorPanelTop != null && layout.rorPanelBottom != null
+                ? [[layout.rorPanelTop, layout.rorPanelBottom]]
+                : []),
+            ].map(([top, bottom]) => (
+              <line
+                key={top}
+                x1={crosshairX}
+                x2={crosshairX}
+                y1={top}
+                y2={bottom}
+                style={{ stroke: "var(--foreground)" }}
+                strokeOpacity={0.35}
+                strokeWidth={1}
+                strokeDasharray="2 2"
+              />
+            ))}
             <circle
               cx={crosshairX}
               cy={layout.yTemp(hovered.temp)}
@@ -231,6 +329,11 @@ export default function RoastCurveChart({
             }}
           >
             <p className="font-mono font-semibold">{formatMMSS(hovered.atSeconds)}</p>
+            {hoveredPhase && (
+              <p className="font-medium" style={{ color: hoveredPhase.color }}>
+                {hoveredPhase.label}
+              </p>
+            )}
             <p className="font-mono text-muted">
               {hoveredEnvTemp != null ? "BT " : ""}
               {Math.round(hovered.temp)}°F
@@ -256,6 +359,7 @@ export default function RoastCurveChart({
     return (
       <Card interactive={false} className="p-4">
         {titleHeader}
+        {!collapsed && phaseKey && <div className="mb-2">{phaseKey}</div>}
         {!collapsed && <div className="overflow-x-auto">{chartContent}</div>}
       </Card>
     );
@@ -263,7 +367,10 @@ export default function RoastCurveChart({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex justify-end">{rorToggle}</div>
+      <div className="flex items-center justify-between gap-2">
+        {phaseKey ?? <span />}
+        {rorControls}
+      </div>
       <Card interactive={false} className="overflow-x-auto p-4">
         {chartContent}
       </Card>

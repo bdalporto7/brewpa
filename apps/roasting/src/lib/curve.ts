@@ -13,6 +13,17 @@ export const CHART_WIDTH = 760;
 // so the live chart — the whole point of the page during a roast — reads
 // as bigger/easier to track at a glance, not just wider.
 const TEMP_CHART_HEIGHT = 400;
+// Rate of rise gets its own panel under the temp chart rather than being
+// overlaid on it. Overlaid, it shared the temp plot's height: a cold-start
+// fluid-bed ramp (100-150°F/min) either got clipped off the top or, once the
+// axis fit it, crushed the rest of the roast's RoR into a sliver, and the
+// line crossed the temp/exhaust curves and the labels above the plot. Its
+// own axis fits the real min/max with nothing cut off and nothing crossing.
+// The temp chart gives up some height while the panel is showing so the
+// whole chart doesn't get disproportionately tall.
+const TEMP_CHART_HEIGHT_WITH_ROR = 330;
+const ROR_PANEL_GAP = 18;
+const ROR_PANEL_HEIGHT = 120;
 export const CHART_MARGIN_LEFT = 44;
 // Wide enough for the rate-of-rise axis's tick labels, kept constant whether
 // or not RoR is currently toggled on so showing/hiding it never reflows the
@@ -61,12 +72,79 @@ export const MILESTONE_MARKERS: { type: EventType; label: string; color: string 
   { type: "SECOND_CRACK_END", label: "2C end", color: "var(--mark-second-crack)" },
 ];
 
+export type PhaseKey = "drying" | "yellowing" | "browning" | "development";
+
+export const PHASE_STYLES: { key: PhaseKey; label: string; color: string }[] = [
+  { key: "drying", label: "Drying", color: "var(--phase-drying)" },
+  { key: "yellowing", label: "Yellowing", color: "var(--phase-yellowing)" },
+  { key: "browning", label: "Browning", color: "var(--phase-browning)" },
+  { key: "development", label: "Development", color: "var(--phase-development)" },
+];
+
+/**
+ * Which roast phase a moment falls in, from the milestones logged so far —
+ * the same boundaries computeRoastPhases (phases.ts) uses: drying until
+ * DRY_END, yellowing until YELLOWING_END, browning until FIRST_CRACK_START,
+ * development after. A roast without a YELLOWING_END (older ones) goes
+ * straight from drying to browning, matching phases.ts's own fallback.
+ * Returns null when DRY_END was never logged: without that anchor "drying"
+ * would just be a guess, so the curve keeps its single plain color rather
+ * than painting an unlogged roast one phase's color end to end.
+ */
+export function phaseClassifier(events: Pick<RoastEvent, "type" | "atSeconds">[]): ((atSeconds: number) => PhaseKey) | null {
+  const at = (type: string) => events.find((e) => e.type === type)?.atSeconds ?? null;
+  const dryEnd = at("DRY_END");
+  if (dryEnd == null) return null;
+  const yellowEnd = at("YELLOWING_END");
+  const firstCrack = at("FIRST_CRACK_START");
+  return (t) => {
+    if (firstCrack != null && t >= firstCrack) return "development";
+    if (t >= (yellowEnd ?? dryEnd)) return "browning";
+    if (t >= dryEnd) return "yellowing";
+    return "drying";
+  };
+}
+
+/**
+ * The phases as time ranges, for shading the chart background: each runs from
+ * its start milestone to the next one, and the phase still in progress (or the
+ * last one, after drop) runs to `endSeconds` — the latest reading, not the
+ * axis end, so a live chart never paints the future as already decided.
+ * Empty when DRY_END was never logged (see phaseClassifier).
+ */
+export function phaseBands(
+  events: Pick<RoastEvent, "type" | "atSeconds">[],
+  endSeconds: number
+): { key: PhaseKey; color: string; fromSeconds: number; toSeconds: number }[] {
+  const at = (type: string) => events.find((e) => e.type === type)?.atSeconds ?? null;
+  const dryEnd = at("DRY_END");
+  if (dryEnd == null) return [];
+  const yellowEnd = at("YELLOWING_END");
+  const firstCrack = at("FIRST_CRACK_START");
+
+  const starts: { key: PhaseKey; from: number }[] = [{ key: "drying", from: 0 }];
+  if (yellowEnd != null) starts.push({ key: "yellowing", from: dryEnd });
+  starts.push({ key: "browning", from: yellowEnd ?? dryEnd });
+  if (firstCrack != null) starts.push({ key: "development", from: firstCrack });
+
+  const bands: { key: PhaseKey; color: string; fromSeconds: number; toSeconds: number }[] = [];
+  starts.forEach((s, i) => {
+    const to = Math.min(i + 1 < starts.length ? starts[i + 1].from : endSeconds, endSeconds);
+    if (to > s.from) {
+      bands.push({ key: s.key, color: PHASE_STYLES.find((p) => p.key === s.key)!.color, fromSeconds: s.from, toSeconds: to });
+    }
+  });
+  return bands;
+}
+
+export type RorLayout = "panel" | "overlay";
+
 export interface CurveReading {
   atSeconds: number;
   temp: number;
   /** Keyed by control key (RoasterControl["key"] — "FAN"/"HEAT" today, more for other machines). */
   controlLevels: Record<string, number | null>;
-  /** °F/min since the previous reading; null for the first (no prior point to measure from). */
+  /** °F/min over the lookback span ending here (see ROR_SPAN_SECONDS), smoothed; null before the turning point / until enough data exists. */
   rorPerMin: number | null;
 }
 
@@ -94,19 +172,52 @@ function levelAt(points: { atSeconds: number; level: number }[], atSeconds: numb
  * produce a jagged, doubled-up line. Fan/heat/milestones stay event-
  * sourced regardless, since a bean-temp probe doesn't know about those.
  */
+// RoR is the temperature change across a lookback *span*, not between two
+// adjacent samples — the same idea as Artisan's "Delta Span" setting (and
+// Scott Rao's guidance: ~10s to pinpoint events, ~30s to read the trend;
+// scottrao.com/blog/2019/7/3/how-to-manage-roast-software-settings). The
+// old version differenced consecutive samples (after averaging each over a
+// 15s window), which is fine at one reading every several seconds but turns
+// into quantization noise at the probe's ~1s cadence: one 0.1°F tick over
+// one second reads as 6°F/min, so the line jittered wildly. A span of
+// seconds divides that same 0.1°F step by the whole span instead.
+//
+// 30s is Rao's "read the trend" end of that range, chosen because this
+// chart exists to show the roast's overall RoR shape (a smooth, steadily
+// declining line is the goal), not to pinpoint a single event — the live
+// tips/forecast read the same numbers, where a steadier RoR is also the
+// safer thing to extrapolate from.
+const ROR_SPAN_SECONDS = 30;
+// Artisan's separate "Smooth Deltas" step: after the span-based RoR is
+// computed, average it once more over this trailing window so the line
+// doesn't pick up the small dial-change bumps a fluid-bed probe shows.
+const ROR_SERIES_SMOOTHING_SECONDS = 10;
+// Beans hitting a hot drum/chamber drag the probe's reading *down* until
+// the "turning point" (BT's minimum, ~1-2 min in) before it starts rising.
+// RoR from before that point is the probe recovering, not the roast, and at
+// -100°F/min and below it stretches the RoR axis until the real roast's
+// RoR is a flat sliver — Artisan likewise only shows RoR from the turning
+// point on. Searched for only within this many seconds, so a later
+// mid-roast dip is never mistaken for it.
+const TURNING_POINT_WINDOW_SECONDS = 240;
+// A minimum this much below the first reading counts as a real charge dip;
+// anything smaller is just probe noise, not a turning point worth gating on.
+const TURNING_POINT_MIN_DIP_F = 5;
+// Too short a span at the very start of a roast (the first couple of
+// samples) is the same noise problem in miniature — no RoR until at least
+// this much data exists, unless readings are so sparse (hand-logged) that a
+// single gap already exceeds it.
+const ROR_MIN_SPAN_SECONDS = 5;
 // A fluid-bed roaster's probe reads a blend of true bean temp and the
-// hot airflow that's tumbling the beans past it — every fan/heat change
-// shows up in the reading almost immediately, faster than a bean's real
-// thermal mass could actually respond, which shows up as noisy point-to-
-// point jitter in raw RoR. Smoothing over a short trailing window (not a
-// fixed point-count — see below) damps that jitter the way a physically
-// thicker BT probe would, without needing different hardware. This never
-// touches the *displayed* temp (still the raw reading), only the values
-// RoR is computed from.
-const ROR_SMOOTHING_WINDOW_SECONDS = 15;
+// hot airflow tumbling the beans past it — every fan/heat change shows up
+// in the reading faster than a bean's real thermal mass could respond. A
+// short trailing average on each endpoint of the span damps that jitter
+// the way a physically thicker BT probe would. This never touches the
+// *displayed* temp (still the raw reading), only what RoR is computed from.
+const ROR_SMOOTHING_WINDOW_SECONDS = 5;
 
-/** Time-windowed, not count-windowed: dense probe data (~5s cadence) gets a
- * real 3ish-point average, while sparse hand-logged points spaced further
+/** Time-windowed, not count-windowed: dense probe data gets a real
+ * multi-point average, while sparse hand-logged points spaced further
  * apart than the window naturally fall back to using just that one point —
  * averaging across widely-spaced manual readings would blend unrelated
  * moments together, not smooth noise. */
@@ -121,24 +232,86 @@ function smoothedTempAt(points: { atSeconds: number; temp: number }[], i: number
   return count > 0 ? sum / count : points[i].temp;
 }
 
+type TempPoint = { atSeconds: number; temp: number };
+
+/** Index of the charge-dip minimum (see TURNING_POINT_WINDOW_SECONDS), or 0 when there isn't one. */
+export function turningPointIndex(points: TempPoint[]): number {
+  let best = 0;
+  for (let i = 1; i < points.length && points[i].atSeconds <= TURNING_POINT_WINDOW_SECONDS; i++) {
+    // <=, not <: the minimum is often a short plateau at the probe's 0.1°
+    // resolution; Artisan reports the last sample of it, so match that.
+    if (points[i].temp <= points[best].temp) best = i;
+  }
+  return points[0].temp - points[best].temp >= TURNING_POINT_MIN_DIP_F ? best : 0;
+}
+
+/** °F/min across the lookback span ending at point i (see ROR_SPAN_SECONDS), never reaching back before `firstIndex`. */
+export function rorAt(points: TempPoint[], i: number, firstIndex = 0): number | null {
+  if (i <= firstIndex) return null;
+  const windowStart = points[i].atSeconds - ROR_SPAN_SECONDS;
+  // Earliest point still inside the span; with sparse data nothing earlier
+  // than the previous point qualifies, so this naturally degrades to the
+  // plain two-point difference.
+  let j = i - 1;
+  while (j > firstIndex && points[j - 1].atSeconds >= windowStart) j--;
+  const seconds = points[i].atSeconds - points[j].atSeconds;
+  if (seconds <= 0) return null;
+  // Only the opening seconds of a dense series: j can't reach back any
+  // further than the first usable point, so the span is still too short to trust.
+  if (j === firstIndex && seconds < ROR_MIN_SPAN_SECONDS) return null;
+  return ((smoothedTempAt(points, i) - smoothedTempAt(points, j)) / seconds) * 60;
+}
+
+/** The full RoR series: span-based per point, from the turning point on, then lightly smoothed (see the constants above). */
+export function rorSeries(points: TempPoint[]): (number | null)[] {
+  const first = turningPointIndex(points);
+  const raw = points.map((_, i) => rorAt(points, i, first));
+  return raw.map((v, i) => {
+    if (v == null) return null;
+    const windowStart = points[i].atSeconds - ROR_SERIES_SMOOTHING_SECONDS;
+    let sum = 0;
+    let count = 0;
+    for (let j = i; j >= 0 && points[j].atSeconds > windowStart; j--) {
+      const r = raw[j];
+      if (r != null) {
+        sum += r;
+        count++;
+      }
+    }
+    return count > 0 ? sum / count : v;
+  });
+}
+
 export function getCurveReadings(
   events: RoastEvent[],
   probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = [],
   controls: RoasterControl[]
 ): CurveReading[] {
+  // atSeconds >= 0: roasts imported before the importer learned to stop at
+  // charge carry a few pre-charge samples at negative times.
   const probePoints = probeReadings
-    .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null)
+    .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null && r.atSeconds >= 0)
     .map((r) => ({ atSeconds: r.atSeconds, temp: r.tempFahrenheit }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
 
-  const tempPoints =
+  // Nothing after DROP belongs on a roast's curve — an Artisan export keeps
+  // sampling through cooldown (a 9-minute roast arrives with ~13 minutes of
+  // data), and that cooldown's steep negative RoR stretched the RoR axis
+  // until the actual roast's RoR was a flat sliver at the top.
+  const dropAt = events.find((e) => e.type === "DROP")?.atSeconds;
+  const untilDrop = <T extends { atSeconds: number }>(pts: T[]) =>
+    dropAt == null ? pts : pts.filter((p) => p.atSeconds <= dropAt);
+
+  const tempPoints = untilDrop(
     probePoints.length >= 2
       ? probePoints
       : events
           .filter((e) => e.type === "TEMP" && e.tempFahrenheit != null)
           .map((e) => ({ atSeconds: e.atSeconds, temp: e.tempFahrenheit as number }))
-          .sort((a, b) => a.atSeconds - b.atSeconds);
+          .sort((a, b) => a.atSeconds - b.atSeconds)
+  );
   if (tempPoints.length < 2) return [];
+  const rors = rorSeries(tempPoints);
 
   const pointsByControl = new Map(
     controls.map((control) => [
@@ -151,14 +324,7 @@ export function getCurveReadings(
   );
 
   return tempPoints.map((p, i) => {
-    let rorPerMin: number | null = null;
-    if (i > 0) {
-      const prev = tempPoints[i - 1];
-      const minutesElapsed = (p.atSeconds - prev.atSeconds) / 60;
-      if (minutesElapsed > 0) {
-        rorPerMin = (smoothedTempAt(tempPoints, i) - smoothedTempAt(tempPoints, i - 1)) / minutesElapsed;
-      }
-    }
+    const rorPerMin = rors[i];
     const controlLevels: Record<string, number | null> = {};
     for (const control of controls) {
       controlLevels[control.key] = levelAt(pointsByControl.get(control.key) ?? [], p.atSeconds);
@@ -183,10 +349,13 @@ export function getCurveReadings(
  * only draws the line when there are at least two.
  */
 export function getEnvTempPoints(
-  probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = []
+  probeReadings: Pick<TemperatureReading, "atSeconds" | "tempFahrenheit">[] = [],
+  /** Same cutoff getCurveReadings applies to the bean series: the drop. */
+  untilSeconds?: number
 ): { atSeconds: number; temp: number }[] {
   return probeReadings
-    .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null)
+    .filter((r): r is typeof r & { atSeconds: number } => r.atSeconds != null && r.atSeconds >= 0)
+    .filter((r) => untilSeconds == null || r.atSeconds <= untilSeconds)
     .map((r) => ({ atSeconds: r.atSeconds, temp: r.tempFahrenheit }))
     .sort((a, b) => a.atSeconds - b.atSeconds);
 }
@@ -215,6 +384,13 @@ export interface ChartLayout {
   chartRight: number;
   tempChartTop: number;
   tempChartBottom: number;
+  /** The RoR panel under the temp chart (null unless the layout was built with it). */
+  rorPanelTop: number | null;
+  rorPanelBottom: number | null;
+  /** Bottom of the lowest plot panel — the time axis row sits just below it. */
+  plotBottom: number;
+  /** Total SVG height for this layout (varies with whether the RoR panel is shown). */
+  height: number;
   /** Top/bottom of the control-change step-line strip, below the time-axis row. */
   stripTop: number;
   stripBottom: number;
@@ -255,7 +431,9 @@ export function getChartLayout(
    * toward the axis's min/max range without being part of the bean-temp
    * `readings` array itself — so an exhaust line running hotter than bean
    * temp doesn't get its top clipped off. */
-  extraTemps: number[] = []
+  extraTemps: number[] = [],
+  /** Lay out the separate RoR panel beneath the temp chart. */
+  rorPanel = false
 ): ChartLayout {
   const duration = readings.length === 0 ? Math.max(totalSeconds, 1) : Math.max(totalSeconds, readings[readings.length - 1].atSeconds, 1);
 
@@ -272,18 +450,14 @@ export function getChartLayout(
   const minTemp = Math.floor((rawMin - TEMP_PADDING) / 25) * 25;
   const maxTemp = Math.ceil((rawMax + TEMP_PADDING) / 25) * 25;
 
-  // Percentile, not true min/max: two readings logged close together (most
-  // often the first couple, before intervals settle into a rhythm) can spike
-  // to a RoR far outside the rest of the roast and, using a true max, drag
-  // the whole axis out with it — one point that reads as "off the chart"
-  // would otherwise squash every other point into a sliver at the bottom.
-  // The point itself still plots (and clips at the frame if it's still off
-  // this trimmed range); it just doesn't get to set the scale everyone else
-  // has to live in.
-  // Same guaranteed-minimum-buffer reasoning as TEMP_PADDING above.
+  // True min/max, padded: the RoR panel has its own plot, so the peak never
+  // needs to be cut off to protect anything else's scale. (RoR is span-
+  // smoothed and starts at the turning point now, so there's also no stray
+  // two-readings-apart spike for a percentile trim to guard against.)
   const ROR_PADDING = 10;
   const rorValues = readings.map((p) => p.rorPerMin).filter((v): v is number => v != null);
-  const [rawMinRor, rawMaxRor] = rorPercentileRange(rorValues);
+  const rawMinRor = rorValues.length > 0 ? Math.min(...rorValues) : 0;
+  const rawMaxRor = rorValues.length > 0 ? Math.max(...rorValues) : 0;
   const minRor = Math.floor((rawMinRor - ROR_PADDING) / 10) * 10;
   const maxRor = Math.ceil((rawMaxRor + ROR_PADDING) / 10) * 10;
 
@@ -291,32 +465,39 @@ export function getChartLayout(
   const chartRight = CHART_WIDTH - MARGIN_RIGHT;
   const chartWidth = chartRight - chartLeft;
   const tempChartTop = MARGIN_TOP;
-  const tempChartHeight = TEMP_CHART_HEIGHT;
+  const tempChartHeight = rorPanel ? TEMP_CHART_HEIGHT_WITH_ROR : TEMP_CHART_HEIGHT;
   const tempChartBottom = tempChartTop + tempChartHeight;
-  const stripTop = tempChartBottom + AXIS_HEIGHT + CONTROL_STRIP_GAP;
+  const rorPanelTop = rorPanel ? tempChartBottom + ROR_PANEL_GAP : null;
+  const rorPanelBottom = rorPanelTop != null ? rorPanelTop + ROR_PANEL_HEIGHT : null;
+  const plotBottom = rorPanelBottom ?? tempChartBottom;
+  const stripTop = plotBottom + AXIS_HEIGHT + CONTROL_STRIP_GAP;
   const stripBottom = stripTop + CONTROL_STRIP_HEIGHT;
 
-  // Clamped to the plot area's own bounds — minRor/maxRor is a trimmed
-  // percentile range specifically so one outlier spike can't compress every
-  // other point into a sliver (see the comment above), which means a point
-  // outside that range is expected, not a bug. Without clamping here, that
-  // point's *pixel* position would land outside the chart entirely — this
-  // keeps the line visually flattened against the top/bottom edge instead
-  // of escaping the plot box altogether. minTemp/maxTemp are padded from
-  // the real min/max (not percentile-trimmed) so temp values only need this
-  // as a defensive floor, not something expected to trigger often.
+  // Clamped to the plot's own bounds as a defensive floor — min/max are
+  // padded from the real values, so this isn't expected to trigger.
   const x = (seconds: number) => chartLeft + (seconds / duration) * chartWidth;
   const clampToTempChart = (y: number) => Math.min(tempChartBottom, Math.max(tempChartTop, y));
   const yTemp = (temp: number) =>
     clampToTempChart(tempChartTop + (1 - (temp - minTemp) / (maxTemp - minTemp)) * tempChartHeight);
+  // In the panel when there is one; otherwise mapped onto the temp chart (only
+  // reachable from callers that never draw RoR, e.g. the comparison chart).
   const yRor = (rorPerMin: number) =>
-    clampToTempChart(tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * tempChartHeight);
+    rorPanelTop != null && rorPanelBottom != null
+      ? Math.min(
+          rorPanelBottom,
+          Math.max(rorPanelTop, rorPanelTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * ROR_PANEL_HEIGHT)
+        )
+      : clampToTempChart(tempChartTop + (1 - (rorPerMin - minRor) / (maxRor - minRor)) * tempChartHeight);
 
   return {
     chartLeft,
     chartRight,
     tempChartTop,
     tempChartBottom,
+    rorPanelTop,
+    rorPanelBottom,
+    plotBottom,
+    height: stripBottom,
     stripTop,
     stripBottom,
     minTemp,
@@ -397,11 +578,13 @@ export function buildRoastCurveSvg(
      * poll would be distracting rather than delightful, so it's opt-in
      * rather than the default. */
     animateIn?: boolean;
+    /** Where rate of rise is drawn when `showRor` is on: its own panel under the temp chart (default) or overlaid on the temp plot with a right-hand axis. */
+    rorLayout?: RorLayout;
   } = {}
 ): string | null {
   const readings = getCurveReadings(events, options.probeReadings, controls);
   if (readings.length < 2) return null;
-  const envTempPoints = getEnvTempPoints(options.envProbeReadings);
+  const envTempPoints = getEnvTempPoints(options.envProbeReadings, events.find((e) => e.type === "DROP")?.atSeconds);
 
   // Extend the axis to cover the furthest target/forecast time too —
   // otherwise a live chart's x-axis only spans elapsed-time-so-far, and
@@ -424,13 +607,18 @@ export function buildRoastCurveSvg(
   const layout = getChartLayout(
     readings,
     Math.max(totalSeconds, latestTarget),
-    envTempPoints.map((p) => p.temp)
+    envTempPoints.map((p) => p.temp),
+    !!options.showRor && (options.rorLayout ?? "panel") === "panel"
   );
   const {
     chartLeft,
     chartRight,
     tempChartTop,
     tempChartBottom,
+    rorPanelTop,
+    rorPanelBottom,
+    plotBottom,
+    height,
     stripTop,
     stripBottom,
     minTemp,
@@ -443,7 +631,6 @@ export function buildRoastCurveSvg(
     yRor,
   } = layout;
 
-  const tempLine = readings.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ");
   const envTempLine =
     envTempPoints.length >= 2 ? envTempPoints.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ") : null;
 
@@ -460,8 +647,26 @@ export function buildRoastCurveSvg(
   const parts: string[] = [];
 
   parts.push(
-    `<svg viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" class="roast-curve-svg" role="img" aria-label="Roasting curve">`
+    `<svg viewBox="0 0 ${CHART_WIDTH} ${height}" class="roast-curve-svg" role="img" aria-label="Roasting curve">`
   );
+
+  // Phase bands behind the curve (how Artisan and Cropster shade a profile):
+  // each phase is a tinted vertical band between the logged milestones, so
+  // "which phase was I in at this point" reads from the background instead of
+  // recoloring the line. Drawn first so the grid, markers and curve sit on top.
+  for (const band of phaseBands(events, readings[readings.length - 1].atSeconds)) {
+    const left = x(band.fromSeconds);
+    const right = x(band.toSeconds);
+    if (right <= left) continue;
+    parts.push(
+      `<rect x="${left}" y="${tempChartTop}" width="${right - left}" height="${tempChartBottom - tempChartTop}" style="fill:${band.color}" opacity="0.16" />`
+    );
+    if (rorPanelTop != null && rorPanelBottom != null) {
+      parts.push(
+        `<rect x="${left}" y="${rorPanelTop}" width="${right - left}" height="${rorPanelBottom - rorPanelTop}" style="fill:${band.color}" opacity="0.16" />`
+      );
+    }
+  }
 
   for (const t of tempTicks) {
     parts.push(
@@ -472,22 +677,40 @@ export function buildRoastCurveSvg(
 
   for (const t of timeTicks) {
     parts.push(
-      `<text x="${x(t)}" y="${tempChartBottom + AXIS_HEIGHT - 6}" text-anchor="middle" style="fill:var(--muted)" class="mono-10">${formatMMSS(t)}</text>`
+      `<text x="${x(t)}" y="${plotBottom + AXIS_HEIGHT - 6}" text-anchor="middle" style="fill:var(--muted)" class="mono-10">${formatMMSS(t)}</text>`
     );
   }
 
-  for (const m of markers) {
-    if (!m.event) continue;
+  // Labels sit in one row above the plot; two milestones close enough that
+  // their labels would collide (an SR800's dry end and yellowing end are
+  // often seconds apart) alternate onto a second row instead of overprinting.
+  let prevLabelX = -Infinity;
+  let prevLabelRow = 1;
+  for (const m of [...markers].sort((a, b) => a.event!.atSeconds - b.event!.atSeconds)) {
+    const mx = x(m.event!.atSeconds);
+    const row = mx - prevLabelX < 24 && prevLabelRow === 0 ? 1 : 0;
+    prevLabelX = mx;
+    prevLabelRow = row;
     parts.push(
-      `<line x1="${x(m.event.atSeconds)}" x2="${x(m.event.atSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${m.color}" stroke-width="1.5" stroke-dasharray="3 3" />`,
-      `<text x="${x(m.event.atSeconds)}" y="${tempChartTop - 6}" text-anchor="middle" style="fill:${m.color}" class="marker-label">${m.label}</text>`
+      `<line x1="${mx}" x2="${mx}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:${m.color}" stroke-width="1.5" stroke-dasharray="3 3" />`,
+      `<text x="${mx}" y="${tempChartTop - (row === 0 ? 6 : 17)}" text-anchor="middle" style="fill:${m.color}" class="marker-label">${m.label}</text>`
     );
+    if (rorPanelTop != null && rorPanelBottom != null) {
+      parts.push(
+        `<line x1="${mx}" x2="${mx}" y1="${rorPanelTop}" y2="${rorPanelBottom}" style="stroke:${m.color}" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.7" />`
+      );
+    }
   }
 
   if (dropEvent) {
     parts.push(
       `<line x1="${x(dropEvent.atSeconds)}" x2="${x(dropEvent.atSeconds)}" y1="${tempChartTop}" y2="${tempChartBottom}" style="stroke:var(--mark-drop)" stroke-width="1.5" />`
     );
+    if (rorPanelTop != null && rorPanelBottom != null) {
+      parts.push(
+        `<line x1="${x(dropEvent.atSeconds)}" x2="${x(dropEvent.atSeconds)}" y1="${rorPanelTop}" y2="${rorPanelBottom}" style="stroke:var(--mark-drop)" stroke-width="1.5" />`
+      );
+    }
   }
 
   // Accepted AI-plan targets — ghosted (low opacity, finer dash) so they
@@ -559,12 +782,7 @@ export function buildRoastCurveSvg(
   // roasting decisions actually get made from.
   if (envTempLine) {
     parts.push(
-      `<polyline points="${envTempLine}" fill="none" style="stroke:var(--mark-dry-end)" stroke-width="1.5" stroke-linejoin="round" opacity="0.75" />`,
-      // Top-right (mirroring the AI-plan-target legend's top-left spot at
-      // the same y) — a mystery second line with no label would otherwise
-      // just read as noise.
-      `<line x1="${chartRight - 28}" x2="${chartRight - 16}" y1="${tempChartTop - 16}" y2="${tempChartTop - 16}" style="stroke:var(--mark-dry-end)" stroke-width="1.5" opacity="0.75" />`,
-      `<text x="${chartRight - 12}" y="${tempChartTop - 16}" text-anchor="end" dominant-baseline="middle" style="fill:var(--muted)" class="mono-10">= exhaust temp</text>`
+      `<polyline points="${envTempLine}" fill="none" style="stroke:var(--mark-dry-end)" stroke-width="1.5" stroke-linejoin="round" opacity="0.75" />`
     );
   }
 
@@ -581,7 +799,7 @@ export function buildRoastCurveSvg(
   // re-rasterized on every update, and re-running that filter over a
   // dense probe-fed polyline each time was a real source of live lag.
   parts.push(
-    `<polyline points="${tempLine}" pathLength="1" ${options.animateIn ? 'class="curve-draw-in"' : ""} fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round"${options.animateIn ? ' filter="url(#sketchy-fine)"' : ""} />`
+    `<polyline points="${readings.map((p) => `${x(p.atSeconds)},${yTemp(p.temp)}`).join(" ")}" pathLength="1" ${options.animateIn ? 'class="curve-draw-in"' : ""} fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round"${options.animateIn ? ' filter="url(#sketchy-fine)"' : ""} />`
   );
   // Per-reading dots only when the series is sparse (hand-logged temps,
   // where each dot is a real logged point worth seeing). Dense probe data
@@ -594,23 +812,55 @@ export function buildRoastCurveSvg(
     parts.push(`<circle cx="${x(p.atSeconds)}" cy="${yTemp(p.temp)}" r="2.5" style="fill:var(--accent)" />`);
   }
 
-  if (options.showRor) {
+  if (options.showRor && rorPanelTop != null && rorPanelBottom != null) {
     const rorTicks = [minRor, (minRor + maxRor) / 2, maxRor];
     for (const t of rorTicks) {
+      parts.push(
+        `<line x1="${chartLeft}" x2="${chartRight}" y1="${yRor(t)}" y2="${yRor(t)}" style="stroke:var(--border)" stroke-width="1" />`,
+        `<text x="${chartLeft - 8}" y="${yRor(t)}" text-anchor="end" dominant-baseline="middle" style="fill:var(--ror)" class="mono-10">${Math.round(t)}</text>`
+      );
+    }
+    parts.push(
+      // Rotated into the left margin, centered on the panel: any spot above
+      // the panel collides with the temp axis' bottom tick or the RoR axis'
+      // own top tick (measured — those two are the only things up there).
+      `<text transform="rotate(-90 9 ${(rorPanelTop + rorPanelBottom) / 2})" x="9" y="${(rorPanelTop + rorPanelBottom) / 2}" text-anchor="middle" dominant-baseline="middle" style="fill:var(--ror)" class="marker-label">RoR °F/min</text>`
+    );
+    if (minRor < 0 && maxRor > 0) {
+      parts.push(
+        `<line x1="${chartLeft}" x2="${chartRight}" y1="${yRor(0)}" y2="${yRor(0)}" style="stroke:var(--ror)" stroke-width="1" stroke-dasharray="2 3" opacity="0.5" />`
+      );
+    }
+    const rorLine = readings
+      .filter((p): p is CurveReading & { rorPerMin: number } => p.rorPerMin != null)
+      .map((p) => `${x(p.atSeconds)},${yRor(p.rorPerMin)}`)
+      .join(" ");
+    parts.push(
+      `<polyline points="${rorLine}" fill="none" style="stroke:var(--ror)" stroke-width="1.75" stroke-linejoin="round" />`
+    );
+  } else if (options.showRor) {
+    // Overlaid on the temp plot, sharing its height, with its own axis on the
+    // right. Fit to the true peak like the panel — on a cold-start roaster the
+    // opening ramp then compresses the rest of the RoR, which is the trade
+    // the viewer is choosing by picking this layout over the panel.
+    for (const t of [minRor, (minRor + maxRor) / 2, maxRor]) {
       parts.push(
         `<text x="${chartRight + 8}" y="${yRor(t)}" text-anchor="start" dominant-baseline="middle" style="fill:var(--ror)" class="mono-10">${Math.round(t)}</text>`
       );
     }
+    const midY = (tempChartTop + tempChartBottom) / 2;
     parts.push(
-      `<text x="${chartRight}" y="${tempChartTop - 6}" text-anchor="end" style="fill:var(--ror)" class="marker-label">°F/min</text>`
+      `<text transform="rotate(-90 ${CHART_WIDTH - 5} ${midY})" x="${CHART_WIDTH - 5}" y="${midY}" text-anchor="middle" dominant-baseline="middle" style="fill:var(--ror)" class="marker-label">RoR °F/min</text>`
     );
     if (minRor < 0 && maxRor > 0) {
       parts.push(
         `<line x1="${chartLeft}" x2="${chartRight}" y1="${yRor(0)}" y2="${yRor(0)}" style="stroke:var(--ror)" stroke-width="1" stroke-dasharray="2 3" opacity="0.4" />`
       );
     }
-    const rorPoints = readings.filter((p): p is CurveReading & { rorPerMin: number } => p.rorPerMin != null);
-    const rorLine = rorPoints.map((p) => `${x(p.atSeconds)},${yRor(p.rorPerMin)}`).join(" ");
+    const rorLine = readings
+      .filter((p): p is CurveReading & { rorPerMin: number } => p.rorPerMin != null)
+      .map((p) => `${x(p.atSeconds)},${yRor(p.rorPerMin)}`)
+      .join(" ");
     parts.push(
       `<polyline points="${rorLine}" fill="none" style="stroke:var(--ror)" stroke-width="1.75" stroke-linejoin="round" />`
     );
@@ -636,8 +886,13 @@ export function buildRoastCurveSvg(
 
     const points = eventPoints(events, control.key);
     if (points.length > 0) {
+      // Clamped to the control's own range: an imported level outside it
+      // (e.g. an Artisan damper on a 0-100 scale against a 0-10 control)
+      // otherwise plots far outside its strip and across the temp chart.
       const yLevel = (level: number) =>
-        stripTop + (1 - (level - control.min) / (control.max - control.min)) * CONTROL_STRIP_HEIGHT;
+        stripTop +
+        (1 - (Math.min(control.max, Math.max(control.min, level)) - control.min) / (control.max - control.min)) *
+          CONTROL_STRIP_HEIGHT;
       parts.push(
         `<path d="${buildStepPath(points, duration, x, yLevel)}" fill="none" style="stroke:${color};opacity:${opacity}" stroke-width="1.5" />`
       );

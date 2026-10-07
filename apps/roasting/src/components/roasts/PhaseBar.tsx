@@ -4,10 +4,10 @@ import Card from "@/components/ui/Card";
 import Eyebrow from "@/components/ui/Eyebrow";
 
 const SEGMENTS: { key: keyof RoastPhases & `${string}Percent`; label: string; className: string }[] = [
-  { key: "dryingPercent", label: "Drying", className: "bg-border" },
-  { key: "yellowingPercent", label: "Yellowing", className: "bg-[var(--mark-dry-end)]" },
-  { key: "browningPercent", label: "Browning", className: "bg-accent-soft" },
-  { key: "developmentPercent", label: "Development", className: "bg-accent" },
+  { key: "dryingPercent", label: "Drying", className: "bg-[var(--phase-drying)]" },
+  { key: "yellowingPercent", label: "Yellowing", className: "bg-[var(--phase-yellowing)]" },
+  { key: "browningPercent", label: "Browning", className: "bg-[var(--phase-browning)]" },
+  { key: "developmentPercent", label: "Development", className: "bg-[var(--phase-development)]" },
 ];
 
 export default function PhaseBar({ phases }: { phases: RoastPhases }) {

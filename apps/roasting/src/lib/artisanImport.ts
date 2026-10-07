@@ -33,6 +33,7 @@ export interface ArtisanProfile {
   roastisodate?: string;
   roasttime?: string;
   roastertype?: string;
+  roastingnotes?: string;
 }
 
 export interface ArtisanImportEvent {
@@ -50,6 +51,8 @@ export interface ArtisanImportResult {
   events: ArtisanImportEvent[];
   temperatureReadings: { probeType: "bean" | "environment"; atSeconds: number; tempFahrenheit: number }[];
   beanNameGuess: { name: string; origin: string | null };
+  /** Artisan's own free-text "roasting notes" field, if the roaster filled it in. */
+  roastingNotes: string | null;
 }
 
 const isIdentChar = (c: string | undefined): boolean => !!c && /[A-Za-z0-9_]/.test(c);
@@ -302,9 +305,14 @@ export function buildArtisanImportResult(profile: ArtisanProfile, controls: Roas
     }
   }
 
+  // Only charge → drop: Artisan keeps sampling for a few readings before
+  // CHARGE and all through cooldown after DROP (a 9-minute roast arrives
+  // with ~13 minutes of data). Neither belongs to the roast itself, and the
+  // cooldown's steep falling temp used to stretch the chart's axes.
   const temperatureReadings: ArtisanImportResult["temperatureReadings"] = [];
   for (let i = 0; i < profile.timex.length; i++) {
     const atSeconds = relSeconds(i);
+    if (atSeconds < 0 || atSeconds > durationSeconds) continue;
     if (typeof profile.temp2[i] === "number" && Number.isFinite(profile.temp2[i])) {
       temperatureReadings.push({ probeType: "bean", atSeconds, tempFahrenheit: toFahrenheit(profile.temp2[i], profile.mode) });
     }
@@ -333,5 +341,6 @@ export function buildArtisanImportResult(profile: ArtisanProfile, controls: Roas
     events,
     temperatureReadings,
     beanNameGuess: guessBeanFromLabel(profile.beans, profile.title),
+    roastingNotes: profile.roastingnotes?.trim() || null,
   };
 }

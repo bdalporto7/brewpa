@@ -8,6 +8,7 @@ import { getCurrentAllowedUser } from "@/lib/admin";
 import BrewCard from "@/components/brews/BrewCard";
 import { formatMMSS } from "@/lib/format";
 import { computeRoastPhases } from "@/lib/phases";
+import { computeRoastMetrics } from "@/lib/roastMetrics";
 import {
   computeHistoricalBaseline,
   computeMilestoneTempBaseline,
@@ -35,6 +36,7 @@ import AiFeedbackForm from "@/components/roasts/AiFeedbackForm";
 import GoldenRoastToggle from "@/components/roasts/GoldenRoastToggle";
 import RoastCurveChart from "@/components/roasts/RoastCurveChart";
 import PhaseBar from "@/components/roasts/PhaseBar";
+import RoastMetricsCard from "@/components/roasts/RoastMetricsCard";
 import LiveTipsPanel from "@/components/roasts/LiveTipsPanel";
 import LiveRoastChart from "@/components/roasts/LiveRoastChart";
 import SalesPanel from "@/components/roasts/SalesPanel";
@@ -178,6 +180,11 @@ export default async function RoastSessionPage({
   const margin = roastMargin(session, session.bean, session.sales);
 
   const phases = computeRoastPhases(session.events, durationSeconds ?? 0);
+  const metrics = computeRoastMetrics(
+    getCurveReadings(session.events, session.temperatureReadings, controls),
+    session.events,
+    durationSeconds ?? 0
+  );
 
   let baseline = null;
   let milestoneTempBaseline = null;
@@ -550,6 +557,7 @@ export default async function RoastSessionPage({
             title="Roast curve"
           />
           <PhaseBar phases={phases} />
+          {metrics && <RoastMetricsCard metrics={metrics} />}
           {session.roastedWeightGrams != null && (
             <SalesPanel
               roastSessionId={session.id}

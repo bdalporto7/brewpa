@@ -271,6 +271,50 @@ need to read as clearly separate at a glance. The hover tooltip gets a third
 row (RoR value, `"—"` if the hovered point is the first reading) only when
 the toggle is on, so it doesn't show a stat for a line that isn't drawn.
 
+**RoR is span-based, from the turning point, and stops at the drop
+(2026-10).** `getCurveReadings` no longer differences adjacent samples:
+`rorSeries` (`curve.ts`) measures temperature change across a 30s lookback
+span (Artisan's "Delta Span" idea; Scott Rao suggests ~10s for pinpointing
+events, ~30s for reading the trend — scottrao.com/blog/2019/7/3/how-to-
+manage-roast-software-settings) and then smooths the result over 10s, which
+is what makes it usable at the probe's ~1s cadence. It starts at the
+*turning point* (BT's minimum within the first 240s — before that the probe
+is recovering from the charge, at -100°F/min and below), and readings after
+`DROP` are dropped entirely: an Artisan export keeps sampling through
+cooldown, and that tail used to stretch the RoR axis until the real roast's
+RoR was a sliver. The Artisan importer also stops at charge → drop now.
+Rate of rise lives in its own panel under the temp chart (`getChartLayout`'s
+`rorPanel`), not overlaid on it, with its own axis fit to the true min/max so
+nothing is ever cut off. Overlaid, it shared the temp plot: a cold-start SR800
+ramps at 100-150°F/min for its first minute or two, which either clipped off
+the top or (once the axis fit it) crushed the rest of the roast's 15-35°F/min
+into a sliver, and the line crossed the temp/exhaust curves and the labels.
+I tried clipping and then a "Zoom rate of rise" toggle first; the user's
+call was that the default must show the whole picture with no zoom step,
+which is what the separate panel gives. A "Separate / Overlay" switch
+(`rorLayout`, remembered in localStorage) lets a viewer put RoR back on the temp
+plot with a right-hand axis; overlay fits the true peak too, so on a cold-start
+roast the rest of the line sits low — the trade that viewer chose. Phase bands and milestone markers run
+through both panels; the exhaust-temp legend lives in the HTML key row (it
+used to sit in the SVG and landed on the RoR unit label); two milestone labels
+close together (an SR800's dry end / yellowing end) stagger onto a second row.
+When touching chart layout, measure rather than eyeball: `getBBox()` on every
+`<text>` in the rendered SVG found each real collision here.
+Diagnosing this took rendering a real imported roast rather than guessing —
+the "wonky" line was axis scaling, not noise. The phases are shaded as
+tinted vertical bands *behind* the curve (`phaseBands`: drying → yellowing →
+browning → development, from the logged milestones, ending at the latest
+reading so a live chart never paints the future; no `DRY_END` means no
+bands), using `--phase-*` tokens shared with `PhaseBar`. This was first
+built as a recolored temp line and the user rejected that outright — they
+wanted the background shaded, as Artisan/Cropster do. (Artisan's own default
+bands are horizontal and driven by BT thresholds; these are time-based and
+follow the milestones the roaster actually logged.) `roastMetrics.ts` /
+`RoastMetricsCard` show charge, turning point, per-milestone temps and
+per-phase temp gain/RoR with Artisan's own conventions (a phase's RoR is
+measured from the turning point, "overall" is turning point → drop); checked
+against the `computed` block of 15 real `.alog` files, all within 0.05.
+
 `EventTimeline.tsx` renders as a real `<table>` — columns Time / Temp (°F) /
 Fan / Heat / Event, chronological, right-aligned tabular-numeral numeric
 columns, blank (not `—`) empty cells. Went through a few readability passes
