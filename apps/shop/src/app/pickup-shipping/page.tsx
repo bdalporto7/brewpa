@@ -12,13 +12,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PickupShippingPage() {
   const s = await getSiteSettings();
-  const notice =
-    s.noticeDays > 0 ? `about ${s.noticeDays} ${s.noticeDays === 1 ? "day" : "days"}` : "a little extra time";
-
   const faq = [
     {
       q: "How long until my coffee is ready?",
-      a: `If the coffee is already roasted it's ready within a day or so. If we're roasting it for your order, allow ${notice}. Each coffee's page says which it is.`,
+      a: "We roast every Monday. Everything on the site is already roasted, so once you order we'll get in touch to set up your hand-off, or ship it out.",
     },
     {
       q: "Is it whole bean?",
@@ -26,7 +23,7 @@ export default async function PickupShippingPage() {
     },
     {
       q: "When should I drink it?",
-      a: "Freshly roasted coffee needs a few days to rest before it tastes its best, and lighter roasts often keep improving for a week or two. Each bag is marked with its roast date.",
+      a: "It depends on the roast level. For espresso (medium roast), we recommend at least 1 week after roasting. Omni (medium-light) roasts are best after about 2 weeks, and filter (light) roasts are best 2 to 6 weeks after roasting. Each bag is marked with its roast date.",
     },
     ...(s.instagramUrl
       ? [
@@ -50,8 +47,7 @@ export default async function PickupShippingPage() {
           <p className="mt-4 text-lg font-semibold">{s.localSummary}</p>
           <p className="mt-4 leading-relaxed text-muted">
             We do pop-ups around the Bay Area, and you can also pick up from one of us or have us come to you. Order and
-            we&apos;ll get in touch to sort out the hand-off once your bag is ready. If we&apos;re roasting it for you,
-            allow {notice}.
+            we&apos;ll get in touch to sort out the hand-off. We roast every Monday.
           </p>
         </section>
 
