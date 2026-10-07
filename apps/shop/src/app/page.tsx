@@ -2,31 +2,10 @@ import Link from "next/link";
 import { getListedCoffees } from "@/lib/catalog";
 import BagTile from "@/components/BagTile";
 import EmptyShelf from "@/components/EmptyShelf";
-import { getSiteSettings, type SiteSettings } from "@/lib/site";
-import { formatCents } from "@/lib/shop-stock";
+import { getSiteSettings } from "@/lib/site";
 
 // Stock changes whenever a roast is logged; never serve a stale shelf for long.
 export const revalidate = 60;
-
-function steps(s: SiteSettings) {
-  return [
-    {
-      title: "Pick a coffee and a bag size",
-      body: "From a 4 oz sampler to a 5 lb bag. Every bag is whole bean.",
-    },
-    {
-      title: "We roast it in a small batch",
-      body:
-        s.noticeDays > 0
-          ? `If it isn't already on the shelf we roast it for you, so allow about ${s.noticeDays} ${s.noticeDays === 1 ? "day" : "days"}.`
-          : "If it isn't already on the shelf we roast it for you.",
-    },
-    {
-      title: "Pick it up or get it shipped",
-      body: `${s.localSummary}. Or we ship it for ${formatCents(s.shippingFlatCents)}, free over ${formatCents(s.freeShippingOverCents)}.`,
-    },
-  ];
-}
 
 export default async function HomePage() {
   const [coffees, settings] = await Promise.all([getListedCoffees(), getSiteSettings()]);
@@ -89,21 +68,6 @@ export default async function HomePage() {
             ))}
           </div>
         )}
-      </section>
-
-      <section aria-labelledby="how" className="mx-auto mt-24 max-w-6xl px-4 sm:px-6">
-        <h2 id="how" className="text-3xl font-extrabold tracking-tight">
-          How ordering works
-        </h2>
-        <ol className="mt-8 grid gap-8 md:grid-cols-3">
-          {steps(settings).map((s, i) => (
-            <li key={s.title} className="border-l-4 border-brand pl-5">
-              <span className="font-marker text-3xl text-brand">{i + 1}</span>
-              <h3 className="mt-1 text-lg font-bold">{s.title}</h3>
-              <p className="mt-2 max-w-[38ch] leading-relaxed text-muted">{s.body}</p>
-            </li>
-          ))}
-        </ol>
       </section>
     </>
   );
