@@ -15,8 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   return {
     metadataBase: new URL(process.env.SHOP_BASE_URL ?? "http://localhost:3001"),
-    title: { default: `${s.name}: ${s.tagline}`, template: `%s | ${s.name}` },
-    description: `${s.tagline}. ${s.localSummary}, or shipped anywhere in the US.`,
+    title: { default: s.name, template: `%s | ${s.name}` },
+    description: `Whole bean coffee by the bag. ${s.localSummary}, or shipped anywhere in the US.`,
   };
 }
 

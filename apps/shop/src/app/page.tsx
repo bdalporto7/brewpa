@@ -37,10 +37,10 @@ export default async function HomePage() {
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-12 sm:px-6 md:grid-cols-[1.1fr_1fr] md:pt-20">
         <div>
           <h1 className="text-5xl font-extrabold leading-[0.95] tracking-tight [text-wrap:balance] sm:text-6xl lg:text-7xl">
-            {settings.heroHeadline}
+            {settings.name}
           </h1>
           <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-muted">
-            {settings.heroBody}
+            Whole bean coffee by the bag, from a 4 oz sampler up to 5 lb. {settings.localSummary}, or we ship it.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link
@@ -48,9 +48,6 @@ export default async function HomePage() {
               className="rounded-lg border-2 border-[var(--border-strong)] bg-accent px-5 py-3 text-base font-semibold text-accent-foreground shadow-[3px_3px_0_var(--shadow-ink)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
             >
               Shop coffee
-            </Link>
-            <Link href="/about" className="font-medium underline underline-offset-4">
-              Who we are
             </Link>
           </div>
         </div>

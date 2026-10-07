@@ -12,9 +12,6 @@ import { ABOUT_FALLBACK } from "@/content/about";
 export interface SiteSettings {
   name: string;
   announcement: string | null;
-  tagline: string;
-  heroHeadline: string;
-  heroBody: string;
   localSummary: string;
   noticeDays: number;
   shippingFlatCents: number;
@@ -27,10 +24,6 @@ export interface SiteSettings {
 }
 
 const DEFAULTS = {
-  tagline: "Small-batch coffee, roasted in San Francisco",
-  heroHeadline: "Small-batch coffee from a tiny roaster in San Francisco.",
-  heroBody:
-    "We roast a few coffees at a time, in small batches, and sell them by the bag. Pick it up or get it delivered in San Francisco, or have it shipped.",
   localSummary: "Pickup or local delivery in San Francisco",
   noticeDays: 2,
   shippingFlatCents: 600,
@@ -72,9 +65,6 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   return {
     name: "Cybar Coffee",
     announcement: row?.announcement ?? null,
-    tagline: row?.tagline ?? DEFAULTS.tagline,
-    heroHeadline: row?.heroHeadline ?? DEFAULTS.heroHeadline,
-    heroBody: row?.heroBody ?? DEFAULTS.heroBody,
     localSummary: row?.localSummary ?? DEFAULTS.localSummary,
     noticeDays: row?.noticeDays ?? DEFAULTS.noticeDays,
     shippingFlatCents: row?.shippingFlatCents ?? DEFAULTS.shippingFlatCents,

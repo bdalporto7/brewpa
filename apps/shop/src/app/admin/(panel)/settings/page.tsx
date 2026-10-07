@@ -25,9 +25,6 @@ export default async function SettingsPage() {
   const [row, site] = await Promise.all([prisma.shopSettings.findUnique({ where: { teamId: user.teamId } }), getSiteSettings()]);
   const s = {
     announcement: row?.announcement ?? "",
-    tagline: site.tagline,
-    heroHeadline: site.heroHeadline,
-    heroBody: site.heroBody,
     localSummary: site.localSummary,
     noticeDays: site.noticeDays,
     shippingFlatCents: site.shippingFlatCents,
@@ -52,13 +49,8 @@ export default async function SettingsPage() {
           </Field>
         </div>
         <div className="sm:col-span-2">
-          <Field label="Homepage headline"><input name="heroHeadline" defaultValue={s.heroHeadline} required className={input} /></Field>
+          <Field label="Instagram link"><input name="instagramUrl" type="url" defaultValue={s.instagramUrl} className={input} /></Field>
         </div>
-        <div className="sm:col-span-2">
-          <Field label="Homepage intro"><textarea name="heroBody" rows={3} defaultValue={s.heroBody} required className={input} /></Field>
-        </div>
-        <Field label="Tagline (footer and browser tab)"><input name="tagline" defaultValue={s.tagline} required className={input} /></Field>
-        <Field label="Instagram link"><input name="instagramUrl" type="url" defaultValue={s.instagramUrl} className={input} /></Field>
 
         <div className="sm:col-span-2">
           <Field label="Local pickup or delivery line"><input name="localSummary" defaultValue={s.localSummary} required className={input} /></Field>

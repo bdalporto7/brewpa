@@ -9,7 +9,6 @@ export default async function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-3 sm:px-6">
         <div>
           <p className="font-marker text-2xl">{s.name}</p>
-          <p className="mt-2 max-w-xs text-sm text-ink-band-muted">{s.tagline}.</p>
           {s.instagramUrl && (
             <a href={s.instagramUrl} className="mt-4 inline-block text-sm underline underline-offset-4 hover:text-white">
               {s.instagramHandle ?? "Instagram"} on Instagram

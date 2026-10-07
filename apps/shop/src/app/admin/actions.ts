@@ -59,9 +59,6 @@ export async function saveSiteSettings(formData: FormData) {
 
   const data = {
     announcement: str(formData, "announcement"),
-    tagline: required("tagline", "Tagline"),
-    heroHeadline: required("heroHeadline", "Homepage headline"),
-    heroBody: required("heroBody", "Homepage intro"),
     localSummary: required("localSummary", "Local pickup/delivery line"),
     noticeDays,
     shippingFlatCents: cents(formData, "shippingFlat", "Shipping price"),
