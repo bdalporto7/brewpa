@@ -50,7 +50,7 @@ export default async function OrderPage({ params }: { params: Promise<{ ref: str
         </dl>
         <p className="mt-4 text-sm text-muted">
           {order.fulfillment === "PICKUP"
-            ? `Pickup or local delivery in San Francisco, around ${order.pickupAt?.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Los_Angeles" })}.`
+            ? `Pickup or delivery, around ${order.pickupAt?.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Los_Angeles" })}.`
             : "Shipping to the address you gave Square."}
         </p>
       </div>

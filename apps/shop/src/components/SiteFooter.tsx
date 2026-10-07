@@ -16,7 +16,7 @@ export default async function SiteFooter() {
           )}
         </div>
         <div className="text-sm">
-          <p className="font-semibold">In San Francisco</p>
+          <p className="font-semibold">Pickup</p>
           <p className="mt-2 text-ink-band-muted">{s.localSummary}</p>
           <p className="mt-4 font-semibold">Shipping</p>
           <p className="mt-2 text-ink-band-muted">

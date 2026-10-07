@@ -23,7 +23,7 @@ function steps(s: SiteSettings) {
     },
     {
       title: "Pick it up or get it shipped",
-      body: `${s.localSummary}, or we ship it for ${formatCents(s.shippingFlatCents)}, free over ${formatCents(s.freeShippingOverCents)}.`,
+      body: `${s.localSummary}. Or we ship it for ${formatCents(s.shippingFlatCents)}, free over ${formatCents(s.freeShippingOverCents)}.`,
     },
   ];
 }
@@ -40,7 +40,7 @@ export default async function HomePage() {
             {settings.name}
           </h1>
           <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-muted">
-            Whole bean coffee by the bag, from a 4 oz sampler up to 5 lb. {settings.localSummary}, or we ship it.
+            Whole bean coffee by the bag, from a 4 oz sampler up to 5 lb. {settings.localSummary}. Or we can ship it.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link

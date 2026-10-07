@@ -6,7 +6,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   return {
     title: "Pickup & shipping",
-    description: `${s.localSummary}, or shipping for ${formatCents(s.shippingFlatCents)}, free over ${formatCents(s.freeShippingOverCents)}.`,
+    description: `${s.localSummary}. Or shipping for ${formatCents(s.shippingFlatCents)}, free over ${formatCents(s.freeShippingOverCents)}.`,
   };
 }
 
@@ -46,11 +46,12 @@ export default async function PickupShippingPage() {
 
       <div className="mt-10 grid gap-6 md:grid-cols-2">
         <section className={card}>
-          <h2 className="text-2xl font-bold">In San Francisco</h2>
+          <h2 className="text-2xl font-bold">Pickup</h2>
           <p className="mt-4 text-lg font-semibold">{s.localSummary}</p>
           <p className="mt-4 leading-relaxed text-muted">
-            Order and we&apos;ll get in touch to arrange a pickup or drop-off once your bag is ready. If we&apos;re
-            roasting it for you, allow {notice}.
+            We do pop-ups around the Bay Area, and you can also pick up from one of us or have us come to you. Order and
+            we&apos;ll get in touch to sort out the hand-off once your bag is ready. If we&apos;re roasting it for you,
+            allow {notice}.
           </p>
         </section>
 

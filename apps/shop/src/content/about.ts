@@ -8,11 +8,11 @@ export const ABOUT_FALLBACK = {
     { kind: "heading" as const, text: "How it started" },
     {
       kind: "paragraph" as const,
-      text: "We're Brandon and Karan. It began simply: trying new cafes around the city and chasing new flavors. Then it got out of hand. We got opinions about processing methods and varietals, started recognizing roasters by taste, and coffee went from part of the morning routine to the whole personality.",
+      text: "We're Brandon and Karan. It began simply: trying new cafes around the city and chasing new flavors. Then it got out of hand. We fell for processing methods and varietals, started recognizing roasters by taste, and coffee went from part of the morning routine to the whole personality.",
     },
     {
       kind: "paragraph" as const,
-      text: "Soon we were nerding out on brewing at home and hosting friends for a \"Coffee Omakase,\" where we pour what we're excited about and see what people think. Eventually somebody said, \"what if we served this to strangers?\" That's Cybar.",
+      text: "Soon we were nerding out on brewing at home and hosting friends for a \"Coffee Omakase,\" where we pour what we're excited about and see what people think. Eventually we decided to share our passion with the world. That's Cybar.",
     },
     { kind: "heading" as const, text: "Why we roast" },
     {
@@ -22,7 +22,7 @@ export const ABOUT_FALLBACK = {
     { kind: "heading" as const, text: "Where to find us" },
     {
       kind: "paragraph" as const,
-      text: "Mostly at pop-ups. The Presidio Golf Course is our main spot, and we've hosted events at Karan's place in the Inner Richmond too. Follow us on Instagram to see where we'll be next.",
+      text: "We do pop-ups around the Bay Area. Follow us on Instagram to see where we'll be next.",
     },
   ],
 };

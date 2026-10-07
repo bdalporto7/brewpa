@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(process.env.SHOP_BASE_URL ?? "http://localhost:3001"),
     title: { default: s.name, template: `%s | ${s.name}` },
-    description: `Whole bean coffee by the bag. ${s.localSummary}, or shipped anywhere in the US.`,
+    description: `Whole bean coffee by the bag. ${s.localSummary}. Or shipped anywhere in the US.`,
   };
 }
 

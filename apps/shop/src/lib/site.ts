@@ -24,7 +24,7 @@ export interface SiteSettings {
 }
 
 const DEFAULTS = {
-  localSummary: "Pickup or local delivery in San Francisco",
+  localSummary: "Pickup at a pop-up, from one of us, or we come to you",
   noticeDays: 2,
   shippingFlatCents: 600,
   freeShippingOverCents: 5000,

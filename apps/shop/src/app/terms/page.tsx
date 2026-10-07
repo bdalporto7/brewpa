@@ -35,7 +35,7 @@ export default async function TermsPage() {
 
       <h2>Pickup, local delivery and shipping</h2>
       <ul>
-        <li><strong>Pickup or local delivery in San Francisco:</strong> choose a preferred date at checkout (at least {s.noticeDays} days out). We&apos;ll contact you to arrange the exact time and place.</li>
+        <li><strong>Pickup or local delivery in the Bay Area:</strong> choose a preferred date at checkout (at least {s.noticeDays} days out). We&apos;ll contact you to arrange the exact time and place.</li>
         <li><strong>Shipping:</strong> {formatCents(s.shippingFlatCents)} flat rate within the US, free on orders over {formatCents(s.freeShippingOverCents)}. We ship after roasting. Delivery times depend on the carrier and are not guaranteed.</li>
         <li>Please give us an accurate address. If a package is returned because the address was wrong, we may charge you to reship it.</li>
       </ul>
