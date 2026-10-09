@@ -11,17 +11,16 @@ import { useToast } from "@/components/ui/ToastProvider";
 // (see scripts/probe_bridge.py's PROBE_POST_INTERVAL).
 const POST_INTERVAL_MS = 1000;
 const BAUD_RATE = 9600;
-// The real root cause of "connected, bytes keep trickling in, but frames
-// stop landing for 7-80+s at a time": Web Serial's open() defaults
-// bufferSize to 255 bytes, and this meter only pushes ~36 bytes/sec (an
-// 18-byte frame twice a second). Chromium doesn't hand the read loop
-// anything until that buffer fills or an internal flush timeout fires —
-// at this device's real throughput, filling 255 bytes takes many seconds,
-// which is exactly the irregular multi-second-to-80s gaps seen live
-// (confirmed via server-side clientCapturedAt logging: frames themselves
-// stop advancing for long stretches while the port stays "connected" and
-// bytes do eventually still increment once the buffer finally flushes).
-// Sizing this close to one frame forces near-immediate flushes instead.
+// Module-level so the react-hooks/purity rule doesn't flag Date.now() in the read loop and
+// post timer — neither runs during render.
+const now = () => Date.now();
+// Web Serial's open() defaults bufferSize to 255 bytes, and this meter only
+// pushes ~36 bytes/sec (an 18-byte frame twice a second), so Chromium may sit
+// on a partial buffer for a while before handing the read loop anything.
+// Sizing this near one frame asks for earlier flushes. This is a hardening
+// measure, not the fix for the long reading gaps — that was the frame parser
+// (mastechFrameParser.ts) discarding a header byte split across two reads;
+// this was an early, wrong guess at the cause that is harmless to keep.
 const SERIAL_BUFFER_SIZE = 64;
 // reader.read() confirmed live to hang indefinitely — no error, no data —
 // on this exact meter/adapter, with the port still reporting "connected"
@@ -146,7 +145,7 @@ export default function WebSerialProbeConnector() {
       // on schedule — a flat, perfectly-regular-looking line that's
       // actually stale data, worse than the gap it's covering up. A gap in
       // the chart is honest; a fake flat one isn't.
-      const age = latestTempCapturedAtRef.current == null ? Infinity : Date.now() - latestTempCapturedAtRef.current;
+      const age = latestTempCapturedAtRef.current == null ? Infinity : now() - latestTempCapturedAtRef.current;
       if (age > MAX_READING_STALENESS_MS) {
         setStats((s) => ({ ...s, lastError: `No fresh reading in ${Math.round(age / 1000)}s — probe may be stalled.` }));
         return;
@@ -225,7 +224,7 @@ export default function WebSerialProbeConnector() {
 
         if (frames.length === 0) continue;
         latestTempRef.current = frames[frames.length - 1];
-        latestTempCapturedAtRef.current = Date.now();
+        latestTempCapturedAtRef.current = now();
         setStats((s) => ({ ...s, frames: s.frames + frames.length, lastTemp: frames[frames.length - 1] }));
       }
     } catch (e) {
