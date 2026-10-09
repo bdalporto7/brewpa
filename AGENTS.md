@@ -763,34 +763,30 @@ Unknown field` or similar until you restart.
 ## Online shop (`apps/shop`, built 2026-10)
 
 A public storefront for selling roasted coffee, its own Vercel project
-(`cybar-shop`) on the same Turso database; `apps/roasting` still owns the
-schema. Admins control what's sold from the roasting app's **Shop** tab
-(`/shop`: listings, order, site settings; `/shop/orders`: fulfilment) and each
-bean's "Online shop" card. Payments go through **Square payment links**
-(sandbox until `SQUARE_ENVIRONMENT=production`); our database stays the
-inventory source of truth. How an order flows, env vars and what's not built
-yet are in `apps/shop/README.md`. Things worth knowing before touching it:
+(`cybar-shop`) on the same Turso database. **The shop is managed entirely from
+its own `/admin` and from Square — `apps/roasting` has no shop UI or code any
+more** (its Shop tab, per-bean listing card, Square sync, order-fulfilment page
+and dashboard backlog banner were removed 2026-10). `apps/roasting` still owns
+the *schema*, including the shop tables (`BeanListing`, `ListingVariant`,
+`ShopOrder`, `ShopOrderItem`, `ShopSettings`, `Sale.shopOrderItemId`): `apps/shop`
+copies `schema.prisma` at install time (`npm run sync-schema` there), so change
+the schema in roasting and re-sync, never edit the copy. How an order flows, env
+vars and what's not built yet are in `apps/shop/README.md`. Things worth knowing
+before touching it:
 
-- **Stock is mixed:** sellable grams = roasted stock + green stock × the bean's
-  own historical roast yield (0.85 fallback). `shop-stock.ts` exists in both
-  apps — keep the copies in sync.
-- **Paid = stock taken.** The webhook (`payment.updated`) takes roasted grams
-  out oldest-roast-first as real `Sale` rows (`Sale.shopOrderItemId`), then
-  green for the remainder, in one transaction; shortfalls flag the order
-  NEEDS_ATTENTION rather than failing (the money is already taken).
-- **Direction (2026-10): Square holds stock and product content.** With
-  `SHOP_SOURCE=square` the shop reads Square's catalog and inventory and Square
-  subtracts bags itself; do not also draw stock in the webhook. The gram-based
-  paths below remain only until cutover. See "Square as the source of truth"
-  in `apps/shop/README.md`.
-- **Roast backlog:** paid roast-to-order items hold green coffee aside; marking
-  the order Ready swaps that for real roasted stock
-  (`apps/roasting/src/lib/shop-fulfilment.ts`). See "Roast backlog" in
-  `apps/shop/README.md`.
-- **Pop-up sales:** listings are mirrored into Square's catalog by
-  `apps/roasting/src/lib/square-sync.ts` (on every listing save, plus a button
-  on `/shop`); the shop webhook draws register sales out of roasted stock. See
-  "Pop-up (register) sales" in `apps/shop/README.md`.
+- **Square holds stock and product content** (production runs with
+  `SHOP_SOURCE=square`). Square subtracts bags itself for both online and
+  register sales — verified in the sandbox — so the webhook must NOT also draw
+  stock. Stock is pooled in ounces via Square's stock conversion; coffees, sizes,
+  prices, photos and details are edited in `apps/shop`'s `/admin/coffees` or in
+  Square. See "Square as the source of truth" in `apps/shop/README.md`.
+- **The older database-backed mode is effectively retired.** With
+  `SHOP_SOURCE` unset the shop reads `BeanListing`/`ListingVariant` and draws
+  grams out of roasted/green stock in `src/lib/allocate.ts`, but those listings
+  were edited from the removed roasting-app UI, so nothing can create or edit
+  them now. That code in `apps/shop`, and those models, are candidates for a
+  later cleanup (a coordinated shop change plus a migration applied to Turso —
+  not done yet).
 - **Square can't let a buyer pick pickup vs shipping**, so the cart asks first
   and each payment link carries exactly one fulfillment. Don't combine
   `prePopulatedData` buyer fields with a fulfillment recipient — Square
@@ -798,6 +794,9 @@ yet are in `apps/shop/README.md`. Things worth knowing before touching it:
 - **Secret Vercel env vars can't be read back.** A pasted token that looked
   right produced 401s in production; re-setting it from the working local
   value and redeploying fixed it. Env changes need a new deployment.
+- **The roasting project no longer needs any `SQUARE_*` env vars** (it had
+  sandbox ones for the removed sync); they can be deleted from its Vercel
+  environment.
 - **Tested end to end in the sandbox** (pickup and shipping orders, replayed
   and forged webhooks); test data was removed afterwards. Tax is not applied
   (whole-bean coffee is believed exempt in California — confirm with an

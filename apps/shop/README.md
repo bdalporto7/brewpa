@@ -42,15 +42,18 @@ cancellation once roasted, California governing law) are the owner's to confirm.
 Instagram. If analytics or other trackers are added, add a consent banner and
 update `/privacy`.
 
-## What the team controls (from the roasting app)
+## What the team controls
 
-- `/shop` in the roasting app: which coffees are listed and their order, plus
-  site settings (announcement, homepage and About copy, pickup/local text,
-  notice days, shipping price and free-shipping threshold).
-- Each bean's page has an "Online shop" card for that coffee's headline,
-  description, roast style, bag sizes and prices.
-- `/shop/orders` in the roasting app: paid online orders, what needs roasting,
-  and Paid → Ready → Fulfilled.
+Everything is done in this app's `/admin` (above) and in Square itself. The
+roasting app has no shop UI any more — its Shop tab, per-bean "Online shop" card,
+Square sync, order fulfilment page and dashboard backlog banner were removed
+(2026-10) once the live site moved to Square as the source of truth. It still
+owns the database schema, including the shop tables this app uses.
+
+Consequence: the older database-backed listings (`BeanListing` / `ListingVariant`,
+used when `SHOP_SOURCE` is not `square`) can no longer be created or edited
+anywhere, so that mode is effectively retired; its code in this app is a candidate
+for removal.
 
 ## How an order flows
 
@@ -68,9 +71,6 @@ update `/privacy`.
    `Sale` rows tied to the order), the rest from green stock at the bean's
    historical roast yield. If stock ran out in between, the order is still
    PAID but flagged NEEDS_ATTENTION.
-
-Stock math (`src/lib/shop-stock.ts`) is a copy of the one in `apps/roasting`;
-keep them in sync.
 
 ## Environment
 
@@ -133,31 +133,16 @@ holds the cafe menu and wholesale items. Going live = copy the `.env.live` value
 Vercel (replacing the sandbox ones), set `SHOP_SOURCE=square`, redeploy, add stock,
 and show the coffees.
 
-## Roast backlog
+## Roast backlog and pop-up sales (removed)
 
-A roast-to-order bag sets its green coffee aside at payment (`gramsToRoast` on
-the order item) so the shop can't oversell it. `/shop/orders` in the roasting
-app lists that as the roast backlog (per coffee: orders waiting, roasted grams,
-green to load, earliest due date), and the dashboard shows a banner while any
-exist. Roast the coffee normally and log its roasted weight; then **Mark ready**
-on the order (`src/lib/shop-fulfilment.ts` in roasting) gives the set-aside green
-back and takes the same grams out of the new roasted stock as `Sale` rows on the
-order. It refuses, saying how much is missing, if that roasted weight isn't in
-stock yet. Without this handoff, roasting the coffee normally would take the
-green twice.
-
-## Pop-up (register) sales
-
-`apps/roasting` copies each listed coffee into Square's catalog (one item, one
-variation per bag size, SKU = our `ListingVariant.id`) every time a listing is
-saved, and from the "Sync to Square register" button on its `/shop` page
-(`src/lib/square-sync.ts` there). Unlisting a coffee removes it from Square.
-When a register payment completes, the webhook sees an order that isn't one of
-ours, fetches it from Square, and takes the matching grams out of roasted
-stock (oldest roast first, recorded as `Sale` rows). Register sales never
-roast to order, and non-coffee lines (drinks, merch) are ignored. The roasting
-project therefore also needs `SQUARE_ACCESS_TOKEN`, `SQUARE_ENVIRONMENT` and
-`SQUARE_LOCATION_ID`.
+These were the roasting-app halves of the gram-based model: a roast-to-order
+backlog page with a "Mark ready" handoff (`shop-fulfilment.ts`), and a mirror of
+each listing into Square's catalog for register sales (`square-sync.ts`). Both are
+gone with the roasting app's shop code. In Square mode, Square holds the stock and
+subtracts it itself for online and register sales alike (see "Square as the source
+of truth"), orders are handled in this app's `/admin/orders`, and the roasting
+project no longer needs `SQUARE_ACCESS_TOKEN`, `SQUARE_ENVIRONMENT` or
+`SQUARE_LOCATION_ID` (they can be removed from its Vercel environment).
 
 ## Not built yet
 

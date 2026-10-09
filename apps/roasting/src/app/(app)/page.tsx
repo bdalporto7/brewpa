@@ -33,7 +33,7 @@ export default async function DashboardPage() {
   // unfiltered bean.findMany already fetching every scalar field), and
   // recentSessions is just the first 5 of endedSessions once that query
   // also selects bean/startedAt instead of a narrower stats-only shape.
-  const [activeSession, endedSessions, roastsThisMonth, beansWithRoasts, activeDrops, ordersToRoast] = await Promise.all([
+  const [activeSession, endedSessions, roastsThisMonth, beansWithRoasts, activeDrops] = await Promise.all([
     prisma.roastSession.findFirst({ where: { endedAt: null, teamId: user.teamId }, include: { bean: true } }),
     prisma.roastSession.findMany({
       where: { endedAt: { not: null }, teamId: user.teamId },
@@ -64,9 +64,6 @@ export default async function DashboardPage() {
       where: { closedAt: null, teamId: user.teamId },
       include: { items: { include: { bean: true } }, orders: true },
       orderBy: { createdAt: "desc" },
-    }),
-    prisma.shopOrder.count({
-      where: { teamId: user.teamId, status: { in: ["PAID", "NEEDS_ATTENTION"] }, items: { some: { gramsToRoast: { gt: 0 } } } },
     }),
   ]);
 
@@ -146,18 +143,6 @@ export default async function DashboardPage() {
             <Button>{isPending ? "Finish setup" : "Open live log"}</Button>
           </Link>
         </div>
-      )}
-
-      {ordersToRoast > 0 && (
-        <Link
-          href="/shop/orders"
-          className="flex items-center justify-between rounded-lg border-2 border-[var(--border-strong)] bg-surface px-4 py-3 font-semibold shadow-[2px_2px_0_var(--shadow-ink)]"
-        >
-          <span>
-            {ordersToRoast} online {ordersToRoast === 1 ? "order is" : "orders are"} waiting on a roast
-          </span>
-          <span className="text-sm text-muted underline underline-offset-4">See the backlog</span>
-        </Link>
       )}
 
       <div className="relative">

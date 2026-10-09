@@ -21,8 +21,7 @@
     "next-auth": "^5.0.0-beta.32",
     "prisma": "^6.19.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "square": "^46.0.0"
+    "react-dom": "19.2.8"
   },
   "overrides": {
     "@prisma/adapter-libsql": {

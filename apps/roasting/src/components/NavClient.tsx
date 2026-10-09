@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Home, Gift, BookOpen, Shield, LogOut, Store } from "lucide-react";
+import { Flame, Home, Gift, BookOpen, Shield, LogOut } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
 import { BrewedCupIcon, GreenBeanIcon } from "@/components/ui/CoffeeIcons";
 import CybarMark from "@/components/ui/CybarMark";
@@ -20,8 +20,6 @@ const ROASTING_LINKS = [
   { href: "/roasts", label: "Roasts", icon: Flame },
   { href: "/profiles", label: "Profiles", icon: BookOpen },
   { href: "/friends", label: "Drops", icon: Gift },
-  // Manages the public storefront (apps/shop): what's listed, order, and site settings.
-  { href: "/shop", label: "Shop", icon: Store },
 ] as const;
 
 const BREWING_LINKS = [

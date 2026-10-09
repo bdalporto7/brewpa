@@ -833,8 +833,11 @@ model SupplierExtractionCall {
 // ─── Online shop (apps/shop) ────────────────────────────────────────────────
 // apps/shop is a separate public storefront that reads this same database;
 // this app (apps/roasting) owns the schema and every migration. Square is the
-// payment/order system of record; THIS database is the inventory system of
-// record (Square inventory tracking stays off) — see src/lib/shop-stock.ts.
+// payment/order system of record. These models are only read and written by
+// apps/shop now (the roasting app no longer has any shop UI or code); they stay
+// here because this app owns the schema. In the live "Square as source of
+// truth" mode (SHOP_SOURCE=square) Square holds stock and product content —
+// the listing/variant models are the older database-backed mode.
 
 // A bean's public shop listing. Kept off Bean itself so the many existing
 // Bean reads/writes don't change, and so an unlisted bean simply has no row
@@ -919,7 +922,8 @@ model ShopOrder {
 // One line of a ShopOrder. A copy of what was bought at checkout time
 // (label/grams/price), not a live link to ListingVariant, so editing or
 // deleting a variant later never rewrites a past order. gramsFromRoasted /
-// gramsToRoast are filled in when the order is paid (see shop-stock.ts).
+// gramsToRoast are filled in when the order is paid by the older
+// database-backed stock path (apps/shop/src/lib/allocate.ts).
 model ShopOrderItem {
   id               String    @id @default(cuid())
   orderId          String
