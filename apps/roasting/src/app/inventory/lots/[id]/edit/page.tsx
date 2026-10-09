@@ -15,7 +15,7 @@ export default async function EditLotPage({ params }: { params: Promise<{ id: st
         <Link href={`/inventory/lots/${lot.id}`} className="text-sm text-muted hover:text-foreground">
           ← {lot.name}
         </Link>
-        <h2 className="mt-1 text-3xl font-semibold tracking-tight">Edit lot</h2>
+        <h2 className="mt-1 text-2xl font-bold tracking-tight">Edit lot</h2>
       </div>
       <LotForm initial={lot} action={updateLot.bind(null, lot.id)} submitLabel="Save changes" />
     </div>

@@ -26,7 +26,7 @@ export default async function PlanPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="text-3xl font-semibold tracking-tight">Plan</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Plan</h2>
         <p className="mt-1 text-sm text-muted">
           Monthly roast targets. Plans are commitments — they never move stock by themselves.
         </p>

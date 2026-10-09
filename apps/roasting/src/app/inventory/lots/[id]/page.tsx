@@ -36,7 +36,7 @@ export default async function LotDetailPage({ params }: { params: Promise<{ id: 
           <Link href="/inventory/lots" className="text-sm text-muted hover:text-foreground">
             ← Lots
           </Link>
-          <h2 className="mt-1 text-3xl font-semibold tracking-tight">{lot.name}</h2>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight">{lot.name}</h2>
           <p className="mt-1 text-sm text-muted">
             {[lot.origin, lot.process, lot.producer, lot.variety].filter(Boolean).join(" · ")}
           </p>

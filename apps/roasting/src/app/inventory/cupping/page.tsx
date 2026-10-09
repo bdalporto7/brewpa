@@ -19,7 +19,7 @@ export default async function CuppingPage({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="text-3xl font-semibold tracking-tight">Cupping</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Cupping</h2>
         <p className="mt-1 text-sm text-muted">
           Tasting notes on green lots — arrival samples and pre-roast checks.
         </p>

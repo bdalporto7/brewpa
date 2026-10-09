@@ -19,8 +19,6 @@ export { formatCurrency } from "@/lib/format";
 export const INVENTORY_WIDGETS = [
   { key: "stats", label: "Totals" },
   { key: "alerts", label: "Needs attention" },
-  { key: "runway", label: "Runway" },
-  { key: "leads", label: "Lead follow-ups" },
   { key: "lots", label: "Your lots" },
   { key: "roasts", label: "Recent roasts" },
   { key: "plan", label: "This month's plan" },

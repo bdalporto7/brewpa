@@ -7,7 +7,7 @@ export default async function CostsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-3xl font-semibold tracking-tight">True cost</h2>
+        <h2 className="text-2xl font-bold tracking-tight">True cost</h2>
         <p className="mt-1 text-sm text-muted">What one filled bag really costs, per lot.</p>
       </div>
       <CostsClient

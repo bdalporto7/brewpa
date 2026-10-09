@@ -13,7 +13,7 @@ export default async function LotsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-semibold tracking-tight">Lots</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Lots</h2>
           <p className="mt-1 text-sm text-muted">
             {lots.length} lot{lots.length === 1 ? "" : "s"} · oldest first, so you roast FIFO.
           </p>
