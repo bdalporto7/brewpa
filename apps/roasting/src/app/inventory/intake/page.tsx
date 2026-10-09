@@ -11,7 +11,7 @@ export default async function IntakePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Intake</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">Intake</h2>
         <p className="mt-1 text-sm text-muted">Add a new lot — by hand, from a receipt, or from a supplier page.</p>
       </div>
       <IntakeTabs

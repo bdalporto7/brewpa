@@ -803,6 +803,32 @@ yet are in `apps/shop/README.md`. Things worth knowing before touching it:
   (whole-bean coffee is believed exempt in California — confirm with an
   accountant before launch).
 
+## Inventory: runway & sales leads (2026-10)
+
+`apps/roasting/src/app/inventory` is the canonical green-coffee inventory UI.
+The standalone `bdalporto7/green-coffee-inventory` repo/Vercel project was a
+stale, sed-mangled copy of it (no `AUTH_SECRET`, `//lots` revalidate paths,
+schema 160 lines behind) and is to be retired, not maintained.
+
+- **Own look, on purpose.** Inventory is deliberately *not* Cybar "Kraft & Ink":
+  `src/app/inventory/inventory.css` re-points the shared tokens under `.inv`
+  (the layout's `<body>`) to a modern dark/light glass theme, so nothing leaks
+  into the roaster. Shared primitives (Card, Button) pick it up via variables;
+  the few rules that beat hard-coded grain/stamp shadows are in that file.
+- **Runway** (`/inventory/runway`, `inventory-connector/runway.ts`, pure):
+  per lot, free green = on hand minus green earmarked for *won* leads; cover =
+  free ÷ 90-day burn; order-by = stock-out minus lead time. Open leads are
+  shown separately as soft demand. Nothing is stored.
+- **Leads** (`Lead`, `LeadUpdate`, `LeadAllocation`, migration
+  `add_sales_leads`): an allocation earmarks *roasted* grams of a lot; green is
+  derived via the lot's measured loss. Allocating never moves stock. Won =
+  firm, open = soft, lost/delivered = none (`allocationWeight` in `leads.ts`).
+- **Before pushing:** the migration must be applied to Turso too (see the
+  2026-09-15 incident above) — it's additive (3 tables, no ALTER/DROP).
+- Local testing without touching prod: `.env` points at Turso and Next reloads
+  it, so set `TURSO_DATABASE_URL=file:...` (not just unset) when running a
+  sandbox. `next dev` also rewrites `apps/roasting/AGENTS.md` — `git checkout` it.
+
 ## Brewing
 
 Added 2026-08 as a second side of the app alongside roasting — `Recipe` and

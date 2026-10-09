@@ -15,6 +15,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/admin";
@@ -29,6 +30,13 @@ import { parseControls } from "@/lib/roasters";
 import { extractReceiptInfo, extractLotDetails, type ReceiptInfo, type LotDetails } from "./extract";
 import { INVENTORY_WIDGETS } from "./queries";
 import { WEIGHT_UNITS, toGrams, type WeightUnit } from "./math";
+import {
+  LEAD_STATUSES,
+  LEAD_STATUS_LABELS,
+  isLeadStatus,
+  isLeadUpdateKind,
+  type LeadStatus,
+} from "@/lib/leads";
 
 const INVENTORY_PATHS = [
   "/inventory",
@@ -39,6 +47,8 @@ const INVENTORY_PATHS = [
   "/inventory/blends",
   "/inventory/cupping",
   "/inventory/costs",
+  "/inventory/runway",
+  "/inventory/leads",
 ];
 
 function revalidateInventory() {
@@ -822,4 +832,155 @@ export async function setWidgetPrefs(formData: FormData) {
   });
 
   revalidatePath("/inventory");
+}
+
+
+// --- Sales leads -------------------------------------------------------------
+
+function leadPaths(id?: string) {
+  revalidatePath("/inventory");
+  revalidatePath("/inventory/leads");
+  revalidatePath("/inventory/runway");
+  if (id) revalidatePath(`/inventory/leads/${id}`);
+}
+
+/** A lead the current team owns — every lead action goes through this, never trusting an id from the client. */
+async function ownedLead(id: string, teamId: string) {
+  return prisma.lead.findFirstOrThrow({ where: { id, teamId } });
+}
+
+function leadFields(formData: FormData) {
+  const name = str(formData, "name");
+  if (!name) throw new Error("A lead needs a name.");
+  const value = num(formData, "estimatedValue");
+  if (value !== null && value < 0) throw new Error("Estimated value can't be negative.");
+  const followUp = str(formData, "nextFollowUpAt");
+  return {
+    name,
+    company: str(formData, "company"),
+    email: str(formData, "email"),
+    phone: str(formData, "phone"),
+    source: str(formData, "source"),
+    notes: str(formData, "notes"),
+    estimatedValueCents: value === null ? null : Math.round(value * 100),
+    // A date input is "YYYY-MM-DD"; the bare T00:00 forces local midnight
+    // (a bare date parses as UTC and shows up a day early — see the cupping note gotcha in AGENTS.md).
+    nextFollowUpAt: followUp ? new Date(`${followUp}T00:00`) : null,
+  };
+}
+
+export async function createLead(formData: FormData) {
+  const user = await requireUser();
+  const status = str(formData, "status") ?? "new";
+  if (!isLeadStatus(status)) throw new Error(`Status must be one of: ${LEAD_STATUSES.join(", ")}.`);
+  const lead = await prisma.lead.create({
+    data: {
+      ...leadFields(formData),
+      status,
+      closedAt: status === "won" || status === "lost" ? new Date() : null,
+      teamId: user.teamId,
+    },
+  });
+  leadPaths();
+  redirect(`/inventory/leads/${lead.id}`);
+}
+
+export async function updateLead(id: string, formData: FormData) {
+  const user = await requireUser();
+  await ownedLead(id, user.teamId);
+  await prisma.lead.update({ where: { id }, data: leadFields(formData) });
+  leadPaths(id);
+}
+
+export async function setLeadStatus(id: string, status: string) {
+  const user = await requireUser();
+  const lead = await ownedLead(id, user.teamId);
+  if (!isLeadStatus(status)) throw new Error(`Status must be one of: ${LEAD_STATUSES.join(", ")}.`);
+  if (lead.status === status) return;
+  const closed = status === "won" || status === "lost";
+  await prisma.$transaction([
+    prisma.lead.update({ where: { id }, data: { status, closedAt: closed ? new Date() : null } }),
+    prisma.leadUpdate.create({
+      data: {
+        leadId: id,
+        kind: "status",
+        body: `${LEAD_STATUS_LABELS[lead.status as LeadStatus] ?? lead.status} → ${LEAD_STATUS_LABELS[status]}`,
+      },
+    }),
+  ]);
+  leadPaths(id);
+}
+
+export async function deleteLead(id: string) {
+  const user = await requireUser();
+  await ownedLead(id, user.teamId);
+  // Allocations and updates cascade; no stock was ever moved by a lead, so nothing to restore.
+  await prisma.lead.delete({ where: { id } });
+  leadPaths();
+  redirect("/inventory/leads");
+}
+
+export async function addLeadUpdate(leadId: string, formData: FormData) {
+  const user = await requireUser();
+  await ownedLead(leadId, user.teamId);
+  const body = str(formData, "body");
+  if (!body) throw new Error("Write something to log.");
+  const kind = str(formData, "kind") ?? "note";
+  if (!isLeadUpdateKind(kind) || kind === "status") throw new Error("Pick a valid update type.");
+  // Optionally move the follow-up date in the same step — the natural
+  // moment to set "talk again on…" is right after logging a call.
+  const followUp = str(formData, "nextFollowUpAt");
+  await prisma.$transaction([
+    prisma.leadUpdate.create({ data: { leadId, kind, body } }),
+    prisma.lead.update({
+      where: { id: leadId },
+      data: followUp ? { nextFollowUpAt: new Date(`${followUp}T00:00`) } : { updatedAt: new Date() },
+    }),
+  ]);
+  leadPaths(leadId);
+}
+
+export async function deleteLeadUpdate(leadId: string, updateId: string) {
+  const user = await requireUser();
+  await ownedLead(leadId, user.teamId);
+  await prisma.leadUpdate.deleteMany({ where: { id: updateId, leadId } });
+  leadPaths(leadId);
+}
+
+export async function addLeadAllocation(leadId: string, formData: FormData) {
+  const user = await requireUser();
+  await ownedLead(leadId, user.teamId);
+  const beanId = str(formData, "beanId");
+  if (!beanId) throw new Error("Pick a lot.");
+  await prisma.bean.findFirstOrThrow({ where: { id: beanId, teamId: user.teamId } });
+  const amount = num(formData, "roastedAmount");
+  if (amount === null || amount <= 0) throw new Error("Roasted amount must be greater than zero.");
+  const unit = (str(formData, "roastedAmountUnit") ?? "g") as WeightUnit;
+  if (!WEIGHT_UNITS.includes(unit)) throw new Error("Unknown weight unit.");
+  await prisma.leadAllocation.create({
+    data: { leadId, beanId, roastedGrams: toGrams(amount, unit), notes: str(formData, "notes") },
+  });
+  leadPaths(leadId);
+}
+
+export async function removeLeadAllocation(leadId: string, allocationId: string) {
+  const user = await requireUser();
+  await ownedLead(leadId, user.teamId);
+  await prisma.leadAllocation.deleteMany({ where: { id: allocationId, leadId } });
+  leadPaths(leadId);
+}
+
+/**
+ * Marks an allocation delivered (or un-delivers it). Doesn't touch stock:
+ * the roast and the sale/brew that actually hand the coffee over already
+ * move it, and this just stops the allocation counting as demand.
+ */
+export async function setAllocationFulfilled(leadId: string, allocationId: string, fulfilled: boolean) {
+  const user = await requireUser();
+  await ownedLead(leadId, user.teamId);
+  await prisma.leadAllocation.updateMany({
+    where: { id: allocationId, leadId },
+    data: { fulfilledAt: fulfilled ? new Date() : null },
+  });
+  leadPaths(leadId);
 }

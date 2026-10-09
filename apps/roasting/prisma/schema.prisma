@@ -89,6 +89,7 @@ model Bean {
   dropOrderItems  DropOrderItem[]
   shopListing     BeanListing?
   shopOrderItems  ShopOrderItem[]
+  leadAllocations LeadAllocation[]
   // Brews live on RoastSession, not here, since roasted stock (what a brew
   // actually draws down) is tracked per roast, not per bean — see Brew.
 
@@ -725,6 +726,7 @@ model Team {
   shopSettings         ShopSettings?
   shopOrders           ShopOrder[]
   inventoryWidgetPrefs InventoryWidgetPrefs?
+  leads                Lead[]
 }
 
 // Dashboard widget visibility for the inventory app — which widgets the
@@ -977,4 +979,69 @@ model ShopSettings {
   // Paragraphs separated by blank lines. A line starting with "## " is a heading.
   aboutBody             String?
   updatedAt             DateTime @updatedAt
+}
+
+// A sales lead — a potential buyer (café, restaurant, office, a friend of a
+// friend) who might want roasted coffee. Team-scoped like Bean. `status`
+// is a plain string validated in lead-actions.ts (LEAD_STATUSES), not a
+// Prisma enum, matching how ProductionPlan.status works. A lead's
+// allocations earmark roasted grams of specific lots for it; they never
+// move stock themselves (roasting does that) — see LeadAllocation.
+model Lead {
+  id                  String    @id @default(cuid())
+  name                String
+  company             String?
+  email               String?
+  phone               String?
+  status              String    @default("new")
+  source              String?
+  estimatedValueCents Int?
+  nextFollowUpAt      DateTime?
+  notes               String?
+  // Set when status moves to won/lost, cleared if it re-opens.
+  closedAt            DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  updates     LeadUpdate[]
+  allocations LeadAllocation[]
+
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+}
+
+// One entry in a lead's timeline: a note, call, email, meeting, sample
+// sent, or an automatic status-change record.
+model LeadUpdate {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  kind      String   @default("note")
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+// Roasted grams of one lot earmarked for a lead. The green coffee needed is
+// derived at read time from the lot's measured roast yield, not stored, so
+// it stays right as more roasts of that lot are logged. Counts as soft
+// demand while the lead is open, firm demand once it's won, and nothing
+// once the lead is lost or `fulfilledAt` is set (the real roast/sale then
+// moves the stock). Allocating never changes Bean.remainingGrams.
+model LeadAllocation {
+  id           String    @id @default(cuid())
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  beanId       String
+  bean         Bean      @relation(fields: [beanId], references: [id], onDelete: Cascade)
+  roastedGrams Float
+  notes        String?
+  fulfilledAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([beanId])
 }

@@ -9,10 +9,14 @@ import {
   getPlans,
   getRoastedInMonth,
   getWidgetPrefs,
+  getRunway,
+  getLeads,
+  OPEN_STATUSES,
   formatPlanMonth,
   formatCurrency,
   type InventoryWidgetKey,
 } from "@/lib/inventory-connector/queries";
+import { followUpLabel } from "@/lib/leadFormat";
 import {
   beanAlerts,
   fifoOrder,
@@ -32,12 +36,22 @@ function SectionLink({ href, children }: { href: string; children: React.ReactNo
 }
 
 export default async function InventoryDashboard() {
-  const [lots, recentRoasts, plans, hidden] = await Promise.all([
+  const [lots, recentRoasts, plans, hidden, runway, leads] = await Promise.all([
     getInventoryLots(),
     getRecentRoasts(6),
     getPlans(),
     getWidgetPrefs(),
+    getRunway(),
+    getLeads(),
   ]);
+
+  const runwayWatch = runway.filter((r) => r.state === "order-now" || r.state === "order-soon").slice(0, 4);
+  const followUps = leads
+    .filter((l) => (OPEN_STATUSES as readonly string[]).includes(l.status) && l.nextFollowUpAt)
+    .sort((a, b) => a.nextFollowUpAt!.getTime() - b.nextFollowUpAt!.getTime())
+    .map((lead) => ({ lead, label: followUpLabel(lead.nextFollowUpAt)! }))
+    .filter(({ label }) => label.overdue || label.text.startsWith("Follow up today") || label.text.includes("tomorrow"))
+    .slice(0, 4);
 
   const hiddenSet = new Set<string>(hidden);
   const show = (key: InventoryWidgetKey) => !hiddenSet.has(key);
@@ -72,7 +86,7 @@ export default async function InventoryDashboard() {
     <div className="flex flex-col gap-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+          <h2 className="text-3xl font-semibold tracking-tight">Dashboard</h2>
           <p className="mt-1 text-sm text-muted">Your green coffee at a glance.</p>
         </div>
         <WidgetPrefsForm hidden={hidden} />
@@ -118,6 +132,56 @@ export default async function InventoryDashboard() {
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {show("runway") && runwayWatch.length > 0 && (
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <Eyebrow>Runway</Eyebrow>
+            <SectionLink href="/inventory/runway">All lots →</SectionLink>
+          </div>
+          <Card interactive={false} className="divide-y divide-[var(--border)]">
+            {runwayWatch.map((r) => (
+              <Link
+                key={r.lot.id}
+                href="/inventory/runway"
+                className="flex items-center justify-between gap-3 px-4 py-2.5 transition hover:bg-accent-soft/50"
+              >
+                <span className="text-sm font-medium">{r.lot.name}</span>
+                <span className={`text-sm ${r.state === "order-now" ? "font-medium text-danger" : "text-muted"}`}>
+                  {r.state === "order-now" ? "Order now" : "Order soon"}
+                  {r.daysOfCover != null && ` · ${Math.max(0, Math.round(r.daysOfCover))}d left`}
+                </span>
+              </Link>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      {show("leads") && followUps.length > 0 && (
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <Eyebrow>Lead follow-ups</Eyebrow>
+            <SectionLink href="/inventory/leads">All leads →</SectionLink>
+          </div>
+          <Card interactive={false} className="divide-y divide-[var(--border)]">
+            {followUps.map(({ lead, label }) => (
+              <Link
+                key={lead.id}
+                href={`/inventory/leads/${lead.id}`}
+                className="flex items-center justify-between gap-3 px-4 py-2.5 transition hover:bg-accent-soft/50"
+              >
+                <span className="min-w-0 truncate text-sm font-medium">
+                  {lead.name}
+                  {lead.company && <span className="font-normal text-muted"> · {lead.company}</span>}
+                </span>
+                <span className={`shrink-0 text-sm ${label.overdue ? "font-medium text-danger" : "text-muted"}`}>
+                  {label.text.replace("Follow up ", "")}
+                </span>
+              </Link>
+            ))}
+          </Card>
         </section>
       )}
 

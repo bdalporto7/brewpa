@@ -41,7 +41,7 @@ export default async function RoastsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Roasts</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">Roasts</h2>
         <p className="mt-1 text-sm text-muted">
           Log a roast after the fact — green is deducted from the lot immediately.
         </p>
